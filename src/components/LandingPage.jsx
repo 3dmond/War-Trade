@@ -241,11 +241,11 @@ export default function LandingPage({
       isDarkMode ? 'bg-[#131722] text-slate-100' : 'bg-white text-slate-900'
     }`}>
       
-      {/* Header: Pure War Era Market with Dark Mode Toggle - NO bottom border */}
+      {/* Header: Pure War Trade with Dark Mode Toggle - NO bottom border */}
       <header className="w-full px-4 sm:px-10 h-14 flex items-center justify-between shrink-0 select-none">
         <div className="flex items-center">
           <span className={`font-extrabold tracking-tight text-lg ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>
-            War Era Market
+            War Trade
           </span>
         </div>
 

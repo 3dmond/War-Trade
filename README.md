@@ -1,8 +1,8 @@
-# WarEra Market 📊
+# War Trade 📊
 
 > **The Advanced Financial Trading Terminal for WarEra**
 
-WarEra Market is a TradingView-grade financial terminal and market intelligence engine designed specifically for the WarEra economy.
+War Trade is a TradingView-grade financial terminal and market intelligence engine designed specifically for the WarEra economy.
 
 ---
 

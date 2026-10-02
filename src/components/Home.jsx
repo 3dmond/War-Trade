@@ -288,7 +288,7 @@ export default function Home({
               onClick={() => onNavigate('market')}
               className="text-zinc-200 hover:text-white font-medium underline underline-offset-4"
             >
-              Open WarEra Market Terminal →
+              Open War Trade Terminal →
             </button>
           </div>
         </div>

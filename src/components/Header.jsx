@@ -14,7 +14,7 @@ export default function Header({
           {/* Logo */}
           <div className="flex items-center select-none">
             <span className="font-extrabold tracking-tight text-slate-900 text-lg font-sans">
-              War Era Market
+              War Trade
             </span>
           </div>
 
