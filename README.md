@@ -1,8 +1,8 @@
-# EcoEra 📊
+# WarEra Market 📊
 
-> **The Advanced Economic & Financial Trading Terminal for WarEra**
+> **The Advanced Financial Trading Terminal for WarEra**
 
-EcoEra is a TradingView-grade financial terminal, market intelligence, and economic scenario engine designed specifically for the WarEra economy.
+WarEra Market is a TradingView-grade financial terminal and market intelligence engine designed specifically for the WarEra economy.
 
 ---
 

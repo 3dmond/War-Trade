@@ -28,8 +28,8 @@ export default {
         }
       },
       fontFamily: {
-        mono: ['JetBrains Mono', 'Consolas', 'Menlo', 'monospace'],
-        sans: ['Inter', 'system-ui', '-apple-system', 'sans-serif'],
+        mono: ['Plus Jakarta Sans', 'system-ui', 'monospace'],
+        sans: ['Plus Jakarta Sans', 'Outfit', 'system-ui', '-apple-system', 'sans-serif'],
       }
     },
   },

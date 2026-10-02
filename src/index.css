@@ -6,7 +6,7 @@
   body {
     background-color: #f8fafc;
     color: #0f172a;
-    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
@@ -28,6 +28,22 @@
   background: #94a3b8;
 }
 
+/* Smooth continuous marquee ticker */
+@keyframes marquee {
+  0% { transform: translateX(0%); }
+  100% { transform: translateX(-50%); }
+}
+
+.animate-marquee {
+  display: flex;
+  width: max-content;
+  animation: marquee 38s linear infinite;
+}
+
+.animate-marquee:hover {
+  animation-play-state: paused;
+}
+
 /* Subtle pulse */
 @keyframes subtle-pulse {
   0%, 100% { opacity: 1; }
@@ -36,3 +52,15 @@
 .animate-subtle {
   animation: subtle-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
+
+/* Remove Lightweight Charts attribution logo / watermark */
+#tv-attr-logo,
+a[href*="tradingview.com"],
+[class*="tv-circle-logo"],
+[id*="tv-attr"] {
+  display: none !important;
+  opacity: 0 !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+

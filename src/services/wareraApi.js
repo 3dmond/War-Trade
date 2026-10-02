@@ -20,7 +20,7 @@ export const FALLBACK_PRICES = {
   steak: 3.959,
   cookedFish: 8.607,
   lightAmmo: 0.202,
-  ammo: 0.862,
+  ammo: 0.831,
   heavyAmmo: 3.627,
   pill: 38.68,
   paper: 0.213,
@@ -31,12 +31,15 @@ export const FALLBACK_PRICES = {
 
 export class WarEraService {
   constructor(token = null) {
-    this.token = token || localStorage.getItem('warera_token') || DEFAULT_TOKEN;
+    const saved = typeof localStorage !== 'undefined' ? localStorage.getItem('warera_token') : null;
+    this.token = token || saved || DEFAULT_TOKEN;
   }
 
   setToken(newToken) {
     this.token = newToken;
-    localStorage.setItem('warera_token', newToken);
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem('warera_token', newToken);
+    }
   }
 
   getToken() {
@@ -119,7 +122,71 @@ export class WarEraService {
     }
   }
 
+  async getTopOrders(itemCodes = []) {
+    try {
+      const data = await this.callTrpc('tradingOrder.getTopOrdersPerItemCode', { itemCodes });
+      if (data && typeof data === 'object') {
+        // Normalize alias pairs so both conventions resolve
+        if (data.coca && !data.mysteriousPlant) {
+          data.mysteriousPlant = data.coca;
+        }
+        if (data.cocain && !data.pill) {
+          data.pill = data.cocain;
+        }
+        if (data.pill && !data.cocain) {
+          data.cocain = data.pill;
+        }
+        if (data.mysteriousPlant && !data.coca) {
+          data.coca = data.mysteriousPlant;
+        }
+        return data;
+      }
+      return {};
+    } catch (e) {
+      console.warn('Failed to fetch top orders:', e.message);
+      return {};
+    }
+  }
+
+  async getItemTrading(itemCode) {
+    try {
+      const realCode = (itemCode === 'mysteriousPlant') ? 'coca' : (itemCode === 'pill') ? 'cocain' : itemCode;
+      const data = await this.callTrpc('itemTrading.getItemTrading', { itemCode: realCode });
+      return data;
+    } catch (e) {
+      console.warn(`Failed to fetch trading data for ${itemCode}:`, e.message);
+      return null;
+    }
+  }
+
+  async getItemTopOrders(itemCode) {
+    try {
+      const realCode = (itemCode === 'mysteriousPlant') ? 'coca' : (itemCode === 'pill') ? 'cocain' : itemCode;
+      const data = await this.callTrpc('tradingOrder.getTopOrders', { itemCode: realCode });
+      return data;
+    } catch (e) {
+      console.warn(`Failed to fetch orders for ${itemCode}:`, e.message);
+      return null;
+    }
+  }
+
+  async getTransactions({ itemCode, limit = 50, cursor = undefined, transactionType = 'trading' } = {}) {
+    try {
+      const realCode = (itemCode === 'mysteriousPlant') ? 'coca' : (itemCode === 'pill') ? 'cocain' : itemCode;
+      const params = { transactionType, limit };
+      if (realCode) params.itemCode = realCode;
+      if (cursor) params.cursor = cursor;
+      const data = await this.callTrpc('transaction.getPaginatedTransactions', params);
+      return data;
+    } catch (e) {
+      console.warn(`Failed to fetch transactions for ${itemCode}:`, e.message);
+      return null;
+    }
+  }
+
+
   recordPriceTick(pricesObj) {
+    if (typeof localStorage === 'undefined') return;
     try {
       const nowSec = Math.floor(Date.now() / 1000);
       const saved = localStorage.getItem('warera_price_ticks');
@@ -143,6 +210,7 @@ export class WarEraService {
   }
 
   getPriceTicks() {
+    if (typeof localStorage === 'undefined') return [];
     try {
       const saved = localStorage.getItem('warera_price_ticks');
       return saved ? JSON.parse(saved) : [];

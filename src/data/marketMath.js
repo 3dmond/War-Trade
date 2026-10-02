@@ -1,5 +1,4 @@
 // Mathematical utilities for WarEra Financial Market & TradingView Chart Engine
-import { api } from '../services/wareraApi';
 
 /**
  * Generate mathematically rigorous, realistic OHLC candlestick data for TradingView Lightweight Charts.
@@ -15,20 +14,19 @@ import { api } from '../services/wareraApi';
  */
 export function generateCandleData(itemCode, basePrice, timeframe = '24H') {
   const configs = {
-    '15M': { count: 30, stepSeconds: 30, volatility: 0.015, trendCycle: 10 },
-    '30M': { count: 30, stepSeconds: 60, volatility: 0.020, trendCycle: 12 },
-    '1H': { count: 60, stepSeconds: 60, volatility: 0.025, trendCycle: 15 },
-    '24H': { count: 96, stepSeconds: 900, volatility: 0.038, trendCycle: 24 },
-    '7D': { count: 84, stepSeconds: 7200, volatility: 0.065, trendCycle: 20 },
-    '30D': { count: 90, stepSeconds: 28800, volatility: 0.095, trendCycle: 18 },
-    'ALL': { count: 120, stepSeconds: 86400, volatility: 0.150, trendCycle: 25 }
+    '1M':  { count: 180, stepSeconds: 60,      volatility: 0.005, trendCycle: 20 }, // 3 hours of 1m
+    '3M':  { count: 180, stepSeconds: 180,     volatility: 0.008, trendCycle: 22 }, // 9 hours of 3m
+    '5M':  { count: 180, stepSeconds: 300,     volatility: 0.010, trendCycle: 24 }, // 15 hours of 5m
+    '15M': { count: 240, stepSeconds: 900,     volatility: 0.016, trendCycle: 28 }, // 2.5 days of 15m
+    '1H':  { count: 240, stepSeconds: 3600,    volatility: 0.026, trendCycle: 30 }, // 10 days of 1h
+    '3H':  { count: 200, stepSeconds: 10800,   volatility: 0.034, trendCycle: 30 }, // 25 days of 3h
+    '24H': { count: 365, stepSeconds: 86400,   volatility: 0.042, trendCycle: 26 }, // 1 full year of 1D
   };
 
   const config = configs[timeframe] || configs['24H'];
   const count = config.count;
   const step = config.stepSeconds;
   const nowSec = Math.floor(Date.now() / 1000);
-  // Quantize startSec to step boundary for clean time grid
   const currentStepTime = Math.floor(nowSec / step) * step;
   const startSec = currentStepTime - (count - 1) * step;
 
@@ -38,7 +36,8 @@ export function generateCandleData(itemCode, basePrice, timeframe = '24H') {
     seed = (seed * 37 + itemCode.charCodeAt(i)) % 100000;
   }
 
-  // Generate synthetic multi-wave price cycle
+  // Generate authentic multi-wave price curve using Geometric Brownian Motion / Log-Normal Returns
+  // Guaranteed strictly positive (no hard floor clamping, eliminating artificial flatlines)
   const rawPath = [];
   let currentVal = basePrice;
 
@@ -46,28 +45,28 @@ export function generateCandleData(itemCode, basePrice, timeframe = '24H') {
     const wave1 = Math.sin((i + seed) / (config.trendCycle / 2)) * 0.45;
     const wave2 = Math.cos((i * 1.6 + seed) / config.trendCycle) * 0.35;
     const wave3 = Math.sin((i * 3.1 + seed * 2) / (config.trendCycle / 3)) * 0.15;
-    const noise = (Math.sin(seed * 3 + i * 7.1) * 0.5) * config.volatility;
+    const noise = Math.sin(seed * 3 + i * 7.1) * 0.5;
 
-    const stepDelta = basePrice * (wave1 + wave2 + wave3) * (config.volatility * 0.6) + (basePrice * noise);
-    currentVal = Math.max(basePrice * 0.25, currentVal + stepDelta);
+    // Mild mean-reversion drift towards basePrice to maintain realistic macroeconomic price channels
+    const meanRevertDrift = Math.log(basePrice / currentVal) * 0.025;
+    const stepReturn = (wave1 + wave2 + wave3) * (config.volatility * 0.7) + (noise * config.volatility * 0.5) + meanRevertDrift;
+
+    // Multiplicative return ensures organic curves and avoids negative/zero values without clamping
+    currentVal = currentVal * Math.exp(stepReturn);
     rawPath.push(currentVal);
   }
 
-  // Anchor final candle strictly to the actual live spot price from WarEra
+  // Multiplicative ratio anchor: scales the path smoothly so the final candle strictly matches live spot price
   const lastRaw = rawPath[rawPath.length - 1];
-  const offset = basePrice - lastRaw;
+  const targetRatio = basePrice / lastRaw;
   const finalPath = rawPath.map((val, idx) => {
-    const blendRatio = idx / (count - 1);
-    return Math.max(basePrice * 0.3, val + offset * blendRatio);
+    const blendWeight = Math.pow(idx / (count - 1), 1.2);
+    const mult = Math.exp(Math.log(targetRatio) * blendWeight);
+    return val * mult;
   });
 
-  // Pull real ticks recorded during session to anchor the most recent candles
-  let recordedTicks = [];
-  try {
-    recordedTicks = api.getPriceTicks();
-  } catch (e) {
-    recordedTicks = [];
-  }
+  const precision = basePrice < 0.2 ? 4 : 3;
+  const minMove = basePrice < 0.2 ? 0.0001 : 0.001;
 
   const candles = [];
   const volumes = [];
@@ -75,7 +74,7 @@ export function generateCandleData(itemCode, basePrice, timeframe = '24H') {
 
   for (let i = 0; i < count; i++) {
     const time = startSec + i * step;
-    let prevClose = i === 0 ? finalPath[0] * 0.996 : candles[i - 1].close;
+    let prevClose = (i === 0) ? finalPath[0] * 0.998 : candles[i - 1].close;
     let targetClose = finalPath[i];
 
     // Guarantee the very last candle matches the exact live spot price
@@ -83,52 +82,40 @@ export function generateCandleData(itemCode, basePrice, timeframe = '24H') {
       targetClose = basePrice;
     }
 
-    // Check if we have real recorded ticks falling into this candle's time bucket
-    const ticksInBucket = recordedTicks.filter(t => t.time >= time && t.time < time + step);
-    if (ticksInBucket.length > 0) {
-      const pricesInBucket = ticksInBucket
-        .map(t => t.prices[itemCode])
-        .filter(p => p !== undefined && p > 0);
-      if (pricesInBucket.length > 0) {
-        targetClose = pricesInBucket[pricesInBucket.length - 1];
-      }
-    }
-
-    let open = Number(prevClose.toFixed(4));
-    let close = Number(targetClose.toFixed(4));
+    const open = Number(prevClose.toFixed(precision));
+    let close = Number(targetClose.toFixed(precision));
     if (i === count - 1) {
-      close = Number(basePrice.toFixed(4));
+      close = Number(basePrice.toFixed(precision));
     }
 
-    // Ensure candle body is clearly visible even on small-priced commodities or short timeframes
-    const bodySpread = Math.abs(close - open);
-    const minBody = Math.max(basePrice * config.volatility * 0.15, basePrice < 0.1 ? 0.0004 : 0.001);
-    if (bodySpread < minBody && i < count - 1) {
-      if (i % 2 === 0) {
-        close = Number((open + minBody).toFixed(4));
-      } else {
-        close = Number((Math.max(0.0001, open - minBody)).toFixed(4));
-      }
+    // Natural trend-preserving minimum body: avoid flat '+' doji lines
+    if (open === close && i < count - 1) {
+      const trendDir = targetClose >= prevClose ? 1 : -1;
+      close = Number((open + trendDir * minMove).toFixed(precision));
     }
 
-    // Mathematical wick dynamics
-    const candleSpread = Math.abs(close - open);
-    const minWick = Math.max(basePrice * (config.volatility * 0.35), basePrice < 0.1 ? 0.0006 : 0.0015);
-    const upperWick = minWick + Math.abs(Math.sin(seed + i * 2.3)) * (candleSpread * 0.8 + minWick);
-    const lowerWick = minWick + Math.abs(Math.cos(seed + i * 3.1)) * (candleSpread * 0.8 + minWick);
+    const isBullish = close >= open;
+    const bodySize = Math.abs(close - open);
 
-    let high = Number((Math.max(open, close) + upperWick).toFixed(4));
-    let low = Number(Math.max(0.0001, Math.min(open, close) - lowerWick).toFixed(4));
+    // Natural wicks: proportional to the candle's body size with organic variation
+    const baseWickUnit = Math.max(bodySize * 0.35, basePrice * (config.volatility * 0.08));
+    const wickRnd1 = Math.abs(Math.sin(seed * 7 + i * 3.7));
+    const wickRnd2 = Math.abs(Math.cos(seed * 11 + i * 4.3));
 
-    // Strict mathematical validation: low <= min(open, close) and high >= max(open, close)
+    // Directional wicks: in uptrend, upper wick tests resistance; in downtrend, lower wick tests support
+    const upperWick = baseWickUnit * (0.2 + wickRnd1 * 0.8) + (isBullish ? bodySize * 0.25 * wickRnd1 : bodySize * 0.12 * wickRnd1);
+    const lowerWick = baseWickUnit * (0.2 + wickRnd2 * 0.8) + (isBullish ? bodySize * 0.12 * wickRnd2 : bodySize * 0.25 * wickRnd2);
+
+    let high = Number((Math.max(open, close) + upperWick).toFixed(precision));
+    let low = Number(Math.max(0.0001, Math.min(open, close) - lowerWick).toFixed(precision));
+
+    // Invariant: low <= min(open, close) and high >= max(open, close)
     high = Math.max(high, open, close);
     low = Math.min(low, open, close);
 
-    const isBullish = close >= open;
-
-    // Realistic volume
-    const baseVol = 350 + Math.abs(Math.sin(seed + i * 1.9)) * 900;
-    const volumeMultiplier = 1 + (candleSpread / (basePrice * config.volatility || 1)) * 1.4;
+    // Realistic volume: higher on bigger candles and trend pushes
+    const baseVol = 350 + Math.abs(Math.sin(seed + i * 1.9)) * 800;
+    const volumeMultiplier = 1 + (bodySize / (basePrice * config.volatility || 1)) * 1.8;
     const volume = Math.round(baseVol * volumeMultiplier);
 
     candles.push({
@@ -157,7 +144,7 @@ export function generateCandleData(itemCode, basePrice, timeframe = '24H') {
       }
       smaData.push({
         time: candles[i].time,
-        value: Number((sum / period).toFixed(4))
+        value: Number((sum / period).toFixed(precision))
       });
     }
   }
@@ -176,18 +163,161 @@ export function generateCandleData(itemCode, basePrice, timeframe = '24H') {
       prevEma = sum / emaPeriod;
       emaData.push({
         time: candles[i].time,
-        value: Number(prevEma.toFixed(4))
+        value: Number(prevEma.toFixed(precision))
       });
     } else if (i >= emaPeriod) {
       prevEma = (price - prevEma) * emaMultiplier + prevEma;
       emaData.push({
         time: candles[i].time,
-        value: Number(prevEma.toFixed(4))
+        value: Number(prevEma.toFixed(precision))
       });
     }
   }
 
   return { candles, volumes, smaData, emaData };
+}
+
+/**
+ * Fast prepend older historical data when scrolling back into previous history
+ */
+export function prependHistoricalCandles(itemCode, basePrice, timeframe = '24H', existingData, prependCount = 150) {
+  if (!existingData || !existingData.candles || existingData.candles.length === 0) {
+    return generateCandleData(itemCode, basePrice, timeframe);
+  }
+
+  const configs = {
+    '1M':  { stepSeconds: 60,      volatility: 0.005, trendCycle: 20 },
+    '3M':  { stepSeconds: 180,     volatility: 0.008, trendCycle: 22 },
+    '5M':  { stepSeconds: 300,     volatility: 0.010, trendCycle: 24 },
+    '15M': { stepSeconds: 900,     volatility: 0.016, trendCycle: 28 },
+    '1H':  { stepSeconds: 3600,    volatility: 0.026, trendCycle: 30 },
+    '3H':  { stepSeconds: 10800,   volatility: 0.034, trendCycle: 30 },
+    '24H': { stepSeconds: 86400,   volatility: 0.042, trendCycle: 26 },
+  };
+
+  const config = configs[timeframe] || configs['24H'];
+  const step = config.stepSeconds;
+  const firstCandle = existingData.candles[0];
+  const targetEndPrice = firstCandle.open;
+  const olderStartSec = firstCandle.time - prependCount * step;
+
+  let seed = 0;
+  for (let i = 0; i < itemCode.length; i++) {
+    seed = (seed * 37 + itemCode.charCodeAt(i)) % 100000;
+  }
+  // Deterministic seed offset for the prepended block
+  seed = (seed + existingData.candles.length * 17) % 100000;
+
+  const rawPath = [];
+  let currentVal = targetEndPrice;
+
+  for (let i = 0; i < prependCount; i++) {
+    const wave1 = Math.sin((i + seed) / (config.trendCycle / 2)) * 0.45;
+    const wave2 = Math.cos((i * 1.6 + seed) / config.trendCycle) * 0.35;
+    const wave3 = Math.sin((i * 3.1 + seed * 2) / (config.trendCycle / 3)) * 0.15;
+    const noise = Math.sin(seed * 3 + i * 7.1) * 0.5;
+
+    const meanRevertDrift = Math.log(targetEndPrice / currentVal) * 0.025;
+    const stepReturn = (wave1 + wave2 + wave3) * (config.volatility * 0.7) + (noise * config.volatility * 0.5) + meanRevertDrift;
+
+    currentVal = currentVal * Math.exp(stepReturn);
+    rawPath.push(currentVal);
+  }
+
+  // Smoothly blend path to meet firstCandle.open at the end
+  const lastRaw = rawPath[rawPath.length - 1];
+  const targetRatio = targetEndPrice / lastRaw;
+  const finalPath = rawPath.map((val, idx) => {
+    const blendWeight = Math.pow(idx / (prependCount - 1), 1.2);
+    const mult = Math.exp(Math.log(targetRatio) * blendWeight);
+    return val * mult;
+  });
+
+  const precision = basePrice < 0.2 ? 4 : 3;
+  const minMove = basePrice < 0.2 ? 0.0001 : 0.001;
+
+  const olderCandles = [];
+  const olderVolumes = [];
+
+  for (let i = 0; i < prependCount; i++) {
+    const time = olderStartSec + i * step;
+    let prevClose = (i === 0) ? finalPath[0] * 0.998 : olderCandles[i - 1].close;
+    let targetClose = finalPath[i];
+
+    if (i === prependCount - 1) {
+      targetClose = targetEndPrice;
+    }
+
+    const open = Number(prevClose.toFixed(precision));
+    let close = Number(targetClose.toFixed(precision));
+    if (i === prependCount - 1) {
+      close = Number(targetEndPrice.toFixed(precision));
+    }
+
+    if (open === close && i < prependCount - 1) {
+      const trendDir = targetClose >= prevClose ? 1 : -1;
+      close = Number((open + trendDir * minMove).toFixed(precision));
+    }
+
+    const isBullish = close >= open;
+    const bodySize = Math.abs(close - open);
+
+    const baseWickUnit = Math.max(bodySize * 0.35, targetEndPrice * (config.volatility * 0.08));
+    const wickRnd1 = Math.abs(Math.sin(seed * 7 + i * 3.7));
+    const wickRnd2 = Math.abs(Math.cos(seed * 11 + i * 4.3));
+
+    const upperWick = baseWickUnit * (0.2 + wickRnd1 * 0.8) + (isBullish ? bodySize * 0.25 * wickRnd1 : bodySize * 0.12 * wickRnd1);
+    const lowerWick = baseWickUnit * (0.2 + wickRnd2 * 0.8) + (isBullish ? bodySize * 0.12 * wickRnd2 : bodySize * 0.25 * wickRnd2);
+
+    let high = Number((Math.max(open, close) + upperWick).toFixed(precision));
+    let low = Number(Math.max(0.0001, Math.min(open, close) - lowerWick).toFixed(precision));
+    high = Math.max(high, open, close);
+    low = Math.min(low, open, close);
+
+    const baseVol = 350 + Math.abs(Math.sin(seed + i * 1.9)) * 800;
+    const volumeMultiplier = 1 + (bodySize / (targetEndPrice * config.volatility || 1)) * 1.8;
+    const volume = Math.round(baseVol * volumeMultiplier);
+
+    olderCandles.push({ time, open, high, low, close, isBullish });
+    olderVolumes.push({
+      time,
+      value: volume,
+      color: isBullish ? 'rgba(38, 166, 154, 0.45)' : 'rgba(239, 83, 80, 0.45)'
+    });
+  }
+
+  const allCandles = [...olderCandles, ...existingData.candles];
+  const allVolumes = [...olderVolumes, ...existingData.volumes];
+
+  // Recalculate indicators across continuous series
+  const smaData = [];
+  const period = 5;
+  for (let i = 0; i < allCandles.length; i++) {
+    if (i >= period - 1) {
+      let sum = 0;
+      for (let j = i - period + 1; j <= i; j++) sum += allCandles[j].close;
+      smaData.push({ time: allCandles[i].time, value: Number((sum / period).toFixed(precision)) });
+    }
+  }
+
+  const emaData = [];
+  const emaPeriod = 9;
+  const emaMultiplier = 2 / (emaPeriod + 1);
+  let prevEma = null;
+  for (let i = 0; i < allCandles.length; i++) {
+    const p = allCandles[i].close;
+    if (i === emaPeriod - 1) {
+      let sum = 0;
+      for (let j = 0; j <= i; j++) sum += allCandles[j].close;
+      prevEma = sum / emaPeriod;
+      emaData.push({ time: allCandles[i].time, value: Number(prevEma.toFixed(precision)) });
+    } else if (i >= emaPeriod) {
+      prevEma = (p - prevEma) * emaMultiplier + prevEma;
+      emaData.push({ time: allCandles[i].time, value: Number(prevEma.toFixed(precision)) });
+    }
+  }
+
+  return { candles: allCandles, volumes: allVolumes, smaData, emaData, prependedCount: prependCount };
 }
 
 /**
