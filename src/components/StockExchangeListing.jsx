@@ -140,49 +140,28 @@ export default function StockExchangeListing({
 
   const liveTotalNetWorth = syncTotalNetWorth + liveStoredYieldVal;
 
-  // Past 24h change metrics (+/- gain and %) for Total Net Worth & Breakdown
-  const companies24hGrowthCoins = marketOverview.total24hGrowthCoins || 0;
-  const baselineCompaniesVal = Math.max(1, liveFacilitiesVal - companies24hGrowthCoins);
-  const companies24hGrowthPct = (companies24hGrowthCoins / baselineCompaniesVal) * 100;
-
-  const money24hGrowthCoins = marketOverview.totalDailyProfit || 0;
-  const baselineMoneyVal = Math.max(1, liquidMoneyVal - money24hGrowthCoins);
-  const money24hGrowthPct = liquidMoneyVal > 0 ? (money24hGrowthCoins / baselineMoneyVal) * 100 : 0;
-
-  const items24hGrowthCoins = 0.0;
-  const items24hGrowthPct = 0.0;
-  const equipment24hGrowthCoins = 0.0;
-  const equipment24hGrowthPct = 0.0;
-  const weapons24hGrowthCoins = 0.0;
-  const weapons24hGrowthPct = 0.0;
-
-  const total24hGrowthCoins = companies24hGrowthCoins;
-  const baselineTotalNetWorth = Math.max(1, liveTotalNetWorth - total24hGrowthCoins);
-  const total24hGrowthPct = (total24hGrowthCoins / baselineTotalNetWorth) * 100;
-
-  // Hourly rate of change for Portfolio Valuation KPI card
+  // 1-Hour change metrics for Total Net Worth & Portfolio Valuation
   const hourlyValuationCoins = (marketOverview.total24hGrowthCoins || 0) / 24;
-  const hourlyValuationPct = (marketOverview.total24hGrowthPct || 0) / 24;
+  const baselineTotalNetWorth = Math.max(1, liveTotalNetWorth - hourlyValuationCoins);
+  const hourlyValuationPct = (hourlyValuationCoins / baselineTotalNetWorth) * 100;
 
   const netWorthBreakdownItems = useMemo(() => {
+    const total = liveTotalNetWorth > 0 ? liveTotalNetWorth : 1;
     const items = [
       { 
         label: `Companies (${companies.length} facilities)`, 
         value: liveFacilitiesVal,
-        change24hCoins: companies24hGrowthCoins,
-        change24hPct: companies24hGrowthPct
+        sharePct: (liveFacilitiesVal / total) * 100
       },
       { 
         label: 'Items', 
         value: liveItemsVal,
-        change24hCoins: items24hGrowthCoins,
-        change24hPct: items24hGrowthPct
+        sharePct: (liveItemsVal / total) * 100
       },
       { 
         label: 'Money', 
         value: liquidMoneyVal,
-        change24hCoins: money24hGrowthCoins,
-        change24hPct: money24hGrowthPct
+        sharePct: (liquidMoneyVal / total) * 100
       },
     ];
 
@@ -190,37 +169,26 @@ export default function StockExchangeListing({
       items.push({ 
         label: 'Equipment', 
         value: equipmentVal,
-        change24hCoins: equipment24hGrowthCoins,
-        change24hPct: equipment24hGrowthPct
+        sharePct: (equipmentVal / total) * 100
       });
     }
     if (weaponsVal > 0) {
       items.push({ 
         label: 'Weapons', 
         value: weaponsVal,
-        change24hCoins: weapons24hGrowthCoins,
-        change24hPct: weapons24hGrowthPct
+        sharePct: (weaponsVal / total) * 100
       });
     }
 
     return items;
   }, [
+    liveTotalNetWorth,
     liveFacilitiesVal, 
     liveItemsVal, 
     liquidMoneyVal, 
     equipmentVal, 
     weaponsVal, 
-    companies.length, 
-    companies24hGrowthCoins, 
-    companies24hGrowthPct, 
-    items24hGrowthCoins,
-    items24hGrowthPct,
-    money24hGrowthCoins,
-    money24hGrowthPct,
-    equipment24hGrowthCoins,
-    equipment24hGrowthPct,
-    weapons24hGrowthCoins,
-    weapons24hGrowthPct
+    companies.length
   ]);
 
   return (
@@ -293,23 +261,24 @@ export default function StockExchangeListing({
               </div>
             </div>
 
-            {/* Total Net Worth Highlight with Past 24h Gain & % */}
+            {/* Total Net Worth Highlight with Past 1h Gain & % */}
             <div className="pt-2 flex justify-between items-baseline">
               <span className="text-slate-500 text-xs font-sans">Total Net Worth:</span>
               <div className="flex items-baseline space-x-2">
                 <span className="text-xl sm:text-2xl font-black font-mono text-slate-900">
                   {liveTotalNetWorth.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
                 </span>
-                <span className={`text-xs font-bold font-mono ${total24hGrowthCoins > 0 ? 'text-emerald-700' : total24hGrowthCoins < 0 ? 'text-rose-700' : 'text-slate-400'}`}>
-                  {total24hGrowthCoins >= 0 ? '+' : ''}{total24hGrowthCoins.toFixed(1)} ({total24hGrowthPct >= 0 ? '+' : ''}{total24hGrowthPct.toFixed(2)}%)
+                <span className={`text-xs font-bold font-mono ${hourlyValuationCoins > 0 ? 'text-emerald-700' : hourlyValuationCoins < 0 ? 'text-rose-700' : 'text-slate-400'}`}>
+                  {hourlyValuationCoins >= 0 ? '+' : ''}{hourlyValuationCoins.toFixed(1)} ({hourlyValuationPct >= 0 ? '+' : ''}{hourlyValuationPct.toFixed(2)}%)
                 </span>
+                <span className="text-[10px] text-slate-400 font-sans">past 1h</span>
               </div>
             </div>
           </div>
 
         </div>
 
-        {/* RIGHT COLUMN: NET WORTH BREAKDOWN (ASSET VALUATION BREAKDOWN STRUCTURE) */}
+        {/* RIGHT COLUMN: NET WORTH BREAKDOWN (ASSET ALLOCATION STRUCTURE) */}
         <div className="lg:col-span-7 bg-white p-5 space-y-4 flex flex-col justify-between">
           
           <div className="space-y-2.5 font-mono text-xs flex-1 flex flex-col justify-around">
@@ -318,7 +287,7 @@ export default function StockExchangeListing({
                 Net Worth Breakdown
               </span>
               <span className="font-mono text-xs font-bold text-slate-500">
-                Past 24h Change
+                Allocation
               </span>
             </div>
 
@@ -330,12 +299,8 @@ export default function StockExchangeListing({
                     <strong className="text-slate-900 font-bold">
                       {item.value.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
                     </strong>
-                    <span className={`text-[11px] font-bold font-mono ${item.change24hCoins > 0 ? 'text-emerald-700' : item.change24hCoins < 0 ? 'text-rose-700' : 'text-slate-400'}`}>
-                      {item.change24hCoins !== 0 ? (
-                        `${item.change24hCoins > 0 ? '+' : ''}${item.change24hCoins.toFixed(1)} (${item.change24hPct >= 0 ? '+' : ''}${item.change24hPct.toFixed(2)}%)`
-                      ) : (
-                        `${item.change24hPct >= 0 ? '+' : ''}${item.change24hPct.toFixed(2)}%`
-                      )}
+                    <span className="text-[11px] font-bold font-mono text-slate-500">
+                      {item.sharePct.toFixed(1)}%
                     </span>
                   </div>
                 </div>
@@ -347,9 +312,10 @@ export default function StockExchangeListing({
                   <span className="text-amber-800 font-black text-sm">
                     {liveTotalNetWorth.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
                   </span>
-                  <span className={`text-xs font-bold font-mono ${total24hGrowthCoins > 0 ? 'text-emerald-700' : total24hGrowthCoins < 0 ? 'text-rose-700' : 'text-slate-400'}`}>
-                    {total24hGrowthCoins >= 0 ? '+' : ''}{total24hGrowthCoins.toFixed(1)} ({total24hGrowthPct >= 0 ? '+' : ''}{total24hGrowthPct.toFixed(2)}%)
+                  <span className={`text-xs font-bold font-mono ${hourlyValuationCoins > 0 ? 'text-emerald-700' : hourlyValuationCoins < 0 ? 'text-rose-700' : 'text-slate-400'}`}>
+                    {hourlyValuationCoins >= 0 ? '+' : ''}{hourlyValuationCoins.toFixed(1)} ({hourlyValuationPct >= 0 ? '+' : ''}{hourlyValuationPct.toFixed(2)}%)
                   </span>
+                  <span className="text-[10px] text-slate-400 font-sans">past 1h</span>
                 </div>
               </div>
             </div>
@@ -377,13 +343,13 @@ export default function StockExchangeListing({
           </div>
         </div>
 
-        {/* 24h Net Operating Cashflow */}
+        {/* Net Operating Cashflow */}
         <div className="bg-white p-4 space-y-1">
           <div className="text-slate-500 text-[11px] font-bold uppercase tracking-wider">
-            24h Net Cashflow
+            Net Cashflow
           </div>
-          <div className="text-xl sm:text-2xl font-black font-mono text-emerald-700">
-            +{marketOverview.totalDailyProfit.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
+          <div className={`text-xl sm:text-2xl font-black font-mono ${marketOverview.totalDailyProfit >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
+            {marketOverview.totalDailyProfit >= 0 ? '+' : ''}{marketOverview.totalDailyProfit.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
             <span className="text-xs font-normal text-slate-400 ml-1">/day</span>
           </div>
           <span className="text-[11px] text-slate-500 font-sans block truncate">
@@ -574,7 +540,9 @@ export default function StockExchangeListing({
                           {isPositiveProfit ? '+' : ''}{c.dailyNetProfit.toFixed(2)}
                         </div>
                         <span className="text-[10px] text-slate-400 block font-normal">
-                          {c.netMarginPct ? `${c.netMarginPct.toFixed(1)}% margin` : '—'}
+                          {c.isRawProducer && c.unitsTransferredDaily > 0 
+                            ? `${((c.unitsTransferredDaily / c.unitsPerDay) * 100).toFixed(0)}% internal` 
+                            : (c.netMarginPct ? `${c.netMarginPct.toFixed(1)}% margin` : '—')}
                         </span>
                       </td>
 
@@ -652,8 +620,8 @@ export default function StockExchangeListing({
           </div>
           <div className="flex items-center space-x-4">
             <span>
-              Total 24h Growth: <strong className={marketOverview.total24hGrowthCoins >= 0 ? 'text-emerald-700 font-black' : 'text-rose-600 font-black'}>
-                {marketOverview.total24hGrowthCoins >= 0 ? '+' : ''}{marketOverview.total24hGrowthCoins.toFixed(2)} ({marketOverview.total24hGrowthPct >= 0 ? '+' : ''}{marketOverview.total24hGrowthPct.toFixed(2)}%)
+              Hourly Growth: <strong className={hourlyValuationCoins >= 0 ? 'text-emerald-700 font-black' : 'text-rose-600 font-black'}>
+                {hourlyValuationCoins >= 0 ? '+' : ''}{hourlyValuationCoins.toFixed(2)} ({hourlyValuationPct >= 0 ? '+' : ''}{hourlyValuationPct.toFixed(2)}%) past 1h
               </strong>
             </span>
           </div>
