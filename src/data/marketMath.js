@@ -326,7 +326,7 @@ export function prependHistoricalCandles(itemCode, basePrice, timeframe = '24H',
 export function calculateLaborEconomics({
   recipePp = 10,
   workerSkillLevel = 3,
-  wagePerPp = 0.04,
+  wagePerPp = 0.146,
   workFrequencyPerDay = 2,
   workerSlots = 1,
   salePrice = 1.0,

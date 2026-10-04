@@ -82,6 +82,18 @@ export function getTotalSkillPointsAtLevel(playerLevel) {
   return 4 + Math.max(0, playerLevel - 1) * 4;
 }
 
+// Calculate effective skill value at any level matching WarEra in-game growth
+export function getSkillValue(skillId, level = 0) {
+  const def = SKILL_DEFINITIONS.find(s => s.id.toLowerCase() === (skillId || '').toLowerCase());
+  if (!def) return 0;
+  const numLevel = Math.max(0, Math.min(def.maxLevel ?? 10, Number(level) || 0));
+  return def.baseValue + numLevel * def.step;
+}
+
+export function getSkillDefinition(skillId) {
+  return SKILL_DEFINITIONS.find(s => s.id.toLowerCase() === (skillId || '').toLowerCase()) || null;
+}
+
 // Recommended archetypes
 export const ARCHETYPES = {
   tycoon: {

@@ -29,6 +29,17 @@ export const FALLBACK_PRICES = {
   woodenCase: 6.51
 };
 
+// Live in-game allowed wage statistics fallback (from workOffer.getWageStats)
+export const FALLBACK_WAGE_STATS = {
+  allowedRange: {
+    min: 0.117,
+    max: 0.176,
+    average: 0.1462876611051946
+  },
+  topOffer: 0.169,
+  topEligibleOffer: 0.155
+};
+
 export class WarEraService {
   constructor(token = null) {
     const saved = typeof localStorage !== 'undefined' ? localStorage.getItem('warera_token') : null;
@@ -48,11 +59,11 @@ export class WarEraService {
 
   async callTrpc(endpoint, queryObj = {}) {
     const inputEncoded = encodeURIComponent(JSON.stringify(queryObj));
-    // Use the Vite proxy path which injects x-api-key and bypasses CORS
-    const proxyUrl = `/api/warera/${endpoint}?input=${inputEncoded}`;
+    const isBrowser = typeof window !== 'undefined';
+    const requestUrl = isBrowser ? `/api/warera/${endpoint}?input=${inputEncoded}` : `https://api2.warera.io/trpc/${endpoint}?input=${inputEncoded}`;
 
     try {
-      const res = await fetch(proxyUrl, {
+      const res = await fetch(requestUrl, {
         method: 'GET',
         headers: {
           'Accept': 'application/json',
@@ -184,6 +195,59 @@ export class WarEraService {
     }
   }
 
+  async get24hPriceChanges(itemCodes = []) {
+    const changes = {};
+    if (!itemCodes || itemCodes.length === 0) return changes;
+    
+    const cacheKey = 'warera_24h_price_changes';
+    const now = Date.now();
+    try {
+      const cached = typeof localStorage !== 'undefined' ? localStorage.getItem(cacheKey) : null;
+      if (cached) {
+        const { timestamp, data } = JSON.parse(cached);
+        if (now - timestamp < 60000 && data && Object.keys(data).length > 0) {
+          return data;
+        }
+      }
+    } catch {}
+
+    const uniqueCodes = [...new Set(itemCodes)];
+    await Promise.all(uniqueCodes.map(async code => {
+      try {
+        const realCode = (code === 'mysteriousPlant') ? 'coca' : (code === 'pill') ? 'cocain' : code;
+        const data = await this.getItemTrading(realCode);
+        const vals = data?.values || [];
+        if (vals.length >= 2) {
+          const today = vals[vals.length - 1]?.avgValue || data?.currentValue;
+          const yesterday = vals[vals.length - 2]?.avgValue;
+          if (typeof today === 'number' && typeof yesterday === 'number' && yesterday > 0) {
+            const changePct = ((today - yesterday) / yesterday) * 100;
+            const changeDiff = today - yesterday;
+            const entry = {
+              today,
+              yesterday,
+              changePct,
+              changeDiff
+            };
+            changes[code] = entry;
+            if (code === 'coca') changes.mysteriousPlant = entry;
+            if (code === 'cocain') changes.pill = entry;
+            if (code === 'pill') changes.cocain = entry;
+            if (code === 'mysteriousPlant') changes.coca = entry;
+          }
+        }
+      } catch (e) {}
+    }));
+
+    try {
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem(cacheKey, JSON.stringify({ timestamp: now, data: changes }));
+      }
+    } catch {}
+
+    return changes;
+  }
+
 
   recordPriceTick(pricesObj) {
     if (typeof localStorage === 'undefined') return;
@@ -272,16 +336,139 @@ export class WarEraService {
     }
   }
 
-  async getUserCompanies(userId) {
+  async getCompanyWorkers(companyId) {
+    try {
+      const res = await this.callTrpc('worker.getWorkers', { companyId });
+      const workers = res?.workers || [];
+      const enriched = await Promise.all(workers.map(async (w, idx) => {
+        let workerUser = null;
+        if (w.user) {
+          workerUser = await this.getUserLite(w.user);
+        }
+        const prodLevel = typeof workerUser?.skills?.production?.level === 'number' ? workerUser.skills.production.level : 0;
+        const prodTotal = workerUser?.skills?.production?.total || workerUser?.skills?.production?.value || (10 + prodLevel * 3);
+        const energyLevel = typeof workerUser?.skills?.energy?.level === 'number' ? workerUser.skills.energy.level : 0;
+        const energyTotal = workerUser?.skills?.energy?.total || workerUser?.skills?.energy?.value || (energyLevel > 0 ? (energyLevel * 10) : 100);
+        const dailySessions = (energyTotal / 10) * 2.4;
+        
+        const contractedWage = typeof w.wage === 'number' ? w.wage : 0.146;
+        const loyalty = typeof w.fidelity === 'number' ? w.fidelity : 0;
+
+        return {
+          id: w._id || `w-${idx}`,
+          userId: w.user,
+          username: workerUser?.username || `Worker #${idx + 1}`,
+          avatarUrl: workerUser?.avatarUrl || null,
+          level: workerUser?.leveling?.level || 1,
+          productionSkill: prodLevel,
+          productionPointsBase: prodTotal,
+          energySkill: energyLevel,
+          energyPointsTotal: energyTotal,
+          dailySessions,
+          workSessionsPerDay: dailySessions,
+          loyaltyBonus: loyalty,
+          fidelity: loyalty,
+          wage: contractedWage,
+          wagePerPp: contractedWage,
+          joinedAt: w.joinedAt,
+          employer: w.employer,
+          companyId: w.company || companyId,
+          isRealPlayer: true
+        };
+      }));
+      return enriched;
+    } catch (e) {
+      console.warn(`Failed to fetch workers for company ${companyId}:`, e.message);
+      return [];
+    }
+  }
+
+  async getRegionById(regionId) {
+    try {
+      return await this.callTrpc('region.getById', { regionId });
+    } catch (e) {
+      return null;
+    }
+  }
+
+  async getWorkOfferById(workOfferId) {
+    try {
+      return await this.callTrpc('workOffer.getById', { workOfferId });
+    } catch (e) {
+      return null;
+    }
+  }
+
+  async getCompanyProductionBonus(companyId) {
+    try {
+      const data = await this.callTrpc('company.getProductionBonus', { companyId });
+      return data || null;
+    } catch (e) {
+      console.warn(`Failed to fetch production bonus for ${companyId}:`, e.message);
+      return null;
+    }
+  }
+
+  async getCompanyFull(companyId, ownerUser = null) {
+    try {
+      const comp = await this.getCompanyById(companyId);
+      if (!comp) return null;
+
+      const [workers, regionData, workOfferData, productionBonusData] = await Promise.all([
+        this.getCompanyWorkers(companyId),
+        comp.region ? this.getRegionById(comp.region) : null,
+        comp.workOffer ? this.getWorkOfferById(comp.workOffer) : null,
+        this.getCompanyProductionBonus(companyId)
+      ]);
+
+      let owner = ownerUser;
+      if (!owner && comp.user) {
+        owner = await this.getUserLite(comp.user);
+      }
+
+      const totalBonusPct = typeof productionBonusData?.total === 'number'
+        ? productionBonusData.total
+        : undefined;
+
+      return {
+        ...comp,
+        id: comp._id,
+        workers: workers || [],
+        workerCount: (workers || []).length,
+        regionName: regionData?.name || 'Regional Sector',
+        countryCode: regionData?.countryCode?.toUpperCase() || 'HQ',
+        mainCity: regionData?.mainCity || '',
+        regionData: regionData || null,
+        workOfferData: workOfferData || null,
+        productionBonusData: productionBonusData || null,
+        productionBonus: totalBonusPct,
+        totalBonusPct: totalBonusPct,
+        strategicBonus: productionBonusData?.strategicBonus ?? 0,
+        depositBonusPct: productionBonusData?.depositBonus ?? 0,
+        ethicBonusPct: productionBonusData?.ethicSpecializationBonus ?? 0,
+        countryBonusPct: productionBonusData?.strategicBonus ?? 5.5,
+        hasDepositBonus: (productionBonusData?.depositBonus ?? 0) > 0,
+        ownerUsername: owner?.username || 'Unknown',
+        ownerId: owner?._id || comp.user,
+        ownerAvatarUrl: owner?.avatarUrl || null,
+        isRealGameCompany: true
+      };
+    } catch (e) {
+      console.warn(`Failed to fetch full company details for ${companyId}:`, e.message);
+      return null;
+    }
+  }
+
+  async getUserCompanies(userId, ownerUser = null) {
     try {
       const res = await this.callTrpc('company.getCompanies', { userId, perPage: 100 });
       const companyIds = res?.items || [];
       if (companyIds.length === 0) return [];
       
-      // Fetch full company details for each
+      // Fetch full company details, real live workers, region info, and work offer for each
       const companies = await Promise.all(
         companyIds.slice(0, 30).map(async (cid) => {
-          return await this.getCompanyById(cid);
+          return await this.getCompanyFull(cid, ownerUser);
         })
       );
       return companies.filter(Boolean);
@@ -306,6 +493,39 @@ export class WarEraService {
     }
   }
 
+  async getWageStats() {
+    try {
+      const data = await this.callTrpc('workOffer.getWageStats', {});
+      if (data && data.allowedRange) {
+        return data;
+      }
+      return FALLBACK_WAGE_STATS;
+    } catch (e) {
+      console.warn('Failed to fetch live wage stats:', e.message);
+      return FALLBACK_WAGE_STATS;
+    }
+  }
+
+  async getWorkOffersPaginated(params = { limit: 20 }) {
+    try {
+      const data = await this.callTrpc('workOffer.getWorkOffersPaginated', params);
+      return data || null;
+    } catch (e) {
+      console.warn('Failed to fetch live work offers:', e.message);
+      return null;
+    }
+  }
+
+  async getWorkersByUser(userId) {
+    try {
+      const res = await this.callTrpc('worker.getWorkers', { userId });
+      return res?.workersPerCompany || [];
+    } catch (e) {
+      console.warn('Failed to fetch workers by user:', e.message);
+      return [];
+    }
+  }
+
   /**
    * Universal User Resolver:
    * Accepts:
@@ -317,7 +537,7 @@ export class WarEraService {
    *  - user profile (level, xp, skills, stats, rankings, military rank, wealth, dates)
    *  - all owned companies with live production PP, upgrade levels (storage, automatedEngine)
    *  - equipped weapons & armor with stats & durability
-   *  - total workers employed
+   *  - total workers employed and real assigned employees per company
    */
   async resolveUserFull(input) {
     if (!input || typeof input !== 'string') {
@@ -343,31 +563,75 @@ export class WarEraService {
 
       // Fetch candidate usernames to match exact or best match
       const candidates = await Promise.all(
-        userIds.slice(0, 6).map(id => this.getUserLite(id))
+        userIds.slice(0, 10).map(id => this.getUserLite(id))
       );
       const valid = candidates.filter(Boolean);
       
-      const exactMatch = valid.find(c => c.username?.toLowerCase() === input.toLowerCase());
-      userId = exactMatch?._id || valid[0]?._id || userIds[0];
+      const cleanInput = input.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+      valid.sort((a, b) => {
+        const aClean = (a.username || '').replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+        const bClean = (b.username || '').replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+        const aExact = a.username?.toLowerCase() === input.toLowerCase() ? 3 : (aClean === cleanInput ? 2 : 0);
+        const bExact = b.username?.toLowerCase() === input.toLowerCase() ? 3 : (bClean === cleanInput ? 2 : 0);
+        if (aExact !== bExact) return bExact - aExact;
+        return (b.leveling?.level || 0) - (a.leveling?.level || 0);
+      });
+      userId = valid[0]?._id || userIds[0];
     }
 
-    // Now pull everything in parallel!
-    const [userProfile, companies, equipment, totalWorkers] = await Promise.all([
+    // Fetch user profile and metadata in parallel
+    const [userProfile, equipment, totalWorkers, wageStats] = await Promise.all([
       this.getUserById(userId),
-      this.getUserCompanies(userId),
       this.getUserEquipment(userId),
-      this.getTotalWorkers(userId)
+      this.getTotalWorkers(userId),
+      this.getWageStats()
     ]);
 
     if (!userProfile) {
       throw new Error(`User with ID ${userId} was not found on WarEra.`);
     }
 
+    // Resolve home region and current location
+    try {
+      const [homeRegionData, currentLocationData] = await Promise.all([
+        userProfile.region ? this.getRegionById(userProfile.region) : null,
+        userProfile.location ? this.getRegionById(userProfile.location) : null
+      ]);
+
+      if (homeRegionData) {
+        userProfile.homeRegionData = homeRegionData;
+        userProfile.homeRegionName = homeRegionData.name;
+        userProfile.homeCountryCode = homeRegionData.countryCode?.toUpperCase();
+        userProfile.homeCity = homeRegionData.mainCity;
+      }
+      if (currentLocationData) {
+        userProfile.currentLocationData = currentLocationData;
+        userProfile.currentLocationName = currentLocationData.name;
+        userProfile.currentCountryCode = currentLocationData.countryCode?.toUpperCase();
+        userProfile.currentCity = currentLocationData.mainCity;
+      }
+    } catch (e) {
+      console.warn('Failed to resolve user regions:', e.message);
+    }
+
+    // Fetch all user companies with owner pre-bound
+    const companies = await this.getUserCompanies(userId, userProfile);
+
+    // Ensure all companies have complete owner metadata and region information
+    const enrichedCompanies = (companies || []).map(comp => ({
+      ...comp,
+      ownerUsername: comp.ownerUsername || userProfile.username,
+      ownerId: comp.ownerId || userProfile._id,
+      ownerAvatarUrl: comp.ownerAvatarUrl || userProfile.avatarUrl || null,
+      isRealGameCompany: true
+    }));
+
     return {
       user: userProfile,
-      companies: companies || [],
+      companies: enrichedCompanies,
       equipment: equipment || null,
-      totalWorkers: totalWorkers || 0
+      totalWorkers: totalWorkers || 0,
+      wageStats: wageStats || FALLBACK_WAGE_STATS
     };
   }
 }

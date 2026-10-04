@@ -37,7 +37,7 @@ export default function ScenarioSandbox({ prices }) {
   const [useCombatPill, setUseCombatPill] = useState(true); // +80% damage for 1 hunger
 
   // Scenario 3: Wage & Tax Sensitivity Controls
-  const [wagePerPp, setWagePerPp] = useState(0.045);
+  const [wagePerPp, setWagePerPp] = useState(0.146);
   const [ppSessionAmount, setPpSessionAmount] = useState(25); // PP generated per work session
   const [incomeTaxRate, setIncomeTaxRate] = useState(10); // %
   const [regionResistancePoints, setRegionResistancePoints] = useState(20); // Resistance points
@@ -241,7 +241,7 @@ export default function ScenarioSandbox({ prices }) {
                   : 'bg-[#141d2f] text-slate-400 hover:text-white'
               }`}
             >
-              🪙 Wage & Tax Siphoning
+              Wage & Tax Siphoning
             </button>
           </div>
         </div>
@@ -556,10 +556,10 @@ export default function ScenarioSandbox({ prices }) {
               <div>
                 <div className="flex justify-between items-center mb-1">
                   <label className="text-slate-400">Offered Wage per PP:</label>
-                  <span className="text-white font-bold">{wagePerPp} Coins/PP</span>
+                  <span className="text-white font-bold">{wagePerPp.toFixed(3)} Coins/PP</span>
                 </div>
                 <input
-                  type="range" min="0.01" max="0.10" step="0.005"
+                  type="range" min="0.117" max="0.176" step="0.001"
                   value={wagePerPp}
                   onChange={(e) => setWagePerPp(parseFloat(e.target.value))}
                   className="w-full accent-amber-500"

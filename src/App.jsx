@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import Header from './components/Header';
 import WarEraTerminal from './components/WarEraTerminal';
+import CompanyPortfolio from './components/CompanyPortfolio';
 import ProfileSyncModal from './components/ProfileSyncModal';
 import LandingPage from './components/LandingPage';
 import { api, FALLBACK_PRICES } from './services/wareraApi';
@@ -29,7 +30,16 @@ export default function App() {
     }
   });
 
+  const [activeTab, setActiveTab] = useState('portfolio'); // 'portfolio' | 'terminal'
+  const [terminalItemCode, setTerminalItemCode] = useState('ammo');
   const [isSyncModalOpen, setIsSyncModalOpen] = useState(false);
+
+  const handleNavigateToTerminal = (itemCode) => {
+    if (itemCode) {
+      setTerminalItemCode(itemCode);
+    }
+    setActiveTab('terminal');
+  };
 
   // Compute live effective market spot prices directly from the real order book
   // (Mid-point of best bid and best ask represents actual current trading level in game)
@@ -40,16 +50,18 @@ export default function App() {
         const ob = orderBook[code];
         const buy = ob?.buyOrders?.[0]?.price;
         const sell = ob?.sellOrders?.[0]?.price;
-        if (buy !== undefined && sell !== undefined) {
-          map[code] = Number(((buy + sell) / 2).toFixed(4));
-        } else if (buy !== undefined) {
+        if (typeof buy === 'number' && typeof sell === 'number') {
+          map[code] = (buy + sell) / 2;
+        } else if (typeof buy === 'number') {
           map[code] = buy;
-        } else if (sell !== undefined) {
+        } else if (typeof sell === 'number') {
           map[code] = sell;
         }
       });
-      if (map.coca) map.mysteriousPlant = map.coca;
-      if (map.cocain) map.pill = map.cocain;
+      if (map.coca !== undefined) map.mysteriousPlant = map.coca;
+      if (map.cocain !== undefined) map.pill = map.cocain;
+      if (map.pill !== undefined) map.cocain = map.pill;
+      if (map.mysteriousPlant !== undefined) map.coca = map.mysteriousPlant;
     }
     return map;
   }, [prices, orderBook]);
@@ -83,7 +95,7 @@ export default function App() {
 
   useEffect(() => {
     refreshPrices();
-    const interval = setInterval(refreshPrices, 15000); // 15-second responsive refresh for fast-moving market
+    const interval = setInterval(refreshPrices, 10000); // 10-second responsive refresh for fast-moving market
     return () => clearInterval(interval);
   }, []);
 
@@ -101,6 +113,34 @@ export default function App() {
       // Storage quota or error
     }
   };
+
+  // Continuous background polling of user dossier (companies, live in-storage accumulation, real workers)
+  useEffect(() => {
+    if (!dossier?.user?._id) return;
+
+    let isCancelled = false;
+    const refreshDossier = async () => {
+      try {
+        const freshDossier = await api.resolveUserFull(dossier.user._id);
+        if (!isCancelled && freshDossier?.user) {
+          setDossier(freshDossier);
+          try {
+            localStorage.setItem('warera_dossier', JSON.stringify(freshDossier));
+          } catch {}
+        }
+      } catch (err) {
+        console.warn('Background dossier refresh:', err.message);
+      }
+    };
+
+    // Run immediately, then poll every 20 seconds
+    refreshDossier();
+    const interval = setInterval(refreshDossier, 20000);
+    return () => {
+      isCancelled = true;
+      clearInterval(interval);
+    };
+  }, [dossier?.user?._id]);
 
   const handleDisconnect = () => {
     setDossier(null);
@@ -130,17 +170,35 @@ export default function App() {
         userData={user}
         onOpenSyncModal={() => setIsSyncModalOpen(true)}
         onDisconnect={handleDisconnect}
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
       />
 
       {/* Main Full-Height Viewport */}
       <main className="flex-1 w-full overflow-hidden flex flex-col">
-        <WarEraTerminal
-          prices={effectivePrices}
-          vwapPrices={prices}
-          orderBook={orderBook}
-          onRefreshPrices={refreshPrices}
-          isRefreshing={isRefreshingPrices}
-        />
+        {activeTab === 'terminal' && (
+          <WarEraTerminal
+            prices={effectivePrices}
+            vwapPrices={prices}
+            orderBook={orderBook}
+            onRefreshPrices={refreshPrices}
+            isRefreshing={isRefreshingPrices}
+            initialItemCode={terminalItemCode}
+          />
+        )}
+
+        {activeTab === 'portfolio' && (
+          <div className="flex-1 w-full overflow-y-auto flex flex-col">
+            <CompanyPortfolio
+              dossier={dossier}
+              prices={effectivePrices}
+              onOpenSyncModal={() => setIsSyncModalOpen(true)}
+              onRefreshPrices={refreshPrices}
+              onUpdateDossier={handleSyncUser}
+              onNavigateToTerminal={handleNavigateToTerminal}
+            />
+          </div>
+        )}
       </main>
 
       {/* Profile Sync Modal */}

@@ -24,7 +24,7 @@ export default function LaborScenarioLab({ prices = {}, initialItemCode = 'ammo'
   const [workerSkillLevel, setWorkerSkillLevel] = useState(3);
   const [workFrequency, setWorkFrequency] = useState(2);
   const [workerSlots, setWorkerSlots] = useState(2);
-  const [wagePerPp, setWagePerPp] = useState(0.040);
+  const [wagePerPp, setWagePerPp] = useState(0.146);
   const [isSelfWorking, setIsSelfWorking] = useState(false);
   const [hasDeposit, setHasDeposit] = useState(true);
   const [countryBonus, setCountryBonus] = useState(5.5);
@@ -279,17 +279,17 @@ export default function LaborScenarioLab({ prices = {}, initialItemCode = 'ammo'
                 </div>
                 <input
                   type="range"
-                  min="0.010"
-                  max="0.080"
-                  step="0.005"
+                  min="0.117"
+                  max="0.176"
+                  step="0.001"
                   value={wagePerPp}
                   onChange={(e) => setWagePerPp(Number(e.target.value))}
                   className="w-full accent-amber-600 bg-slate-200 h-1.5 rounded-lg cursor-pointer"
                 />
-                <div className="flex justify-between text-[10px] text-slate-400">
-                  <span>$0.010 (Ultra cheap)</span>
-                  <span>$0.040 (Standard market)</span>
-                  <span>$0.080 (High wage)</span>
+                <div className="flex justify-between text-[10px] text-slate-400 font-mono">
+                  <span>$0.117 (Min)</span>
+                  <span className="text-amber-600 font-bold">$0.146 (Avg)</span>
+                  <span>$0.176 (Max)</span>
                 </div>
               </div>
             )}

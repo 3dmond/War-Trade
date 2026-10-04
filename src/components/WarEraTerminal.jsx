@@ -42,8 +42,15 @@ import ChartDrawingsOverlay from './ChartDrawingsOverlay';
 import ItemIcon from './ItemIcon';
 import ChartSettingsModal from './ChartSettingsModal';
 
-export default function WarEraTerminal({ prices = {}, vwapPrices = {}, orderBook = {}, onRefreshPrices, isRefreshing = false }) {
-  const [selectedItemCode, setSelectedItemCode] = useState('ammo');
+export default function WarEraTerminal({ prices = {}, vwapPrices = {}, orderBook = {}, onRefreshPrices, isRefreshing = false, initialItemCode = 'ammo' }) {
+  const [selectedItemCode, setSelectedItemCode] = useState(initialItemCode || 'ammo');
+
+  useEffect(() => {
+    if (initialItemCode) {
+      setSelectedItemCode(initialItemCode);
+    }
+  }, [initialItemCode]);
+
   const [chartType, setChartType] = useState('candle'); // 'candle' | 'line'
   const [timeframe, setTimeframe] = useState('1M'); // Default: 1 minute chart
   const [showTimeframeDropdown, setShowTimeframeDropdown] = useState(false);

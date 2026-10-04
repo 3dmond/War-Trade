@@ -233,6 +233,16 @@ export default function LandingPage({
           <span>{errorMsg}</span>
         </div>
       )}
+
+      <div className="flex items-center justify-center space-x-2 pt-2">
+        <button
+          type="button"
+          onClick={() => onConnectUser && onConnectUser({ user: { username: 'Industrialist', leveling: { level: 8 } }, companies: [] })}
+          className="text-xs text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 transition underline underline-offset-4 cursor-pointer"
+        >
+          Or explore Portfolio in sandbox mode →
+        </button>
+      </div>
     </form>
   );
 

@@ -21,7 +21,7 @@ export default function ProductionOptimizer({ prices, onRefreshPrices, isRefresh
   const [hasDeposit, setHasDeposit] = useState(true); // +30% region deposit bonus
   const [countryBonus, setCountryBonus] = useState(5.5); // % from strategic resources
   const [workMode, setWorkMode] = useState('self'); // 'self' (Entrepreneurship) or 'hired' (Energy)
-  const [workerWagePerPp, setWorkerWagePerPp] = useState(0.04); // Coins per PP paid to worker
+  const [workerWagePerPp, setWorkerWagePerPp] = useState(0.146); // Coins per PP paid to worker
   const [marketTaxRate, setMarketTaxRate] = useState(3.0); // % sales/market tax
   const [userProductionSkill, setUserProductionSkill] = useState(16); // PP per click (base 10 + skill)
 

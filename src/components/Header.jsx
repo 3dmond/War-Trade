@@ -4,18 +4,48 @@ import { User, LogOut } from 'lucide-react';
 export default function Header({ 
   userData, 
   onOpenSyncModal,
-  onDisconnect 
+  onDisconnect,
+  activeTab = 'portfolio',
+  setActiveTab
 }) {
   return (
-    <header className="bg-white sticky top-0 z-40 shadow-xs border-b border-slate-200/70 w-full">
+    <header className="bg-white sticky top-0 z-40 shadow-xs w-full">
       <div className="w-full px-3 sm:px-5">
         <div className="flex items-center justify-between h-14">
           
-          {/* Logo */}
-          <div className="flex items-center select-none">
-            <span className="font-extrabold tracking-tight text-slate-900 text-lg font-sans">
-              War Trade
-            </span>
+          {/* Logo & Navigation Tabs */}
+          <div className="flex items-center space-x-6 select-none">
+            <div className="flex items-center space-x-2">
+              <span className="font-extrabold tracking-tight text-slate-900 text-lg font-sans">
+                War Trade
+              </span>
+            </div>
+
+            {/* Navigation Tabs */}
+            {setActiveTab && (
+              <nav className="flex items-center space-x-1 bg-slate-100/80 p-1 rounded-xl">
+                <button
+                  onClick={() => setActiveTab('terminal')}
+                  className={`flex items-center space-x-2 px-3.5 py-1.5 rounded-lg text-xs font-medium transition ${
+                    activeTab === 'terminal'
+                      ? 'bg-white text-slate-900 shadow-xs font-semibold'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+                  }`}
+                >
+                  <span>Market Terminal</span>
+                </button>
+                <button
+                  onClick={() => setActiveTab('portfolio')}
+                  className={`flex items-center space-x-2 px-3.5 py-1.5 rounded-lg text-xs font-medium transition ${
+                    activeTab === 'portfolio'
+                      ? 'bg-white text-slate-900 shadow-xs font-semibold'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+                  }`}
+                >
+                  <span>Portfolio</span>
+                </button>
+              </nav>
+            )}
           </div>
 
           {/* Right Status & Profile Controls */}
@@ -25,7 +55,7 @@ export default function Header({
               <div className="flex items-center space-x-1.5">
                 <button
                   onClick={onOpenSyncModal}
-                  className="flex items-center space-x-2 px-3 py-1.5 text-xs rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 transition font-mono font-medium border border-slate-200"
+                  className="flex items-center space-x-2 px-3 py-1.5 text-xs rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 transition font-mono font-medium"
                   title="Profile details & stats"
                 >
                   <div className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center text-[10px] font-bold">
