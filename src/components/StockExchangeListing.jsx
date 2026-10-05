@@ -140,10 +140,97 @@ export default function StockExchangeListing({
 
   const liveTotalNetWorth = syncTotalNetWorth + liveStoredYieldVal;
 
-  // 1-Hour change metrics for Total Net Worth & Portfolio Valuation
-  const hourlyValuationCoins = (marketOverview.total24hGrowthCoins || 0) / 24;
-  const baselineTotalNetWorth = Math.max(1, liveTotalNetWorth - hourlyValuationCoins);
-  const hourlyValuationPct = (hourlyValuationCoins / baselineTotalNetWorth) * 100;
+  // Scoped Rolling Hourly Ledger per user
+  const effectiveUserId = user?._id || user?.id || user?.username || companies[0]?.ownerUsername || 'guest';
+  const [hourlyStats, setHourlyStats] = useState({
+    netWorthCoins: 0,
+    netWorthPct: 0,
+    portfolioCoins: 0,
+    portfolioPct: 0
+  });
+
+  useEffect(() => {
+    if (!liveTotalNetWorth || isNaN(liveTotalNetWorth) || !effectiveUserId) return;
+    try {
+      const now = Date.now();
+      const storageKey = `warera_hourly_ledger_${effectiveUserId}`;
+      const raw = localStorage.getItem(storageKey);
+      let ledger = raw ? JSON.parse(raw) : [];
+
+      const currentPortfolioVal = marketOverview.totalValuation || 0;
+
+      // Clean legacy un-scoped key
+      if (localStorage.getItem('warera_hourly_networth_ledger')) {
+        localStorage.removeItem('warera_hourly_networth_ledger');
+      }
+
+      // Record snapshot if empty or at least 45 seconds since last entry
+      const last = ledger[ledger.length - 1];
+      if (!last || (now - last.timestamp) >= 45000) {
+        ledger.push({
+          timestamp: now,
+          netWorth: Number(liveTotalNetWorth.toFixed(1)),
+          portfolioVal: Number(currentPortfolioVal.toFixed(1))
+        });
+      } else {
+        last.netWorth = Number(liveTotalNetWorth.toFixed(1));
+        last.portfolioVal = Number(currentPortfolioVal.toFixed(1));
+      }
+
+      // Keep past 48 hours
+      const cutoff = now - (48 * 3600000);
+      ledger = ledger.filter(entry => entry.timestamp >= cutoff);
+      localStorage.setItem(storageKey, JSON.stringify(ledger));
+
+      // Calculate rolling 1-hour change
+      const oneHourAgo = now - 3600000;
+      let bestSnapshot = null;
+      let minDiff = Infinity;
+
+      for (const entry of ledger) {
+        const diff = Math.abs(entry.timestamp - oneHourAgo);
+        if (diff < minDiff) {
+          minDiff = diff;
+          bestSnapshot = entry;
+        }
+      }
+
+      // If we don't have historical data older than 2 minutes yet (fresh load for this user)
+      const oldest = ledger[0];
+      const hasHistory = oldest && (now - oldest.timestamp) >= 60000;
+
+      if (!hasHistory) {
+        setHourlyStats({
+          netWorthCoins: 0,
+          netWorthPct: 0,
+          portfolioCoins: 0,
+          portfolioPct: 0
+        });
+        return;
+      }
+
+      // If bestSnapshot is within reasonable window, use it; otherwise use the oldest recorded in this session
+      const baseSnapshot = (bestSnapshot && minDiff < 3600000 * 1.5) ? bestSnapshot : oldest;
+
+      const baseNetWorth = baseSnapshot.netWorth || liveTotalNetWorth;
+      const nwDelta = liveTotalNetWorth - baseNetWorth;
+      const nwPct = baseNetWorth > 0 ? (nwDelta / baseNetWorth) * 100 : 0;
+
+      const basePort = baseSnapshot.portfolioVal || currentPortfolioVal;
+      const portDelta = currentPortfolioVal - basePort;
+      const portPct = basePort > 0 ? (portDelta / basePort) * 100 : 0;
+
+      setHourlyStats({
+        netWorthCoins: Number(nwDelta.toFixed(1)),
+        netWorthPct: Number(nwPct.toFixed(2)),
+        portfolioCoins: Number(portDelta.toFixed(1)),
+        portfolioPct: Number(portPct.toFixed(2))
+      });
+    } catch (err) {}
+  }, [liveTotalNetWorth, marketOverview.totalValuation, effectiveUserId]);
+
+  const hourlyValuationCoins = hourlyStats.portfolioCoins;
+  const hourlyValuationPct = hourlyStats.portfolioPct;
 
   const netWorthBreakdownItems = useMemo(() => {
     const total = liveTotalNetWorth > 0 ? liveTotalNetWorth : 1;
@@ -268,8 +355,8 @@ export default function StockExchangeListing({
                 <span className="text-xl sm:text-2xl font-black font-mono text-slate-900">
                   {liveTotalNetWorth.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
                 </span>
-                <span className={`text-xs font-bold font-mono ${hourlyValuationCoins > 0 ? 'text-emerald-700' : hourlyValuationCoins < 0 ? 'text-rose-700' : 'text-slate-400'}`}>
-                  {hourlyValuationCoins >= 0 ? '+' : ''}{hourlyValuationCoins.toFixed(1)} ({hourlyValuationPct >= 0 ? '+' : ''}{hourlyValuationPct.toFixed(2)}%)
+                <span className={`text-xs font-bold font-mono ${hourlyStats.netWorthCoins > 0 ? 'text-emerald-700' : hourlyStats.netWorthCoins < 0 ? 'text-rose-700' : 'text-slate-400'}`}>
+                  {hourlyStats.netWorthCoins >= 0 ? '+' : ''}{hourlyStats.netWorthCoins.toFixed(1)} ({hourlyStats.netWorthPct >= 0 ? '+' : ''}{hourlyStats.netWorthPct.toFixed(2)}%)
                 </span>
                 <span className="text-[10px] text-slate-400 font-sans">past 1h</span>
               </div>
@@ -312,8 +399,8 @@ export default function StockExchangeListing({
                   <span className="text-amber-800 font-black text-sm">
                     {liveTotalNetWorth.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
                   </span>
-                  <span className={`text-xs font-bold font-mono ${hourlyValuationCoins > 0 ? 'text-emerald-700' : hourlyValuationCoins < 0 ? 'text-rose-700' : 'text-slate-400'}`}>
-                    {hourlyValuationCoins >= 0 ? '+' : ''}{hourlyValuationCoins.toFixed(1)} ({hourlyValuationPct >= 0 ? '+' : ''}{hourlyValuationPct.toFixed(2)}%)
+                  <span className={`text-xs font-bold font-mono ${hourlyStats.netWorthCoins > 0 ? 'text-emerald-700' : hourlyStats.netWorthCoins < 0 ? 'text-rose-700' : 'text-slate-400'}`}>
+                    {hourlyStats.netWorthCoins >= 0 ? '+' : ''}{hourlyStats.netWorthCoins.toFixed(1)} ({hourlyStats.netWorthPct >= 0 ? '+' : ''}{hourlyStats.netWorthPct.toFixed(2)}%)
                   </span>
                   <span className="text-[10px] text-slate-400 font-sans">past 1h</span>
                 </div>
@@ -540,8 +627,8 @@ export default function StockExchangeListing({
                           {isPositiveProfit ? '+' : ''}{c.dailyNetProfit.toFixed(2)}
                         </div>
                         <span className="text-[10px] text-slate-400 block font-normal">
-                          {c.isRawProducer && c.unitsTransferredDaily > 0 
-                            ? `${((c.unitsTransferredDaily / c.unitsPerDay) * 100).toFixed(0)}% internal` 
+                          {c.isRawProducer && c.isSupplyingInternal 
+                            ? 'Internal Supply' 
                             : (c.netMarginPct ? `${c.netMarginPct.toFixed(1)}% margin` : '—')}
                         </span>
                       </td>

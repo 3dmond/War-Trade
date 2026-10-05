@@ -347,9 +347,7 @@ export class WarEraService {
         }
         const prodLevel = typeof workerUser?.skills?.production?.level === 'number' ? workerUser.skills.production.level : 0;
         const prodTotal = workerUser?.skills?.production?.total || workerUser?.skills?.production?.value || (10 + prodLevel * 3);
-        const energyLevel = typeof workerUser?.skills?.energy?.level === 'number' ? workerUser.skills.energy.level : 0;
-        const energyTotal = workerUser?.skills?.energy?.total || workerUser?.skills?.energy?.value || (energyLevel > 0 ? (energyLevel * 10) : 100);
-        const dailySessions = (energyTotal / 10) * 2.4;
+        const dailySessions = 2.0; // Realistic standard work frequency (2 sessions / day)
         
         const contractedWage = typeof w.wage === 'number' ? w.wage : 0.146;
         const loyalty = typeof w.fidelity === 'number' ? w.fidelity : 0;

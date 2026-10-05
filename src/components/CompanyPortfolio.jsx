@@ -215,7 +215,7 @@ export function mapCompanyFromDossier(c, i = 0, user = null, wageStats = null) {
     const prodBase = w.productionPointsBase || (prodLvl > 10 ? prodLvl : (10 + prodLvl * 3));
     const energyLvl = typeof w.energySkill === 'number' ? w.energySkill : (typeof w.energySkillLevel === 'number' ? w.energySkillLevel : 10);
     const energyStamina = w.energyPointsTotal || (energyLvl > 0 ? energyLvl * 10 : 100);
-    const dailySessions = (energyStamina / 10) * 2.4;
+    const dailySessions = 2.0; // Standard realistic work frequency (2 sessions / day)
 
     return {
       id: w._id || w.id || `w-${wIdx}`,
@@ -419,7 +419,9 @@ export default function CompanyPortfolio({
       const workersList = (comp.workers || []).map(w => {
         const energyLvl = typeof w.energySkill === 'number' ? w.energySkill : 10;
         const energyStamina = w.energyPointsTotal || (energyLvl > 0 ? energyLvl * 10 : 100);
-        const dailySessions = w.dailySessions || ((energyStamina / 10) * 2.4);
+        const dailySessions = typeof w.workSessionsPerDay === 'number' && w.workSessionsPerDay <= 5 
+          ? w.workSessionsPerDay 
+          : (typeof w.dailySessions === 'number' && w.dailySessions <= 5 ? w.dailySessions : 2.0);
 
         const prodLvl = typeof w.productionSkill === 'number' ? w.productionSkill : 0;
         const basePp = w.productionPointsBase || (prodLvl > 10 ? prodLvl : (10 + prodLvl * 3));
@@ -499,7 +501,7 @@ export default function CompanyPortfolio({
     const concretePrice = prices.concrete || 1.70;
     const marketTaxRate = 0.0;
 
-    // --- Phase 1: Pre-aggregate raw material producers across the portfolio ---
+    // --- Phase 1: Pre-aggregate raw material producers & downstream consumers across portfolio ---
     // A commodity is considered raw if recipe.type === 'raw' or inputs list is empty
     const rawSupplies = {};
     baseCompaniesData.forEach(comp => {
@@ -509,7 +511,6 @@ export default function CompanyPortfolio({
           rawSupplies[comp.itemCode] = {
             totalCapacity: 0,
             totalLabor: 0,
-            avgExtractionCost: 0,
             producers: []
           };
         }
@@ -519,68 +520,36 @@ export default function CompanyPortfolio({
       }
     });
 
-    // Compute average extraction labor cost per unit for each raw commodity
-    Object.keys(rawSupplies).forEach(itemCode => {
-      const s = rawSupplies[itemCode];
-      s.avgExtractionCost = s.totalCapacity > 0 ? (s.totalLabor / s.totalCapacity) : 0;
-    });
-
-    // --- Phase 2: Compute Insourced Demands from Downstream Facilities ---
-    // Rules:
-    // 1. If user owns a raw producer for input X: default assumption is INSORCED (isInsourced = true).
-    //    The user can uncheck this box to buy from market.
-    // 2. If user does NOT own a raw producer: default assumption is BUY FROM MARKET (isInsourced = false).
-    //    The user CANNOT check/uncheck this box (disabled).
-    const insourceDemands = {};
-
+    // Map downstream consumers for each raw input
+    const rawConsumers = {};
     baseCompaniesData.forEach(comp => {
       const inputs = comp.recipe.inputs || [];
       inputs.forEach(inp => {
-        const rawSupply = rawSupplies[inp.id];
-        const hasOwnedProducer = !!(rawSupply && rawSupply.totalCapacity > 0);
-        const overrideKey = `${comp.id || comp._id}_${inp.id}`;
-
-        const isInsourced = hasOwnedProducer
-          ? (insourceOverrides[overrideKey] !== undefined ? insourceOverrides[overrideKey] : true)
-          : false;
-
-        const dailyNeeded = comp.unitsPerDay * inp.qty;
-
-        if (isInsourced && dailyNeeded > 0) {
-          if (!insourceDemands[inp.id]) {
-            insourceDemands[inp.id] = { totalDemand: 0, consumers: [] };
-          }
-          insourceDemands[inp.id].totalDemand += dailyNeeded;
-          insourceDemands[inp.id].consumers.push({
-            id: comp.id || comp._id,
-            name: comp.name,
-            recipeName: comp.recipe.name,
-            dailyNeeded
-          });
+        if (!rawConsumers[inp.id]) {
+          rawConsumers[inp.id] = [];
         }
+        rawConsumers[inp.id].push({
+          id: comp.id || comp._id,
+          name: comp.name,
+          recipeName: comp.recipe.name,
+          dailyNeeded: comp.unitsPerDay * inp.qty
+        });
       });
     });
 
-    // --- Phase 3: Compute Coverage & Transfer Ratios ---
-    const coverageRatios = {};
-    const transferRatios = {};
-
-    Object.keys(rawSupplies).forEach(itemCode => {
-      const cap = rawSupplies[itemCode].totalCapacity;
-      const dem = insourceDemands[itemCode]?.totalDemand || 0;
-      coverageRatios[itemCode] = dem > 0 ? Math.min(1.0, cap / dem) : 1.0;
-      transferRatios[itemCode] = cap > 0 ? Math.min(1.0, dem / cap) : 0;
-    });
-
-    // --- Phase 4: Compute Each Company's Individual Economics ---
+    // --- Phase 2: Compute Each Company's Individual Economics (Transfer Pricing Model) ---
     return baseCompaniesData.map(comp => {
       const recipe = comp.recipe;
       const spotPrice = prices[comp.itemCode] || 1.0;
       const netSellPrice = spotPrice * (1 - marketTaxRate / 100);
       const isRawProducer = recipe.type === 'raw' || (recipe.inputs || []).length === 0;
 
-      // Downstream raw material input analysis
-      const rawInputsBreakdown = (recipe.inputs || []).map(inp => {
+      // Downstream consumers mapping for raw commodities
+      const downstreamConsumers = rawConsumers[comp.itemCode] || [];
+      const isSupplyingInternal = isRawProducer && downstreamConsumers.length > 0;
+
+      // Downstream raw material input analysis for Finished Goods
+      const rawInputsBreakdown = isRawProducer ? [] : (recipe.inputs || []).map(inp => {
         const itemPrice = prices[inp.id] || 0;
         const totalUnitsNeededDaily = comp.unitsPerDay * inp.qty;
         const unitsNeededPerUnit = inp.qty;
@@ -594,33 +563,8 @@ export default function CompanyPortfolio({
           ? (insourceOverrides[overrideKey] !== undefined ? insourceOverrides[overrideKey] : true)
           : false;
 
-        const marketCostPerUnit = unitsNeededPerUnit * itemPrice;
-        const dailyMarketRawExpense = totalUnitsNeededDaily * itemPrice;
-
-        let costPerUnit = marketCostPerUnit;
-        let dailyRawExpense = dailyMarketRawExpense;
-        let dailySavings = 0;
-        let savingsPerUnit = 0;
-        let insourcedUnits = 0;
-        let marketUnits = totalUnitsNeededDaily;
-        let insourcedExtractionCost = 0;
-        let coverageRatio = 0;
-
-        if (isInsourced && hasOwnedCompany) {
-          coverageRatio = coverageRatios[inp.id] !== undefined ? coverageRatios[inp.id] : 1.0;
-          insourcedUnits = totalUnitsNeededDaily * coverageRatio;
-          marketUnits = Math.max(0, totalUnitsNeededDaily - insourcedUnits);
-          insourcedExtractionCost = rawSupply.avgExtractionCost || 0;
-
-          const insourcedCashExpense = insourcedUnits * insourcedExtractionCost;
-          const marketCashExpense = marketUnits * itemPrice;
-
-          dailyRawExpense = insourcedCashExpense + marketCashExpense;
-          costPerUnit = comp.unitsPerDay > 0 ? (dailyRawExpense / comp.unitsPerDay) : 0;
-          dailySavings = Math.max(0, dailyMarketRawExpense - dailyRawExpense);
-          savingsPerUnit = Math.max(0, marketCostPerUnit - costPerUnit);
-        }
-
+        const costPerUnit = unitsNeededPerUnit * itemPrice;
+        const dailyRawExpense = totalUnitsNeededDaily * itemPrice;
         const inpRecipe = RECIPES.find(r => r.id === inp.id) || { name: inp.id };
 
         return {
@@ -629,82 +573,43 @@ export default function CompanyPortfolio({
           qtyNeededPerUnit: unitsNeededPerUnit,
           unitMarketPrice: itemPrice,
           totalUnitsNeededDaily,
-          marketCostPerUnit,
-          dailyMarketRawExpense,
           costPerUnit,
           dailyRawExpense,
-          dailySavings,
-          savingsPerUnit,
           hasOwnedCompany,
           isInsourced,
-          insourcedUnits,
-          marketUnits,
-          insourcedExtractionCost,
-          coverageRatio,
           rawProducerCompanies
         };
       });
 
       const totalRawCostPerUnit = rawInputsBreakdown.reduce((sum, item) => sum + item.costPerUnit, 0);
       const dailyRawCashExpense = rawInputsBreakdown.reduce((sum, item) => sum + item.dailyRawExpense, 0);
-      const totalDailyRawSavings = rawInputsBreakdown.reduce((sum, item) => sum + item.dailySavings, 0);
       const hasRawInputs = rawInputsBreakdown.length > 0;
       const isAllInsourced = hasRawInputs && rawInputsBreakdown.every(item => item.isInsourced);
 
-      // Labor Economics & Internal Transfers
-      const unitExtractionCost = comp.unitsPerDay > 0 ? (comp.totalWorkerWages / comp.unitsPerDay) : 0;
-      let tRatio = 0;
-      let unitsTransferredDaily = 0;
-      let unitsSurplusDaily = comp.unitsPerDay;
-      let transferredLaborExpense = 0;
-      let surplusLaborExpense = comp.totalWorkerWages;
-      let marketSurplusRevenue = comp.unitsPerDay * spotPrice;
-      let dailyMarketCashProfit = marketSurplusRevenue - surplusLaborExpense;
+      // Financials:
+      // Raw producers receive full credit for economic output: Output Units * Spot Price - Direct Wages
+      // Finished producers deduct raw inputs at spot rate (balanced offset against owned raw facilities)
+      const dailyGrossRevenue = comp.unitsPerDay * spotPrice;
+      const dailyLaborExpense = comp.totalWorkerWages;
+      const laborCostPerUnit = comp.unitsPerDay > 0 ? (dailyLaborExpense / comp.unitsPerDay) : 0;
 
-      if (isRawProducer) {
-        tRatio = transferRatios[comp.itemCode] || 0;
-        unitsTransferredDaily = comp.unitsPerDay * tRatio;
-        unitsSurplusDaily = Math.max(0, comp.unitsPerDay - unitsTransferredDaily);
-        transferredLaborExpense = unitsTransferredDaily * unitExtractionCost;
-        surplusLaborExpense = Math.max(0, comp.totalWorkerWages - transferredLaborExpense);
-        marketSurplusRevenue = unitsSurplusDaily * spotPrice;
-        dailyMarketCashProfit = marketSurplusRevenue - surplusLaborExpense;
-      }
+      const dailyNetProfit = isRawProducer
+        ? (dailyGrossRevenue - dailyLaborExpense)
+        : (dailyGrossRevenue - dailyRawCashExpense - dailyLaborExpense);
 
-      // Standalone full production financials (if 100% capacity were sold on open market)
-      const standaloneDailyGrossRevenue = comp.unitsPerDay * spotPrice;
-      const standaloneDailyNetProfit = standaloneDailyGrossRevenue - comp.totalWorkerWages;
-
-      // Realized daily financials:
-      // For raw producers with internal transfers: gross revenue is from surplus market sales, labor is surplus labor
-      // For downstream manufacturers: gross revenue is from finished goods, raw expense is true extraction cost (or market shortfall)
-      const dailyLaborExpense = isRawProducer && unitsTransferredDaily > 0 
-        ? surplusLaborExpense 
-        : comp.totalWorkerWages;
-      const laborCostPerUnit = comp.unitsPerDay > 0 ? (comp.totalWorkerWages / comp.unitsPerDay) : 0;
-
-      const dailyGrossRevenue = isRawProducer && unitsTransferredDaily > 0 
-        ? marketSurplusRevenue 
-        : standaloneDailyGrossRevenue;
-
-      const dailyNetProfit = isRawProducer && unitsTransferredDaily > 0
-        ? dailyMarketCashProfit
-        : (dailyGrossRevenue - dailyRawCashExpense - comp.totalWorkerWages);
-
-      const netProfitPerUnit = isRawProducer 
+      const netProfitPerUnit = isRawProducer
         ? (spotPrice - laborCostPerUnit)
         : (spotPrice - totalRawCostPerUnit - laborCostPerUnit);
 
-      const netMarginPct = spotPrice > 0 ? (netProfitPerUnit / spotPrice) * 100 : 0;
+      const netMarginPct = dailyGrossRevenue > 0 ? (dailyNetProfit / dailyGrossRevenue) * 100 : 0;
 
-      // Workers enriched net contribution
+      // Workers enriched net contribution (evaluating individual profitability)
       const enrichedWorkers = comp.workersList.map(w => {
         const workerEffectivePp = w.dailyPp * comp.bonusMultiplier;
         const unitsProduced = recipe.pp > 0 ? (workerEffectivePp / recipe.pp) : 0;
         const grossValue = unitsProduced * spotPrice;
-        const rawExpense = unitsProduced * totalRawCostPerUnit;
-        const sellingFee = 0.0;
-        const netContribution = grossValue - rawExpense - sellingFee - w.dailyWage;
+        const rawExpense = isRawProducer ? 0 : (unitsProduced * totalRawCostPerUnit);
+        const netContribution = grossValue - rawExpense - w.dailyWage;
 
         return {
           ...w,
@@ -712,7 +617,7 @@ export default function CompanyPortfolio({
           unitsProduced,
           grossValue,
           rawExpense,
-          sellingFee,
+          sellingFee: 0,
           netContribution
         };
       });
@@ -785,13 +690,8 @@ export default function CompanyPortfolio({
       if (nextStorageTier) {
         storageUpgradeSteel = nextStorageTier.steel - storageTier.steel;
         storageExtraCapacity = nextStorageTier.capacity - storageCapacity;
-        storageExtraEngineHours = comp.engineTier.ppPerHour > 0 ? (storageExtraCapacity / comp.engineTier.ppPerHour) : 0;
       }
-
       const hasEmployees = enrichedWorkers.length > 0;
-
-      // Downstream consumers that consume this company's raw output
-      const downstreamConsumers = (insourceDemands[comp.itemCode]?.consumers || []).filter(c => c.id !== comp.id && c.id !== comp._id);
 
       return {
         ...comp,
@@ -800,20 +700,12 @@ export default function CompanyPortfolio({
         spotPrice,
         netSellPrice,
         isRawProducer,
-        unitExtractionCost,
-        unitsTransferredDaily,
-        unitsSurplusDaily,
-        transferredLaborExpense,
-        surplusLaborExpense,
-        marketSurplusRevenue,
-        dailyMarketCashProfit,
-        standaloneDailyGrossRevenue,
-        standaloneDailyNetProfit,
+        unitExtractionCost: laborCostPerUnit,
+        isSupplyingInternal,
+        downstreamConsumers,
         rawInputsBreakdown,
         hasRawInputs,
         isAllInsourced,
-        totalDailyRawSavings,
-        downstreamConsumers,
         dailyRawCashExpense,
         totalRawCostPerUnit,
         enrichedWorkers,
@@ -1114,9 +1006,9 @@ export default function CompanyPortfolio({
                       <span className={`font-black ${activeCompany.dailyNetProfit >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
                         {activeCompany.dailyNetProfit >= 0 ? '+' : ''}{activeCompany.dailyNetProfit.toFixed(1)}/day
                       </span>
-                      {activeCompany.unitsTransferredDaily > 0 && (
-                        <span className="text-[10px] text-slate-400 block font-normal font-sans">
-                          ({activeCompany.unitsTransferredDaily.toFixed(0)} u/d supplied downstream)
+                      {activeCompany.isSupplyingInternal && (
+                        <span className="text-[10px] text-emerald-600 block font-normal font-sans">
+                          (Supplying internal pipeline)
                         </span>
                       )}
                     </div>
@@ -1486,33 +1378,52 @@ export default function CompanyPortfolio({
             </div>
 
             {activeCompany.rawInputsBreakdown.length === 0 ? (
-              <div className="bg-slate-50/70 p-5 space-y-3">
+              <div className="bg-slate-50/70 p-5 space-y-3 font-sans">
                 <div className="flex items-center space-x-2">
                   <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                  <span className="font-extrabold text-slate-900 text-sm font-sans">Natural Resource Extraction</span>
+                  <span className="font-extrabold text-slate-900 text-sm">Natural Resource Extraction Ledger</span>
                 </div>
-                <p className="text-xs text-slate-500 font-sans">
-                  This facility gathers directly from natural deposits at <strong>0.00 raw material cost</strong>. Extraction labor cost is <strong>{activeCompany.unitExtractionCost.toFixed(3)}/unit</strong>.
+                <p className="text-xs text-slate-500">
+                  This facility extracts commodities directly from regional deposits. Daily output is valued at live exchange spot price ({activeCompany.spotPrice.toFixed(3)} Coins) and services your empire's supply pipeline.
                 </p>
 
-                {activeCompany.unitsTransferredDaily > 0 ? (
-                  <div className="space-y-2 pt-2 border-t border-slate-200/60 font-mono text-xs">
-                    <div className="flex justify-between items-center text-slate-700">
-                      <span>↳ Internal Supply Transferred:</span>
-                      <strong className="text-blue-700 font-sans">
-                        {activeCompany.unitsTransferredDaily.toFixed(1)} units/day ({((activeCompany.unitsTransferredDaily / activeCompany.unitsPerDay) * 100).toFixed(1)}% of output)
-                      </strong>
-                    </div>
-                    <div className="flex justify-between items-center text-slate-700">
-                      <span>Internal Transfer Labor (Absorbed Downstream):</span>
-                      <strong className="text-slate-900">
-                        {activeCompany.transferredLaborExpense.toFixed(2)}/day (@ {activeCompany.unitExtractionCost.toFixed(3)}/u)
-                      </strong>
-                    </div>
+                <div className="space-y-2 pt-3 border-t border-slate-200/60 font-mono text-xs">
+                  <div className="flex justify-between items-center text-slate-700">
+                    <span>Daily Extraction Output:</span>
+                    <strong className="text-slate-900 font-sans">
+                      {activeCompany.unitsPerDay.toFixed(1)} units/day (@ {activeCompany.spotPrice.toFixed(3)} Spot)
+                    </strong>
+                  </div>
 
-                    {activeCompany.downstreamConsumers && activeCompany.downstreamConsumers.length > 0 && (
-                      <div className="pt-1 flex items-center flex-wrap gap-2 text-xs font-sans">
-                        <span className="text-slate-500 font-medium">↳ Supplies your facilities:</span>
+                  <div className="flex justify-between items-center text-slate-700">
+                    <span>Gross Output Value Created:</span>
+                    <strong className="text-slate-900 font-sans">
+                      +{(activeCompany.unitsPerDay * activeCompany.spotPrice).toFixed(2)} Coins/day
+                    </strong>
+                  </div>
+
+                  <div className="flex justify-between items-center text-slate-700">
+                    <span>Direct Labor Expenses (Wages):</span>
+                    <strong className="text-slate-800 font-sans">
+                      -{activeCompany.dailyLaborExpense.toFixed(2)} Coins/day
+                    </strong>
+                  </div>
+
+                  <div className="flex justify-between items-center pt-1 border-t border-slate-200/60 text-slate-900 font-bold">
+                    <span>Net Facility Economic Value:</span>
+                    <span className={`font-black font-sans text-sm ${activeCompany.dailyNetProfit >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
+                      {activeCompany.dailyNetProfit >= 0 ? '+' : ''}{activeCompany.dailyNetProfit.toFixed(2)} Coins/day ({activeCompany.netMarginPct.toFixed(1)}% margin)
+                    </span>
+                  </div>
+
+                  {activeCompany.downstreamConsumers && activeCompany.downstreamConsumers.length > 0 ? (
+                    <div className="pt-2 border-t border-slate-200/60 text-xs font-sans space-y-1.5">
+                      <div className="flex items-center justify-between text-slate-600">
+                        <span className="font-bold text-emerald-800">✔ Internal Supply Status:</span>
+                        <span className="text-[11px] text-slate-500 font-mono">Offset against downstream costs</span>
+                      </div>
+                      <div className="flex items-center flex-wrap gap-2 pt-1">
+                        <span className="text-slate-500 text-xs">Supplying your facilities:</span>
                         {activeCompany.downstreamConsumers.map(dc => (
                           <button
                             key={dc.id}
@@ -1527,27 +1438,13 @@ export default function CompanyPortfolio({
                           </button>
                         ))}
                       </div>
-                    )}
-
-                    <div className="flex justify-between items-center pt-2 border-t border-slate-200/60 text-slate-700">
-                      <span>↳ Open Market Surplus Sales:</span>
-                      <strong className="text-emerald-700 font-sans">
-                        {activeCompany.unitsSurplusDaily.toFixed(1)} units/day ({((activeCompany.unitsSurplusDaily / activeCompany.unitsPerDay) * 100).toFixed(1)}% of output)
-                      </strong>
                     </div>
-                    <div className="flex justify-between items-center text-slate-700">
-                      <span>Surplus Market Net Cashflow:</span>
-                      <span className={`font-black font-sans ${activeCompany.dailyMarketCashProfit >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
-                        {activeCompany.dailyMarketCashProfit >= 0 ? '+' : ''}{activeCompany.dailyMarketCashProfit.toFixed(2)}/day
-                      </span>
+                  ) : (
+                    <div className="pt-2 border-t border-slate-200/60 text-xs text-slate-600 font-sans">
+                      <span>✔ 100% of production is available for market export or strategic stockpile accumulation.</span>
                     </div>
-                  </div>
-                ) : (
-                  <div className="pt-2 text-xs text-slate-600 font-mono">
-                    <p>100% of production ({activeCompany.unitsPerDay.toFixed(1)} units/day) is sold on the open market at spot price ({activeCompany.spotPrice.toFixed(3)}).</p>
-                    <p className="text-emerald-700 font-bold mt-1 font-sans">Net Cashflow from Market: +{activeCompany.dailyNetProfit.toFixed(2)}/day</p>
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
             ) : (
               <div className="space-y-4">
@@ -1626,21 +1523,11 @@ export default function CompanyPortfolio({
                         {inp.isInsourced ? (
                           <div className="text-right">
                             <span className="text-emerald-700 font-bold font-sans">
-                              {inp.coverageRatio >= 1.0 
-                                ? '100% Insourced' 
-                                : `${(inp.coverageRatio * 100).toFixed(0)}% Insourced (${inp.insourcedUnits.toFixed(1)} u/d)`}
+                              Internally Supplied (Balanced)
                             </span>
-                            {inp.coverageRatio < 1.0 && (
-                              <span className="text-slate-600 text-[11px] block font-sans">
-                                + {((1 - inp.coverageRatio) * 100).toFixed(0)}% Market shortfall ({inp.marketUnits.toFixed(1)} u/d)
-                              </span>
-                            )}
-                            <div className="text-[11px] text-slate-500 font-mono">
-                              Extraction cost: <strong>{inp.insourcedExtractionCost.toFixed(3)}</strong>/u
-                            </div>
                             {inp.rawProducerCompanies.length > 0 && (
                               <div className="text-[11px] text-slate-500 font-sans">
-                                ↳ Supplied by{' '}
+                                ↳ Secured by{' '}
                                 {inp.rawProducerCompanies.map(sc => (
                                   <button
                                     key={sc.id}
@@ -1668,23 +1555,17 @@ export default function CompanyPortfolio({
                       </div>
 
                       <div className="flex justify-between items-center pt-2 text-slate-900 font-bold">
-                        <span>Daily Raw Material Cost (Factored into Profit):</span>
-                        {inp.isInsourced ? (
-                          <div className="text-right">
-                            <span className="text-rose-600 font-black text-sm block">
-                              -{inp.dailyRawExpense.toFixed(2)}/day
-                            </span>
-                            {inp.dailySavings > 0 && (
-                              <span className="text-[11px] text-emerald-600 font-normal font-sans">
-                                +{inp.dailySavings.toFixed(2)}/day market savings (vs -{inp.dailyMarketRawExpense.toFixed(2)}/d market)
-                              </span>
-                            )}
-                          </div>
-                        ) : (
-                          <span className="text-rose-600 font-black text-sm">
-                            -{inp.dailyMarketRawExpense.toFixed(2)}/day
+                        <span>Daily Raw Material Cost (Deducted):</span>
+                        <div className="text-right">
+                          <span className="text-rose-600 font-black text-sm block">
+                            -{inp.dailyRawExpense.toFixed(2)}/day
                           </span>
-                        )}
+                          {inp.isInsourced && (
+                            <span className="text-[11px] text-emerald-600 font-normal font-sans">
+                              Offset against owned raw producer output
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
 
