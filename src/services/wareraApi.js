@@ -313,8 +313,17 @@ export class WarEraService {
   }
 
   async getUserLite(userId) {
+    if (!userId) return null;
+    if (this._userLiteCache && this._userLiteCache.has(userId)) {
+      return this._userLiteCache.get(userId);
+    }
     try {
-      return await this.callTrpc('user.getUserLite', { userId });
+      const data = await this.callTrpc('user.getUserLite', { userId });
+      if (data) {
+        if (!this._userLiteCache) this._userLiteCache = new Map();
+        this._userLiteCache.set(userId, data);
+      }
+      return data;
     } catch (e) {
       return null;
     }
@@ -336,45 +345,62 @@ export class WarEraService {
     }
   }
 
+  async enrichWorkersList(workers = []) {
+    return await Promise.all(workers.map(async (w, idx) => {
+      let workerUser = null;
+      if (w.user) {
+        workerUser = await this.getUserLite(w.user);
+      }
+      const prodLevel = typeof workerUser?.skills?.production?.level === 'number' 
+        ? workerUser.skills.production.level 
+        : 0;
+      const prodTotal = workerUser?.skills?.production?.value 
+        || workerUser?.skills?.production?.total 
+        || (10 + prodLevel * 3);
+
+      const energyLevel = typeof workerUser?.skills?.energy?.level === 'number' 
+        ? workerUser.skills.energy.level 
+        : (typeof workerUser?.skills?.stamina?.level === 'number' ? workerUser.skills.stamina.level : 0);
+      const energyTotal = workerUser?.skills?.energy?.value 
+        || workerUser?.skills?.energy?.total 
+        || (30 + energyLevel * 10);
+
+      // Natural 24h energy regeneration capacity:
+      // In WarEra, energy regenerates at 10% per hour = 2.4 * max stamina per 24 hours.
+      // Each work session costs 10 energy points => daily sessions = 0.24 * energyTotal
+      const dailySessions = Number((energyTotal * 0.24).toFixed(2));
+      const contractedWage = typeof w.wage === 'number' ? w.wage : 0.146;
+      const loyalty = typeof w.fidelity === 'number' ? w.fidelity : 0;
+
+      return {
+        id: w._id || `w-${idx}`,
+        userId: w.user,
+        username: workerUser?.username || `Worker #${idx + 1}`,
+        avatarUrl: workerUser?.avatarUrl || null,
+        level: workerUser?.leveling?.level || 1,
+        productionSkill: prodLevel,
+        productionPointsBase: prodTotal,
+        energySkill: energyLevel,
+        energyPointsTotal: energyTotal,
+        dailySessions,
+        workSessionsPerDay: dailySessions,
+        loyaltyBonus: loyalty,
+        fidelity: loyalty,
+        wage: contractedWage,
+        wagePerPp: contractedWage,
+        joinedAt: w.joinedAt,
+        employer: w.employer,
+        companyId: w.company,
+        isRealPlayer: true
+      };
+    }));
+  }
+
   async getCompanyWorkers(companyId) {
     try {
       const res = await this.callTrpc('worker.getWorkers', { companyId });
       const workers = res?.workers || [];
-      const enriched = await Promise.all(workers.map(async (w, idx) => {
-        let workerUser = null;
-        if (w.user) {
-          workerUser = await this.getUserLite(w.user);
-        }
-        const prodLevel = typeof workerUser?.skills?.production?.level === 'number' ? workerUser.skills.production.level : 0;
-        const prodTotal = workerUser?.skills?.production?.total || workerUser?.skills?.production?.value || (10 + prodLevel * 3);
-        const dailySessions = 2.0; // Realistic standard work frequency (2 sessions / day)
-        
-        const contractedWage = typeof w.wage === 'number' ? w.wage : 0.146;
-        const loyalty = typeof w.fidelity === 'number' ? w.fidelity : 0;
-
-        return {
-          id: w._id || `w-${idx}`,
-          userId: w.user,
-          username: workerUser?.username || `Worker #${idx + 1}`,
-          avatarUrl: workerUser?.avatarUrl || null,
-          level: workerUser?.leveling?.level || 1,
-          productionSkill: prodLevel,
-          productionPointsBase: prodTotal,
-          energySkill: energyLevel,
-          energyPointsTotal: energyTotal,
-          dailySessions,
-          workSessionsPerDay: dailySessions,
-          loyaltyBonus: loyalty,
-          fidelity: loyalty,
-          wage: contractedWage,
-          wagePerPp: contractedWage,
-          joinedAt: w.joinedAt,
-          employer: w.employer,
-          companyId: w.company || companyId,
-          isRealPlayer: true
-        };
-      }));
-      return enriched;
+      return await this.enrichWorkersList(workers);
     } catch (e) {
       console.warn(`Failed to fetch workers for company ${companyId}:`, e.message);
       return [];
@@ -407,13 +433,13 @@ export class WarEraService {
     }
   }
 
-  async getCompanyFull(companyId, ownerUser = null) {
+  async getCompanyFull(companyId, ownerUser = null, preloadedWorkers = null) {
     try {
       const comp = await this.getCompanyById(companyId);
       if (!comp) return null;
 
       const [workers, regionData, workOfferData, productionBonusData] = await Promise.all([
-        this.getCompanyWorkers(companyId),
+        preloadedWorkers ? this.enrichWorkersList(preloadedWorkers) : this.getCompanyWorkers(companyId),
         comp.region ? this.getRegionById(comp.region) : null,
         comp.workOffer ? this.getWorkOfferById(comp.workOffer) : null,
         this.getCompanyProductionBonus(companyId)
@@ -457,7 +483,7 @@ export class WarEraService {
     }
   }
 
-  async getUserCompanies(userId, ownerUser = null) {
+  async getUserCompanies(userId, ownerUser = null, workersMap = null) {
     try {
       const res = await this.callTrpc('company.getCompanies', { userId, perPage: 100 });
       const companyIds = res?.items || [];
@@ -465,8 +491,9 @@ export class WarEraService {
       
       // Fetch full company details, real live workers, region info, and work offer for each
       const companies = await Promise.all(
-        companyIds.slice(0, 30).map(async (cid) => {
-          return await this.getCompanyFull(cid, ownerUser);
+        companyIds.slice(0, 50).map(async (cid) => {
+          const preloaded = workersMap ? (workersMap.get(cid.toString()) || workersMap.get(cid) || null) : null;
+          return await this.getCompanyFull(cid, ownerUser, preloaded);
         })
       );
       return companies.filter(Boolean);
@@ -577,16 +604,28 @@ export class WarEraService {
       userId = valid[0]?._id || userIds[0];
     }
 
-    // Fetch user profile and metadata in parallel
-    const [userProfile, equipment, totalWorkers, wageStats] = await Promise.all([
+    // Fetch user profile, equipment, totalWorkers, wageStats, and all workers grouped by company in parallel
+    const [userProfile, equipment, totalWorkers, wageStats, workersPerCompanyData] = await Promise.all([
       this.getUserById(userId),
       this.getUserEquipment(userId),
       this.getTotalWorkers(userId),
-      this.getWageStats()
+      this.getWageStats(),
+      this.getWorkersByUser(userId)
     ]);
 
     if (!userProfile) {
       throw new Error(`User with ID ${userId} was not found on WarEra.`);
+    }
+
+    // Build company-to-workers map for instant, zero-failure worker assignment
+    const workersMap = new Map();
+    if (Array.isArray(workersPerCompanyData)) {
+      workersPerCompanyData.forEach(item => {
+        const cId = item.company?._id || item.company;
+        if (cId) {
+          workersMap.set(cId.toString(), item.workers || []);
+        }
+      });
     }
 
     // Resolve home region and current location
@@ -612,8 +651,8 @@ export class WarEraService {
       console.warn('Failed to resolve user regions:', e.message);
     }
 
-    // Fetch all user companies with owner pre-bound
-    const companies = await this.getUserCompanies(userId, userProfile);
+    // Fetch all user companies with preloaded workers map for 100% accuracy
+    const companies = await this.getUserCompanies(userId, userProfile, workersMap);
 
     // Ensure all companies have complete owner metadata and region information
     const enrichedCompanies = (companies || []).map(comp => ({
@@ -624,11 +663,14 @@ export class WarEraService {
       isRealGameCompany: true
     }));
 
+    const actualWorkersCount = enrichedCompanies.reduce((sum, c) => sum + (c.workers?.length || 0), 0);
+    const finalTotalWorkers = Math.max(actualWorkersCount, totalWorkers || 0);
+
     return {
       user: userProfile,
       companies: enrichedCompanies,
       equipment: equipment || null,
-      totalWorkers: totalWorkers || 0,
+      totalWorkers: finalTotalWorkers,
       wageStats: wageStats || FALLBACK_WAGE_STATS
     };
   }

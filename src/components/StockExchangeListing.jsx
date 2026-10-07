@@ -2,18 +2,27 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { 
   RotateCw, 
   ChevronRight, 
-  Plus,
   CheckCircle2,
-  Users
+  Users,
+  Clock,
+  ArrowRight,
+  TrendingUp,
+  AlertTriangle,
+  ExternalLink
 } from 'lucide-react';
 import ItemIcon from './ItemIcon';
+import MetricBreakdownModal from './MetricBreakdownModal';
 import { api } from '../services/wareraApi';
 
 export default function StockExchangeListing({
   companies = [],
   user = null,
   dossier = null,
-  portfolioStats = {},
+  portfolioTotals = {},
+  ownerLabor = {},
+  supplyChainLedger = [],
+  prices = {},
+  priceChanges24h = {},
   onSelectCompany,
   onRefreshLive,
   isRefreshingLive = false,
@@ -21,37 +30,86 @@ export default function StockExchangeListing({
   maxHiringSlots = 4
 }) {
   const [sectorFilter, setSectorFilter] = useState('all'); // 'all' | 'raw' | 'processed'
+  const [activeBreakdownMetric, setActiveBreakdownMetric] = useState(null); // 'valuation' | 'revenue' | 'rawCosts' | 'salaries' | 'profit' | 'production' | 'pp' | 'staff' | null
 
   // Filter companies by sector only
   const filteredCompanies = useMemo(() => {
     let result = [...companies];
     if (sectorFilter === 'raw') {
-      result = result.filter(c => c.recipe?.type === 'raw');
+      result = result.filter(c => c.isRaw || c.recipe?.type === 'raw');
     } else if (sectorFilter === 'processed') {
-      result = result.filter(c => c.recipe?.type === 'processed');
+      result = result.filter(c => !c.isRaw && c.recipe?.type !== 'raw');
     }
     return result;
   }, [companies, sectorFilter]);
 
-  // Aggregate Market Stats (Figures only, no symbols)
+  // Aggregate Market Stats (Figures only, no symbols, zero double-counting)
   const marketOverview = useMemo(() => {
     const totalValuation = companies.reduce((sum, c) => sum + (c.totalCalculatedWorth || 0), 0);
-    const totalDailyProfit = companies.reduce((sum, c) => sum + (c.dailyNetProfit || 0), 0);
+    const baseDailyProfit = typeof portfolioTotals?.totalBaseNetProfit === 'number'
+      ? portfolioTotals.totalBaseNetProfit
+      : companies.reduce((sum, c) => sum + (c.baseNetProfit ?? 0), 0);
+    const totalBaseDailyUnits = typeof portfolioTotals?.totalBaseProductionUnits === 'number'
+      ? portfolioTotals.totalBaseProductionUnits
+      : companies.reduce((sum, c) => sum + (c.baseUnits ?? 0), 0);
+    const totalCompanyBasePp = typeof portfolioTotals?.totalCompanyBasePp === 'number'
+      ? portfolioTotals.totalCompanyBasePp
+      : companies.reduce((sum, c) => sum + (c.companyBaseDailyPp ?? 0), 0);
+    const totalCompanyProducedPp = typeof portfolioTotals?.totalCompanyProducedPp === 'number'
+      ? portfolioTotals.totalCompanyProducedPp
+      : companies.reduce((sum, c) => sum + (c.companyProducedDailyPp ?? 0), 0);
+    const totalDailySelfWorkPp = typeof portfolioTotals?.totalDailySelfWorkPp === 'number'
+      ? portfolioTotals.totalDailySelfWorkPp
+      : (ownerLabor?.dailySelfWorkPp || 0);
+    const totalInclusiveBasePp = typeof portfolioTotals?.totalInclusiveBasePp === 'number'
+      ? portfolioTotals.totalInclusiveBasePp
+      : (totalCompanyBasePp + totalDailySelfWorkPp);
+
+    const totalBaseGrossRevenue = typeof portfolioTotals?.totalBaseGrossRevenue === 'number'
+      ? portfolioTotals.totalBaseGrossRevenue
+      : companies.reduce((sum, c) => sum + (c.grossRevenue ?? 0), 0);
+    const totalBaseRawExpense = typeof portfolioTotals?.totalBaseRawExpense === 'number'
+      ? portfolioTotals.totalBaseRawExpense
+      : companies.reduce((sum, c) => sum + (c.dailyRawExpenseTotal ?? 0), 0);
+    const totalBaseLaborExpense = typeof portfolioTotals?.totalBaseLaborExpense === 'number'
+      ? portfolioTotals.totalBaseLaborExpense
+      : companies.reduce((sum, c) => sum + (c.dailyLaborExpense ?? 0), 0);
+    const baseNetMarginPct = totalBaseGrossRevenue > 0 ? (baseDailyProfit / totalBaseGrossRevenue) * 100 : 0;
+
+    const totalRawBaseUnits = typeof portfolioTotals?.totalRawBaseUnits === 'number'
+      ? portfolioTotals.totalRawBaseUnits
+      : companies.filter(c => c.isRaw).reduce((sum, c) => sum + (c.baseUnits ?? 0), 0);
+    const totalFinishedBaseUnits = typeof portfolioTotals?.totalFinishedBaseUnits === 'number'
+      ? portfolioTotals.totalFinishedBaseUnits
+      : companies.filter(c => !c.isRaw).reduce((sum, c) => sum + (c.baseUnits ?? 0), 0);
+
     const total24hGrowthCoins = companies.reduce((sum, c) => sum + (c.growth24hCoins || 0), 0);
     const baselineValuation = Math.max(1, totalValuation - total24hGrowthCoins);
     const total24hGrowthPct = (total24hGrowthCoins / baselineValuation) * 100;
-    const totalDailyUnits = companies.reduce((sum, c) => sum + (c.unitsPerDay || 0), 0);
     const totalWorkers = companies.reduce((sum, c) => sum + (c.workers?.length || 0), 0);
 
     return {
       totalValuation,
-      totalDailyProfit,
+      baseDailyProfit,
+      totalBaseGrossRevenue,
+      totalBaseRawExpense,
+      totalBaseLaborExpense,
+      baseNetMarginPct,
+      totalBaseDailyUnits,
+      totalRawBaseUnits,
+      totalFinishedBaseUnits,
+      totalCompanyBasePp,
+      totalCompanyProducedPp,
+      totalDailySelfWorkPp,
+      totalInclusiveBasePp,
       total24hGrowthCoins,
       total24hGrowthPct,
-      totalDailyUnits,
-      totalWorkers
+      totalWorkers,
+      hasBothRawAndFinished: typeof portfolioTotals?.hasBothRawAndFinished === 'boolean'
+        ? portfolioTotals.hasBothRawAndFinished
+        : (companies.some(c => c.isRaw) && companies.some(c => !c.isRaw))
     };
-  }, [companies]);
+  }, [companies, portfolioTotals, ownerLabor]);
 
   // Owner Identity
   const ownerName = user?.username || companies[0]?.ownerUsername || 'Industrialist';
@@ -285,7 +343,7 @@ export default function StockExchangeListing({
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-stretch">
         
         {/* LEFT COLUMN: OWNER IDENTITY & LOCATIONS */}
-        <div className="lg:col-span-5 bg-white p-5 space-y-4 flex flex-col justify-between">
+        <div className="lg:col-span-5 bg-white p-5 space-y-4 flex flex-col justify-between border border-slate-200/80">
           
           {/* Owner Profile Header */}
           <div className="flex items-start justify-between gap-3 pb-2">
@@ -324,7 +382,7 @@ export default function StockExchangeListing({
             </div>
           </div>
 
-          {/* Territory & Domicile Details (Clean, no emojis/icons) */}
+          {/* Territory & Domicile Details */}
           <div className="space-y-2.5 font-mono text-xs flex-1 flex flex-col justify-around">
             <div className="flex items-center justify-between pb-1 font-sans">
               <span className="text-[11px] font-bold text-slate-800 uppercase tracking-wide">
@@ -349,7 +407,7 @@ export default function StockExchangeListing({
             </div>
 
             {/* Total Net Worth Highlight with Past 1h Gain & % */}
-            <div className="pt-2 flex justify-between items-baseline">
+            <div className="pt-2 flex justify-between items-baseline border-t border-slate-100">
               <span className="text-slate-500 text-xs font-sans">Total Net Worth:</span>
               <div className="flex items-baseline space-x-2">
                 <span className="text-xl sm:text-2xl font-black font-mono text-slate-900">
@@ -366,7 +424,7 @@ export default function StockExchangeListing({
         </div>
 
         {/* RIGHT COLUMN: NET WORTH BREAKDOWN (ASSET ALLOCATION STRUCTURE) */}
-        <div className="lg:col-span-7 bg-white p-5 space-y-4 flex flex-col justify-between">
+        <div className="lg:col-span-7 bg-white p-5 space-y-4 flex flex-col justify-between border border-slate-200/80">
           
           <div className="space-y-2.5 font-mono text-xs flex-1 flex flex-col justify-around">
             <div className="flex items-center justify-between pb-1.5 font-sans">
@@ -393,8 +451,17 @@ export default function StockExchangeListing({
                 </div>
               ))}
 
-              <div className="flex justify-between items-center pt-2 text-slate-900 font-bold">
-                <span>Total:</span>
+              <div 
+                onClick={() => setActiveBreakdownMetric('valuation')}
+                className="flex justify-between items-center pt-2 text-slate-900 font-bold border-t border-slate-100 cursor-pointer hover:bg-slate-50 px-1.5 py-1 -mx-1.5 transition-colors group"
+                title="Click to view full portfolio valuation breakdown"
+              >
+                <div className="flex items-center space-x-1.5">
+                  <span>Total:</span>
+                  <span className="text-[10px] text-slate-400 group-hover:text-amber-800 font-normal font-mono flex items-center gap-0.5">
+                    Breakdown <ExternalLink className="w-2.5 h-2.5 inline" />
+                  </span>
+                </div>
                 <div className="flex items-center space-x-2">
                   <span className="text-amber-800 font-black text-sm">
                     {liveTotalNetWorth.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
@@ -412,69 +479,283 @@ export default function StockExchangeListing({
 
       </div>
 
-      {/* 2. OVERVIEW VALUE BOXES (FIGURES ONLY, NO SYMBOLS/COINS) */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        {/* Total Market Cap / Portfolio Valuation (Past 1h Gain/Loss) */}
-        <div className="bg-white p-4 space-y-1">
-          <div className="text-slate-500 text-[11px] font-bold uppercase tracking-wider">
-            Portfolio Valuation
+      {/* 2. OVERVIEW VALUE BOXES (STANDARDIZED ON BASE INCOME & PRODUCTION - ALL CLICKABLE FOR DETAILED BREAKDOWN) */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        {/* Total Market Cap / Portfolio Valuation */}
+        <div 
+          onClick={() => setActiveBreakdownMetric('valuation')}
+          className="bg-white p-4 space-y-1 border border-slate-200/80 hover:border-slate-400 hover:shadow-xs transition-all cursor-pointer group relative"
+          title="Click to view asset-by-asset valuation breakdown"
+        >
+          <div className="flex items-center justify-between">
+            <div className="text-slate-500 text-[11px] font-bold uppercase tracking-wider font-mono">
+              Portfolio Valuation
+            </div>
+            <span className="text-[10px] text-slate-400 group-hover:text-amber-800 transition-colors font-mono flex items-center gap-0.5">
+              Breakdown <ExternalLink className="w-2.5 h-2.5" />
+            </span>
           </div>
           <div className="text-xl sm:text-2xl font-black font-mono text-slate-900">
-            {marketOverview.totalValuation.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
+            {(liveTotalNetWorth > 0 ? liveTotalNetWorth : marketOverview.totalValuation).toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
           </div>
           <div className="flex items-center gap-1.5 text-xs font-mono">
-            <span className={`font-bold ${hourlyValuationCoins >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
-              {hourlyValuationCoins >= 0 ? '+' : ''}{hourlyValuationCoins.toFixed(1)} ({hourlyValuationPct >= 0 ? '+' : ''}{hourlyValuationPct.toFixed(2)}%)
+            <span className={`font-bold ${hourlyStats.netWorthCoins >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
+              {hourlyStats.netWorthCoins >= 0 ? '+' : ''}{hourlyStats.netWorthCoins.toFixed(1)} ({hourlyStats.netWorthPct >= 0 ? '+' : ''}{hourlyStats.netWorthPct.toFixed(2)}%)
             </span>
             <span className="text-[10px] text-slate-400 font-sans">past 1h</span>
           </div>
         </div>
 
-        {/* Net Operating Cashflow */}
-        <div className="bg-white p-4 space-y-1">
-          <div className="text-slate-500 text-[11px] font-bold uppercase tracking-wider">
-            Net Cashflow
-          </div>
-          <div className={`text-xl sm:text-2xl font-black font-mono ${marketOverview.totalDailyProfit >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
-            {marketOverview.totalDailyProfit >= 0 ? '+' : ''}{marketOverview.totalDailyProfit.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
-            <span className="text-xs font-normal text-slate-400 ml-1">/day</span>
-          </div>
-          <span className="text-[11px] text-slate-500 font-sans block truncate">
-            Net yield after labor & raw inputs
-          </span>
-        </div>
-
-        {/* Total Daily Output */}
-        <div className="bg-white p-4 space-y-1">
-          <div className="text-slate-500 text-[11px] font-bold uppercase tracking-wider">
-            Daily Output
+        {/* Base Daily Revenue */}
+        <div 
+          onClick={() => setActiveBreakdownMetric('revenue')}
+          className="bg-white p-4 space-y-1 border border-slate-200/80 hover:border-slate-400 hover:shadow-xs transition-all cursor-pointer group relative"
+          title="Click to view company-by-company revenue breakdown"
+        >
+          <div className="flex items-center justify-between">
+            <div className="text-slate-500 text-[11px] font-bold uppercase tracking-wider font-mono">
+              Base Daily Revenue
+            </div>
+            <span className="text-[10px] text-slate-400 group-hover:text-amber-800 transition-colors font-mono flex items-center gap-0.5">
+              Breakdown <ExternalLink className="w-2.5 h-2.5" />
+            </span>
           </div>
           <div className="text-xl sm:text-2xl font-black font-mono text-slate-900">
-            {marketOverview.totalDailyUnits.toFixed(1)} <span className="text-xs font-normal text-slate-400">units/day</span>
+            +{marketOverview.totalBaseGrossRevenue.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
+            <span className="text-xs font-normal text-slate-400 ml-1">/day</span>
           </div>
-          <span className="text-[11px] text-slate-500 font-sans block truncate">
-            Across {companies.length} active facilities
-          </span>
+          <div className="text-[11px] text-slate-500 font-sans flex items-center justify-between">
+            <span>Gross output sales</span>
+            <span className="text-slate-400 text-[10px] font-mono">Market spot</span>
+          </div>
         </div>
 
-        {/* Workforce Engagement */}
-        <div className="bg-white p-4 space-y-1">
-          <div className="text-slate-500 text-[11px] font-bold uppercase tracking-wider">
-            Staff Deployment
+        {/* Costs of Raw Material Per Day */}
+        <div 
+          onClick={() => setActiveBreakdownMetric('rawCosts')}
+          className="bg-white p-4 space-y-1 border border-slate-200/80 hover:border-slate-400 hover:shadow-xs transition-all cursor-pointer group relative"
+          title="Click to view raw material costs per facility"
+        >
+          <div className="flex items-center justify-between">
+            <div className="text-slate-500 text-[11px] font-bold uppercase tracking-wider font-mono">
+              Raw Material Costs
+            </div>
+            <span className="text-[10px] text-slate-400 group-hover:text-amber-800 transition-colors font-mono flex items-center gap-0.5">
+              Breakdown <ExternalLink className="w-2.5 h-2.5" />
+            </span>
+          </div>
+          <div className={`text-xl sm:text-2xl font-black font-mono ${marketOverview.totalBaseRawExpense > 0 ? 'text-rose-700' : 'text-slate-900'}`}>
+            {marketOverview.totalBaseRawExpense > 0 
+              ? `-${marketOverview.totalBaseRawExpense.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}` 
+              : '0.0'}
+            <span className="text-xs font-normal text-slate-400 ml-1">/day</span>
+          </div>
+          <div className="text-[11px] text-slate-500 font-sans flex items-center justify-between">
+            <span>Factory input costs</span>
+            <span className={`text-[10px] font-mono ${marketOverview.hasBothRawAndFinished ? 'text-emerald-700 font-bold' : 'text-slate-400'}`}>
+              {marketOverview.hasBothRawAndFinished ? 'Insourced (0 C)' : 'Spot purchases'}
+            </span>
+          </div>
+        </div>
+
+        {/* Base Salaries Paid Out Per Day */}
+        <div 
+          onClick={() => setActiveBreakdownMetric('salaries')}
+          className="bg-white p-4 space-y-1 border border-slate-200/80 hover:border-slate-400 hover:shadow-xs transition-all cursor-pointer group relative"
+          title="Click to view worker roster and payable salary breakdown"
+        >
+          <div className="flex items-center justify-between">
+            <div className="text-slate-500 text-[11px] font-bold uppercase tracking-wider font-mono">
+              Base Salaries Paid
+            </div>
+            <span className="text-[10px] text-slate-400 group-hover:text-amber-800 transition-colors font-mono flex items-center gap-0.5">
+              Breakdown <ExternalLink className="w-2.5 h-2.5" />
+            </span>
+          </div>
+          <div className={`text-xl sm:text-2xl font-black font-mono ${marketOverview.totalBaseLaborExpense > 0 ? 'text-amber-800' : 'text-slate-900'}`}>
+            {marketOverview.totalBaseLaborExpense > 0 ? '-' : ''}{marketOverview.totalBaseLaborExpense.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
+            <span className="text-xs font-normal text-slate-400 ml-1">/day</span>
+          </div>
+          <div className="text-[11px] text-slate-500 font-sans flex items-center justify-between">
+            <span>Hired workforce wages</span>
+            <span className="text-slate-400 text-[10px] font-mono">{marketOverview.totalWorkers} workers</span>
+          </div>
+        </div>
+
+        {/* Base Daily Profit (Standard) */}
+        <div 
+          onClick={() => setActiveBreakdownMetric('profit')}
+          className="bg-white p-4 space-y-1 border border-slate-200/80 hover:border-slate-400 hover:shadow-xs transition-all cursor-pointer group relative"
+          title="Click to view company-by-company profit statement"
+        >
+          <div className="flex items-center justify-between">
+            <div className="text-slate-500 text-[11px] font-bold uppercase tracking-wider font-mono">
+              Base Daily Profit
+            </div>
+            <span className="text-[10px] text-slate-400 group-hover:text-amber-800 transition-colors font-mono flex items-center gap-0.5">
+              Breakdown <ExternalLink className="w-2.5 h-2.5" />
+            </span>
+          </div>
+          <div className={`text-xl sm:text-2xl font-black font-mono ${marketOverview.baseDailyProfit >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
+            {marketOverview.baseDailyProfit >= 0 ? '+' : ''}{marketOverview.baseDailyProfit.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
+            <span className="text-xs font-normal text-slate-400 ml-1">/day</span>
+          </div>
+          <div className="text-[11px] text-slate-500 font-sans flex items-center justify-between">
+            <span>Net profit after costs</span>
+            <span className="text-emerald-700 font-mono text-[10px] font-bold">{marketOverview.baseNetMarginPct.toFixed(1)}% margin</span>
+          </div>
+        </div>
+
+        {/* Base Production (Standard) */}
+        <div 
+          onClick={() => setActiveBreakdownMetric('production')}
+          className="bg-white p-4 space-y-1 border border-slate-200/80 hover:border-slate-400 hover:shadow-xs transition-all cursor-pointer group relative"
+          title="Click to view physical output units breakdown"
+        >
+          <div className="flex items-center justify-between">
+            <div className="text-slate-500 text-[11px] font-bold uppercase tracking-wider font-mono">
+              Base Production
+            </div>
+            <span className="text-[10px] text-slate-400 group-hover:text-amber-800 transition-colors font-mono flex items-center gap-0.5">
+              Breakdown <ExternalLink className="w-2.5 h-2.5" />
+            </span>
+          </div>
+          <div className="text-xl sm:text-2xl font-black font-mono text-slate-900">
+            {marketOverview.totalBaseDailyUnits.toFixed(1)} <span className="text-xs font-normal text-slate-400">units/day</span>
+          </div>
+          <div className="text-[11px] text-slate-500 font-sans flex items-center justify-between">
+            <span>Raw: {marketOverview.totalRawBaseUnits.toFixed(1)}</span>
+            <span>•</span>
+            <span>Finished: {marketOverview.totalFinishedBaseUnits.toFixed(1)}</span>
+          </div>
+        </div>
+
+        {/* Total Enterprise PP (Inclusive of Self-Work PP) */}
+        <div 
+          onClick={() => setActiveBreakdownMetric('pp')}
+          className="bg-white p-4 space-y-1 border border-slate-200/80 hover:border-slate-400 hover:shadow-xs transition-all cursor-pointer group relative"
+          title="Click to view engine, worker, and self-work PP breakdown"
+        >
+          <div className="flex items-center justify-between">
+            <div className="text-slate-500 text-[11px] font-bold uppercase tracking-wider font-mono">
+              Total Enterprise PP
+            </div>
+            <span className="text-[10px] text-slate-400 group-hover:text-amber-800 transition-colors font-mono flex items-center gap-0.5">
+              Breakdown <ExternalLink className="w-2.5 h-2.5" />
+            </span>
+          </div>
+          <div className="text-xl sm:text-2xl font-black font-mono text-slate-900">
+            {marketOverview.totalInclusiveBasePp.toFixed(1)} <span className="text-xs font-normal text-slate-400">PP/day</span>
+          </div>
+          <div className="text-[11px] text-slate-500 font-sans truncate" title={`Base Operations: ${marketOverview.totalCompanyBasePp.toFixed(1)} PP + Owner Self-Work: ${marketOverview.totalDailySelfWorkPp.toFixed(1)} PP`}>
+            <span>Base: {marketOverview.totalCompanyBasePp.toFixed(0)}</span>
+            <span className="mx-1 text-slate-300">+</span>
+            <span className="text-amber-800 font-bold">Self: {marketOverview.totalDailySelfWorkPp.toFixed(0)} PP</span>
+          </div>
+        </div>
+
+        {/* Staff Deployment */}
+        <div 
+          onClick={() => setActiveBreakdownMetric('staff')}
+          className="bg-white p-4 space-y-1 border border-slate-200/80 hover:border-slate-400 hover:shadow-xs transition-all cursor-pointer group relative"
+          title="Click to view staff deployment and management capacity"
+        >
+          <div className="flex items-center justify-between">
+            <div className="text-slate-500 text-[11px] font-bold uppercase tracking-wider font-mono">
+              Staff Deployment
+            </div>
+            <span className="text-[10px] text-slate-400 group-hover:text-amber-800 transition-colors font-mono flex items-center gap-0.5">
+              Breakdown <ExternalLink className="w-2.5 h-2.5" />
+            </span>
           </div>
           <div className="text-xl sm:text-2xl font-black font-mono text-slate-900">
             {marketOverview.totalWorkers} <span className="text-xs font-normal text-slate-400">/ {maxHiringSlots} slots</span>
           </div>
-          <div className="text-[11px] text-slate-500 font-sans flex items-center gap-1">
-            <span>Management Lv.{managementLevel}</span>
-            <span>•</span>
-            <span className="text-emerald-700 font-bold">{Math.max(0, maxHiringSlots - marketOverview.totalWorkers)} slots open</span>
+          <div className="text-[11px] text-slate-500 font-sans flex items-center justify-between">
+            <span>Mgmt Lv.{managementLevel}</span>
+            <span className="text-emerald-700 font-bold font-mono">{Math.max(0, maxHiringSlots - marketOverview.totalWorkers)} open</span>
           </div>
         </div>
       </div>
 
-      {/* 2. CATEGORY FILTERS & ACTIONS (NO SEARCH, NO SORT, NO STAFFED FILTER) */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-3">
+      {/* 3. GENERAL PORTFOLIO OWNER LABOR CAPACITY (STRICTLY OUTSIDE COMPANY PROFILES) */}
+      <div className="bg-white p-5 space-y-3.5 border border-slate-200/80 shadow-xs">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2.5 border-b border-slate-100">
+          <div>
+            <h3 className="text-sm font-extrabold text-slate-900 font-sans">
+              Owner Personal Labor Capacity
+            </h3>
+            <p className="text-[11px] text-slate-500 font-sans">
+              Personal stamina and self-work capacity across the enterprise (separate from company base operations)
+            </p>
+          </div>
+          <div className="flex items-center space-x-2 font-mono text-xs">
+            <span className="px-2 py-0.5 bg-slate-100 text-slate-700 font-bold text-[11px]">
+              Entrepreneurship Lv.{ownerLabor.entreLevel ?? 0}
+            </span>
+            <span className="px-2 py-0.5 bg-slate-100 text-slate-700 font-bold text-[11px]">
+              Production Lv.{ownerLabor.prodLevel ?? 0}
+            </span>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 pt-1">
+          {/* Total Daily Self-Work PP (Base) */}
+          <div className="bg-slate-50 p-3 space-y-1">
+            <div className="text-slate-500 text-[11px] font-bold uppercase tracking-wider font-mono">
+              Total Self-Work PP (Daily Base)
+            </div>
+            <div className="text-xl font-black font-mono text-amber-800">
+              {ownerLabor.dailySelfWorkPp ? ownerLabor.dailySelfWorkPp.toFixed(1) : '0.0'} <span className="text-xs font-normal text-slate-500">PP/day</span>
+            </div>
+            <div className="text-[11px] text-slate-500 font-sans">
+              24h cycle capacity ({ownerLabor.dailySessions ? ownerLabor.dailySessions.toFixed(1) : '0.0'} hits/day)
+            </div>
+          </div>
+
+          {/* Current Ready PP */}
+          <div className="bg-slate-50 p-3 space-y-1">
+            <div className="text-slate-500 text-[11px] font-bold uppercase tracking-wider font-mono">
+              Current Ready PP
+            </div>
+            <div className="text-xl font-black font-mono text-emerald-700">
+              {ownerLabor.currentReadyPp ? ownerLabor.currentReadyPp.toFixed(1) : '0.0'} <span className="text-xs font-normal text-slate-500">PP</span>
+            </div>
+            <div className="text-[11px] text-slate-500 font-sans">
+              Ready right now ({ownerLabor.readySessions ?? 0} hits available)
+            </div>
+          </div>
+
+          {/* Account Stamina Pool */}
+          <div className="bg-slate-50 p-3 space-y-1">
+            <div className="text-slate-500 text-[11px] font-bold uppercase tracking-wider font-mono">
+              Stamina Pool
+            </div>
+            <div className="text-xl font-black font-mono text-slate-900">
+              {ownerLabor.entreCurrent ?? 0} <span className="text-xs font-normal text-slate-400">/ {ownerLabor.entreMax ?? 30}</span>
+            </div>
+            <div className="text-[11px] text-emerald-700 font-bold font-mono">
+              +{ownerLabor.hourlyRegen ? ownerLabor.hourlyRegen.toFixed(1) : '3.0'}/h (10% regen rate)
+            </div>
+          </div>
+
+          {/* Work Session Power */}
+          <div className="bg-slate-50 p-3 space-y-1">
+            <div className="text-slate-500 text-[11px] font-bold uppercase tracking-wider font-mono">
+              Session Efficiency
+            </div>
+            <div className="text-xl font-black font-mono text-slate-900">
+              {ownerLabor.ppPerSession ?? 10} <span className="text-xs font-normal text-slate-500">PP / session</span>
+            </div>
+            <div className="text-[11px] text-slate-500 font-sans">
+              10 Energy per hit • 0 wage overhead
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* 5. CATEGORY FILTERS & SYNC ACTIONS */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-3 border border-slate-200/80">
         <div className="flex items-center gap-1.5 overflow-x-auto text-xs font-mono scrollbar-none">
           <button
             type="button"
@@ -496,7 +777,7 @@ export default function StockExchangeListing({
                 : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
             }`}
           >
-            Manufactured ({companies.filter(c => c.recipe?.type === 'processed').length})
+            Manufactured ({companies.filter(c => !c.isRaw).length})
           </button>
           <button
             type="button"
@@ -507,59 +788,63 @@ export default function StockExchangeListing({
                 : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
             }`}
           >
-            Raw Materials ({companies.filter(c => c.recipe?.type === 'raw').length})
+            Raw Materials ({companies.filter(c => c.isRaw).length})
           </button>
         </div>
 
         <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={onRefreshLive}
-            disabled={isRefreshingLive}
-            className="flex items-center space-x-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold transition cursor-pointer disabled:opacity-50"
-            title="Sync all facilities, storage, and prices live from WarEra"
-          >
-            <RotateCw className={`w-3.5 h-3.5 ${isRefreshingLive ? 'animate-spin text-amber-500' : 'text-slate-600'}`} />
-            <span>{isRefreshingLive ? 'Syncing...' : 'Sync Live'}</span>
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse ml-0.5" title="Real-time live updating active" />
-          </button>
+          <div className="flex items-center space-x-1.5 px-2.5 py-1 text-slate-600 text-xs font-mono">
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+            <span className="text-[11px] font-bold text-slate-700">Live Continuous Feed</span>
+          </div>
         </div>
       </div>
 
-      {/* 3. STOCK EXCHANGE LISTING BOARD (DATA TABLE - FIGURES ONLY, NO GAINERS/LOSERS COLUMN) */}
-      <div className="bg-white overflow-hidden">
+      {/* 6. STOCK EXCHANGE LISTING BOARD (DATA TABLE WITH PP & PRICE RATIOS) */}
+      <div className="bg-white overflow-hidden border border-slate-200/80">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">
             <thead>
               <tr className="bg-slate-100/90 text-slate-700 uppercase font-mono font-bold tracking-wider text-[11px]">
                 <th className="py-3 px-3 w-10 text-center">#</th>
-                <th className="py-3 px-3 min-w-[200px]">Asset / Listing</th>
+                <th className="py-3 px-3 min-w-[180px]">Asset / Listing</th>
                 <th className="py-3 px-3">Sector</th>
                 <th className="py-3 px-3 text-right">Market Spot</th>
-                <th className="py-3 px-3 text-right">Daily Output</th>
-                <th className="py-3 px-3 text-right">Daily Net Profit</th>
-                <th className="py-3 px-3 text-right">Market Valuation</th>
-                <th className="py-3 px-3 text-center min-w-[130px]">Warehouse / Storage</th>
+                <th className="py-3 px-3 text-right">Base Production</th>
+                <th className="py-3 px-3 text-right">Base Revenue</th>
+                <th className="py-3 px-3 text-right">Raw Costs</th>
+                <th className="py-3 px-3 text-right">Salaries Paid</th>
+                <th className="py-3 px-3 text-right">Base Profit</th>
+                <th className="py-3 px-3 text-right">Base PP</th>
+                <th className="py-3 px-3 text-right">Produced PP</th>
+                <th className="py-3 px-3 text-right">PP Ratio (%)</th>
+                <th className="py-3 px-3 text-right">Price / Base PP</th>
+                <th className="py-3 px-3 text-center min-w-[110px]">Storage</th>
                 <th className="py-3 px-3 text-center">Staff</th>
-                <th className="py-3 px-3 text-center w-28">Action</th>
+                <th className="py-3 px-3 text-center w-20">Action</th>
               </tr>
             </thead>
             <tbody className="font-mono">
               {filteredCompanies.length === 0 ? (
                 <tr>
-                  <td colSpan={10} className="py-12 text-center text-slate-400 font-sans">
+                  <td colSpan={16} className="py-12 text-center text-slate-400 font-sans">
                     No companies match your filter criteria.
                   </td>
                 </tr>
               ) : (
                 filteredCompanies.map((c, idx) => {
-                  const isPositiveProfit = (c.dailyNetProfit || 0) >= 0;
+                  const baseIncome = c.baseNetProfit !== undefined ? c.baseNetProfit : (c.dailyNetProfit || 0);
+                  const isPositiveBase = baseIncome >= 0;
+                  const basePp = c.companyBaseDailyPp || 0;
+                  const prodPp = c.companyProducedDailyPp || 0;
+                  const ppRatio = c.ppRatioPct || (basePp > 0 ? (prodPp / basePp) * 100 : 100);
+                  const priceRatio = c.pricePerBasePp || 0;
 
                   return (
                     <tr 
                       key={c.id || idx}
                       onClick={() => onSelectCompany(c.id)}
-                      className="hover:bg-slate-50/90 transition cursor-pointer group"
+                      className="hover:bg-slate-50/90 transition cursor-pointer group border-b border-slate-100"
                     >
                       {/* Rank Index */}
                       <td className="py-3.5 px-3 text-center text-slate-400 font-bold group-hover:text-slate-700">
@@ -595,15 +880,15 @@ export default function StockExchangeListing({
                       {/* Sector / Category */}
                       <td className="py-3.5 px-3 whitespace-nowrap">
                         <span className={`inline-block px-2 py-0.5 text-[10px] font-bold font-sans ${
-                          c.recipe?.type === 'raw' 
+                          c.isRaw || c.recipe?.type === 'raw'
                             ? 'bg-amber-100/70 text-amber-900' 
                             : 'bg-blue-100/70 text-blue-900'
                         }`}>
-                          {c.recipe?.category || (c.recipe?.type === 'raw' ? 'Raw Materials' : 'Manufacturing')}
+                          {c.recipe?.category || (c.isRaw ? 'Raw Materials' : 'Manufacturing')}
                         </span>
                       </td>
 
-                      {/* Market Spot Price (Figures only) */}
+                      {/* Market Spot Price */}
                       <td className="py-3.5 px-3 text-right whitespace-nowrap">
                         <div className="font-bold text-slate-900">
                           {c.spotPrice ? c.spotPrice.toFixed(3) : '—'}
@@ -615,47 +900,104 @@ export default function StockExchangeListing({
                         )}
                       </td>
 
-                      {/* Daily Output */}
+                      {/* Base Daily Production (Standard) */}
                       <td className="py-3.5 px-3 text-right whitespace-nowrap">
-                        <span className="font-bold text-slate-900">{c.unitsPerDay.toFixed(1)}</span>
-                        <span className="text-[10px] text-slate-400 ml-1">units/day</span>
+                        <span className="font-bold text-slate-900">
+                          {(c.baseUnits !== undefined ? c.baseUnits : (c.unitsPerDay || 0)).toFixed(1)}
+                        </span>
+                        <span className="text-[10px] text-slate-400 ml-1">u/d</span>
                       </td>
 
-                      {/* Daily Net Profit (Figures only) */}
+                      {/* Base Revenue Per Day */}
                       <td className="py-3.5 px-3 text-right whitespace-nowrap">
-                        <div className={`font-bold ${isPositiveProfit ? 'text-emerald-700' : 'text-rose-600'}`}>
-                          {isPositiveProfit ? '+' : ''}{c.dailyNetProfit.toFixed(2)}
+                        <div className="font-bold text-slate-900">
+                          +{(c.grossRevenue ?? (c.baseUnits * (c.spotPrice || 0))).toFixed(2)}
                         </div>
                         <span className="text-[10px] text-slate-400 block font-normal">
-                          {c.isRawProducer && c.isSupplyingInternal 
-                            ? 'Internal Supply' 
-                            : (c.netMarginPct ? `${c.netMarginPct.toFixed(1)}% margin` : '—')}
+                          Coins/day
                         </span>
                       </td>
 
-                      {/* Market Valuation (Figures only) */}
+                      {/* Raw Material Costs */}
+                      <td className="py-3.5 px-3 text-right whitespace-nowrap">
+                        <div className={`font-bold ${(c.dailyRawExpenseTotal || 0) > 0 ? 'text-rose-600' : 'text-slate-400'}`}>
+                          {(c.dailyRawExpenseTotal || 0) > 0 ? `-${c.dailyRawExpenseTotal.toFixed(2)}` : '0.00'}
+                        </div>
+                        <span className="text-[10px] text-slate-400 block font-normal">
+                          {c.isRaw ? 'Extraction' : 'Market Spot'}
+                        </span>
+                      </td>
+
+                      {/* Base Salaries Paid Out */}
+                      <td className="py-3.5 px-3 text-right whitespace-nowrap">
+                        <div className={`font-bold ${(c.dailyLaborExpense || 0) > 0 ? 'text-amber-800' : 'text-slate-400'}`}>
+                          {(c.dailyLaborExpense || 0) > 0 ? `-${c.dailyLaborExpense.toFixed(2)}` : '0.00'}
+                        </div>
+                        <span className="text-[10px] text-slate-400 block font-normal">
+                          {c.workers?.length ? `${c.workers.length} hired` : '0 hired'}
+                        </span>
+                      </td>
+
+                      {/* Base Daily Profit (Standard) */}
+                      <td className="py-3.5 px-3 text-right whitespace-nowrap">
+                        <div className={`font-bold ${isPositiveBase ? 'text-emerald-700' : 'text-rose-600'}`}>
+                          {isPositiveBase ? '+' : ''}{baseIncome.toFixed(2)}
+                        </div>
+                        <span className="text-[10px] text-slate-400 block font-normal">
+                          {c.baseNetMarginPct ? `${c.baseNetMarginPct.toFixed(1)}% margin` : '—'}
+                        </span>
+                      </td>
+
+                      {/* Base PP (Daily) */}
                       <td className="py-3.5 px-3 text-right whitespace-nowrap">
                         <div className="font-bold text-slate-900">
-                          {c.totalCalculatedWorth ? c.totalCalculatedWorth.toFixed(1) : '—'}
+                          {basePp.toFixed(1)}
                         </div>
-                        <span className="text-[10px] text-slate-400 block font-normal font-sans">
-                          Lv.{c.engineLevel} Engine • Lv.{c.storageLevel} Silo
+                        <span className="text-[10px] text-slate-400 block font-normal">
+                          Engine + Workers
+                        </span>
+                      </td>
+
+                      {/* Produced PP (with bonuses) */}
+                      <td className="py-3.5 px-3 text-right whitespace-nowrap">
+                        <div className="font-bold text-blue-900">
+                          {prodPp.toFixed(1)}
+                        </div>
+                        <span className="text-[10px] text-emerald-700 font-bold block">
+                          +{c.totalBonusPct ? c.totalBonusPct.toFixed(1) : '0'}% bonus
+                        </span>
+                      </td>
+
+                      {/* PP Ratio (%) */}
+                      <td className="py-3.5 px-3 text-right whitespace-nowrap">
+                        <span className="inline-block px-2 py-0.5 text-xs font-bold font-mono bg-slate-100 text-slate-800">
+                          {ppRatio.toFixed(1)}%
+                        </span>
+                      </td>
+
+                      {/* Price / Base PP */}
+                      <td className="py-3.5 px-3 text-right whitespace-nowrap">
+                        <div className="font-bold text-slate-900">
+                          {priceRatio.toFixed(3)}
+                        </div>
+                        <span className="text-[10px] text-slate-400 block font-normal">
+                          Coins / Base PP
                         </span>
                       </td>
 
                       {/* Storage / Capacity Progress */}
                       <td className="py-3.5 px-3">
-                        <div className="w-full max-w-[120px] mx-auto space-y-1">
+                        <div className="w-full max-w-[110px] mx-auto space-y-1">
                           <div className="flex justify-between text-[10px] text-slate-500">
-                            <span>{c.currentStoredPp.toFixed(0)} PP</span>
-                            <span>{c.currentFillPct.toFixed(0)}%</span>
+                            <span>{(c.currentStoredPp || 0).toFixed(0)} PP</span>
+                            <span>{(c.currentFillPct || 0).toFixed(0)}%</span>
                           </div>
                           <div className="w-full bg-slate-100 h-1.5 overflow-hidden">
                             <div 
                               className={`h-full transition-all duration-300 ${
-                                c.currentFillPct >= 90 ? 'bg-rose-500' : c.currentFillPct >= 70 ? 'bg-amber-500' : 'bg-emerald-500'
+                                (c.currentFillPct || 0) >= 90 ? 'bg-rose-500' : (c.currentFillPct || 0) >= 70 ? 'bg-amber-500' : 'bg-emerald-500'
                               }`}
-                              style={{ width: `${Math.min(100, Math.max(0, c.currentFillPct))}%` }}
+                              style={{ width: `${Math.min(100, Math.max(0, c.currentFillPct || 0))}%` }}
                             />
                           </div>
                         </div>
@@ -683,7 +1025,7 @@ export default function StockExchangeListing({
                             e.stopPropagation();
                             onSelectCompany(c.id);
                           }}
-                          className="inline-flex items-center gap-1 px-3 py-1.5 bg-slate-900 group-hover:bg-blue-600 text-white font-bold text-xs transition cursor-pointer"
+                          className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-slate-900 group-hover:bg-blue-600 text-white font-bold text-xs transition cursor-pointer"
                         >
                           <span>Inspect</span>
                           <ChevronRight className="w-3 h-3" />
@@ -698,23 +1040,69 @@ export default function StockExchangeListing({
           </table>
         </div>
 
-        {/* Table Footer Summary Bar (Figures only) */}
-        <div className="bg-slate-50 px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs font-mono text-slate-600">
+        {/* Table Footer Summary Bar */}
+        <div className="bg-slate-50 px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs font-mono text-slate-600 border-t border-slate-100">
           <div className="flex items-center space-x-2">
             <span className="font-bold text-slate-800">Showing {filteredCompanies.length} of {companies.length} listed enterprises</span>
             <span>•</span>
-            <span className="text-slate-500">Click any row to open facility details</span>
+            <span className="text-slate-500">Standardized Base Operations</span>
           </div>
-          <div className="flex items-center space-x-4">
+          <div className="flex items-center flex-wrap gap-x-3 gap-y-1">
             <span>
-              Hourly Growth: <strong className={hourlyValuationCoins >= 0 ? 'text-emerald-700 font-black' : 'text-rose-600 font-black'}>
-                {hourlyValuationCoins >= 0 ? '+' : ''}{hourlyValuationCoins.toFixed(2)} ({hourlyValuationPct >= 0 ? '+' : ''}{hourlyValuationPct.toFixed(2)}%) past 1h
-              </strong>
+              Revenue: <strong className="text-slate-900 font-bold">+{marketOverview.totalBaseGrossRevenue.toFixed(2)}</strong>
+            </span>
+            <span>•</span>
+            <span>
+              Raw Costs: <strong className="text-rose-600 font-bold">-{marketOverview.totalBaseRawExpense.toFixed(2)}</strong>
+            </span>
+            <span>•</span>
+            <span>
+              Salaries: <strong className="text-amber-800 font-bold">-{marketOverview.totalBaseLaborExpense.toFixed(2)}</strong>
+            </span>
+            <span>•</span>
+            <span>
+              Net Profit: <strong className={marketOverview.baseDailyProfit >= 0 ? 'text-emerald-700 font-bold' : 'text-rose-700 font-bold'}>{marketOverview.baseDailyProfit >= 0 ? '+' : ''}{marketOverview.baseDailyProfit.toFixed(2)}</strong>
+            </span>
+            <span>•</span>
+            <span>
+              Total Base PP: <strong className="text-slate-900 font-bold">{marketOverview.totalCompanyBasePp.toFixed(1)}</strong>
+            </span>
+            <span>•</span>
+            <span>
+              Total Enterprise PP (incl. Self): <strong className="text-blue-900 font-bold">{marketOverview.totalInclusiveBasePp.toFixed(1)}</strong>
             </span>
           </div>
         </div>
 
       </div>
+
+      {/* 5. INTERACTIVE COMPREHENSIVE METRIC BREAKDOWN POPUP MODAL */}
+      <MetricBreakdownModal
+        isOpen={activeBreakdownMetric !== null}
+        activeMetric={activeBreakdownMetric || 'valuation'}
+        onClose={() => setActiveBreakdownMetric(null)}
+        onChangeMetric={(metric) => setActiveBreakdownMetric(metric)}
+        companies={companies}
+        marketOverview={marketOverview}
+        user={user}
+        wealth={wealth}
+        ownerLabor={ownerLabor}
+        hourlyStats={hourlyStats}
+        liveTotalNetWorth={liveTotalNetWorth}
+        liveFacilitiesVal={liveFacilitiesVal}
+        liveItemsVal={liveItemsVal}
+        liquidMoneyVal={liquidMoneyVal}
+        equipmentVal={equipmentVal}
+        weaponsVal={weaponsVal}
+        managementLevel={managementLevel}
+        maxHiringSlots={maxHiringSlots}
+        prices={prices}
+        priceChanges24h={priceChanges24h}
+        onSelectCompany={(cid) => {
+          setActiveBreakdownMetric(null);
+          onSelectCompany?.(cid);
+        }}
+      />
 
     </div>
   );

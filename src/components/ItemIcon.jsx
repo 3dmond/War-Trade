@@ -5,6 +5,23 @@ import React from 'react';
  * Modeled accurately after the in-game art, silhouettes, and color palettes.
  */
 export default function ItemIcon({ itemCode, size = 20, className = '', showBorder = false }) {
+  // Safely normalize size whether passed as numeric pixels or tailwind class string
+  let pixelSize = 20;
+  if (typeof size === 'number' && !isNaN(size)) {
+    pixelSize = size;
+  } else if (typeof size === 'string') {
+    if (size.includes('w-3.5') || size.includes('h-3.5')) pixelSize = 14;
+    else if (size.includes('w-3') || size.includes('h-3')) pixelSize = 12;
+    else if (size.includes('w-4') || size.includes('h-4')) pixelSize = 16;
+    else if (size.includes('w-5') || size.includes('h-5')) pixelSize = 20;
+    else if (size.includes('w-6') || size.includes('h-6')) pixelSize = 24;
+    else if (size.includes('w-8') || size.includes('h-8')) pixelSize = 32;
+    else {
+      const parsed = parseInt(size, 10);
+      pixelSize = !isNaN(parsed) && parsed > 0 ? parsed : 16;
+    }
+  }
+
   // Normalize alias pairs
   const code = (itemCode === 'mysteriousPlant') ? 'coca' : (itemCode === 'pill') ? 'cocain' : itemCode;
 
@@ -404,8 +421,15 @@ export default function ItemIcon({ itemCode, size = 20, className = '', showBord
 
   return (
     <div
-      style={{ width: `${size}px`, height: `${size}px` }}
-      className={`inline-flex items-center justify-center shrink-0 ${
+      style={{ 
+        width: `${pixelSize}px`, 
+        height: `${pixelSize}px`,
+        minWidth: `${pixelSize}px`,
+        minHeight: `${pixelSize}px`,
+        maxWidth: `${pixelSize}px`,
+        maxHeight: `${pixelSize}px`
+      }}
+      className={`inline-flex items-center justify-center shrink-0 overflow-hidden ${
         showBorder ? 'p-0.5 rounded-lg bg-slate-800/40 border border-slate-700/50 shadow-xs' : ''
       } ${className}`}
       title={code}

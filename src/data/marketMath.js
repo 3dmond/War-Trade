@@ -1,4 +1,5 @@
 // Mathematical utilities for WarEra Financial Market & TradingView Chart Engine
+import { RECIPES } from './gameData';
 
 /**
  * Generate mathematically rigorous, realistic OHLC candlestick data for TradingView Lightweight Charts.
@@ -375,3 +376,443 @@ export function calculateLaborEconomics({
     profitPerWorker
   };
 }
+
+/**
+ * Authoritative WarEra Personal Labor & Base Enterprise Math Engine
+ *
+ * - Personal Labor (Self-Work PP) calculated strictly at account/portfolio level.
+ * - Per-Company economics are 100% Base Operations (Engine + Hired Labor).
+ * - Standard finished goods earnings are inclusive of raw material costs.
+ * - Supply Chain Balance Ledger tracks over/undersupply across the empire.
+ * - Ratios: Produced PP vs Base PP (%), Price generated per Base PP.
+ * - Total Empire PP is inclusive of self-work PP.
+ */
+
+export function calculateOwnerPersonalLabor(userSkills = {}) {
+  const entreSkill = userSkills?.entrepreneurship;
+  const entreLevel = typeof entreSkill?.level === 'number' ? entreSkill.level : 0;
+  const entreMax = typeof entreSkill?.total === 'number' 
+    ? entreSkill.total 
+    : (typeof entreSkill?.value === 'number' ? entreSkill.value : (30 + entreLevel * 5));
+  const entreCurrent = typeof entreSkill?.currentBarValue === 'number' ? entreSkill.currentBarValue : entreMax;
+  const hourlyRegen = typeof entreSkill?.hourlyBarRegen === 'number' ? entreSkill.hourlyBarRegen : (entreMax * 0.10);
+
+  const prodSkill = userSkills?.production;
+  const prodLevel = typeof prodSkill?.level === 'number' ? prodSkill.level : 0;
+  const ppPerSession = typeof prodSkill?.total === 'number' 
+    ? prodSkill.total 
+    : (typeof prodSkill?.value === 'number' ? prodSkill.value : (10 + prodLevel * 3));
+
+  // Daily stamina regen: 24h * 10%/h = 2.4 * entreMax stamina = 0.24 * entreMax sessions/day
+  const dailySessions = Number((0.24 * entreMax).toFixed(2));
+  const readySessions = Math.floor(Math.max(0, entreCurrent) / 10);
+
+  // Total self-work PP per day (base)
+  const dailySelfWorkPp = Number((dailySessions * ppPerSession).toFixed(1));
+  // Current PP they are able to produce right now
+  const currentReadyPp = Number((readySessions * ppPerSession).toFixed(1));
+
+  return {
+    entreLevel,
+    prodLevel,
+    entreMax,
+    entreCurrent,
+    hourlyRegen,
+    dailySessions,
+    readySessions,
+    ppPerSession,
+    dailySelfWorkPp,
+    currentReadyPp
+  };
+}
+
+export function calculateCompanyBaseEconomics(comp, prices = {}, insourceOverrides = {}, hasBothRawAndFinished = false) {
+  const id = comp.id || comp._id;
+  const recipe = comp.recipe || RECIPES.find(r => r.id === comp.itemCode) || { pp: 1, type: 'raw', inputs: [] };
+  const spotPrice = prices[comp.itemCode] || 1.0;
+  const isRaw = recipe.type === 'raw' || (recipe.inputs || []).length === 0;
+
+  const totalBonusPct = typeof comp.totalBonusPct === 'number' ? comp.totalBonusPct : 0;
+  const bonusMultiplier = 1 + (totalBonusPct / 100);
+
+  // Engine: Base PP and Produced PP
+  const engineBasePph = comp.engineTier?.ppPerHour || (comp.engineLevel || 1);
+  const engineBaseDailyPp = engineBasePph * 24;
+  const engineProducedDailyPp = engineBaseDailyPp * bonusMultiplier;
+
+  // Hired Employees: Base PP, Produced PP, Wages
+  let workersBaseDailyPp = 0;
+  let workersProducedDailyPp = 0;
+  let workersDailyWages = 0;
+
+  const workersList = (comp.workersList || comp.workers || []).map(w => {
+    const wProdLvl = typeof w.productionSkill === 'number' ? w.productionSkill : 0;
+    const wBaseSessionPp = w.productionPointsBase || (10 + wProdLvl * 3);
+    const wEnergyLvl = typeof w.energySkill === 'number' ? w.energySkill : 0;
+    const wEnergyTotal = w.energyPointsTotal || (30 + wEnergyLvl * 10);
+    const wSessions = Number((wEnergyTotal * 0.24).toFixed(2));
+    const wFidelity = typeof w.fidelity === 'number' ? w.fidelity : (typeof w.loyaltyBonus === 'number' ? w.loyaltyBonus : 0);
+    const wDailyBase = wBaseSessionPp * wSessions;
+    const wMultiplier = 1 + ((totalBonusPct + wFidelity) / 100);
+    const wProduced = wDailyBase * wMultiplier;
+    const wWageRate = typeof w.wagePerPp === 'number' ? w.wagePerPp : (typeof w.wage === 'number' ? w.wage : 0.146);
+    const wWage = wProduced * wWageRate;
+
+    workersBaseDailyPp += wDailyBase;
+    workersProducedDailyPp += wProduced;
+    workersDailyWages += wWage;
+
+    return {
+      ...w,
+      energySkill: wEnergyLvl,
+      energyPointsTotal: wEnergyTotal,
+      workSessionsPerDay: wSessions,
+      dailySessions: wSessions,
+      productionSkill: wProdLvl,
+      productionPointsBase: wBaseSessionPp,
+      companyTotalBonusPct: totalBonusPct,
+      fidelity: wFidelity,
+      loyaltyBonus: wFidelity,
+      workerMultiplier: wMultiplier,
+      effectivePpPerHit: wBaseSessionPp * wMultiplier,
+      ppPerHit: wBaseSessionPp * wMultiplier,
+      dailyPp: wProduced,
+      baseDailyPp: wDailyBase,
+      producedDailyPp: wProduced,
+      wagePerPp: wWageRate,
+      wage: wWageRate,
+      dailyWage: wWage
+    };
+  });
+
+  // Company Base & Produced PP
+  const companyBaseDailyPp = engineBaseDailyPp + workersBaseDailyPp;
+  const companyProducedDailyPp = engineProducedDailyPp + workersProducedDailyPp;
+  const ppRatioPct = companyBaseDailyPp > 0 ? (companyProducedDailyPp / companyBaseDailyPp) * 100 : 100;
+
+  // Base Production in units per day
+  const baseUnits = recipe.pp > 0 ? (companyProducedDailyPp / recipe.pp) : 0;
+  const grossRevenue = baseUnits * spotPrice;
+
+  // Price as a ratio of Base PP:
+  const pricePerBasePp = companyBaseDailyPp > 0 ? (grossRevenue / companyBaseDailyPp) : 0;
+  const spotToRecipePpRatio = recipe.pp > 0 ? (spotPrice / recipe.pp) : 0;
+
+  // Raw Material Costs:
+  // For users with both raw and finished goods companies, raw materials are supplied internally => cost is 0.
+  // For users with only finished goods companies (no raw facilities), raw materials are bought from market.
+  const isRawZeroCost = isRaw || hasBothRawAndFinished;
+
+  let unitRawMarketCost = 0;
+  const rawInputsBreakdown = isRaw ? [] : (recipe.inputs || []).map(inp => {
+    const itemPrice = prices[inp.id] || 0;
+    const unitsNeededPerUnit = inp.qty;
+    const totalUnitsNeededDaily = baseUnits * inp.qty;
+    const costPerUnit = unitsNeededPerUnit * itemPrice;
+    const marketRawExpense = totalUnitsNeededDaily * itemPrice;
+    unitRawMarketCost += costPerUnit;
+
+    const actualDailyRawExpense = isRawZeroCost ? 0 : marketRawExpense;
+
+    return {
+      id: inp.id,
+      name: inp.id,
+      qtyNeededPerUnit: unitsNeededPerUnit,
+      unitMarketPrice: itemPrice,
+      totalUnitsNeededDaily,
+      costPerUnit,
+      marketRawExpense,
+      dailyRawExpense: actualDailyRawExpense,
+      isInsourced: isRawZeroCost,
+      savingsCoins: isRawZeroCost ? marketRawExpense : 0
+    };
+  });
+
+  const dailyRawExpenseTotal = isRawZeroCost ? 0 : (baseUnits * unitRawMarketCost);
+  const dailyLaborExpense = workersDailyWages;
+
+  // Base Net Profit
+  const baseNetProfit = grossRevenue - dailyRawExpenseTotal - dailyLaborExpense;
+
+  const baseLaborCostPerUnit = baseUnits > 0 ? (dailyLaborExpense / baseUnits) : 0;
+  const baseRawCostPerUnit = isRawZeroCost ? 0 : unitRawMarketCost;
+  const baseNetProfitPerUnit = spotPrice - baseRawCostPerUnit - baseLaborCostPerUnit;
+
+  const baseNetMarginPct = grossRevenue > 0 ? (baseNetProfit / grossRevenue) * 100 : 0;
+
+  return {
+    ...comp,
+    id,
+    recipe,
+    isRaw,
+    spotPrice,
+    totalBonusPct,
+    bonusMultiplier,
+    engineBaseDailyPp,
+    engineProducedDailyPp,
+    workersBaseDailyPp,
+    workersProducedDailyPp,
+    workersDailyWages,
+    workersList,
+    companyBaseDailyPp,
+    companyProducedDailyPp,
+    ppRatioPct,
+    pricePerBasePp,
+    spotToRecipePpRatio,
+    baseUnits,
+    unitsPerDay: baseUnits,
+    grossRevenue,
+    dailyGrossRevenue: grossRevenue,
+    unitRawMarketCost,
+    rawInputsBreakdown,
+    dailyRawExpenseTotal,
+    dailyLaborExpense,
+    baseNetProfit,
+    dailyNetProfit: baseNetProfit,
+    baseLaborCostPerUnit,
+    baseRawCostPerUnit,
+    baseNetProfitPerUnit,
+    netProfitPerUnit: baseNetProfitPerUnit,
+    baseNetMarginPct,
+    netMarginPct: baseNetMarginPct
+  };
+}
+
+export function calculateSupplyChainLedger(baseCompanies = [], prices = {}, insourceOverrides = {}, hasBothRawAndFinished = false) {
+  // Aggregate Base Supply (from owned raw producers)
+  const rawSupply = {};
+  baseCompanies.forEach(c => {
+    if (c.isRaw) {
+      if (!rawSupply[c.itemCode]) {
+        rawSupply[c.itemCode] = {
+          units: 0,
+          producers: []
+        };
+      }
+      rawSupply[c.itemCode].units += c.baseUnits;
+      rawSupply[c.itemCode].producers.push(c);
+    }
+  });
+
+  // Aggregate Base Demand (from owned finished consumers)
+  const rawDemand = {};
+  const downstreamMap = {};
+  baseCompanies.forEach(c => {
+    if (!c.isRaw) {
+      (c.recipe?.inputs || []).forEach(inp => {
+        if (!rawDemand[inp.id]) {
+          rawDemand[inp.id] = {
+            units: 0,
+            consumers: []
+          };
+        }
+        const needed = c.baseUnits * inp.qty;
+        rawDemand[inp.id].units += needed;
+        rawDemand[inp.id].consumers.push({
+          companyId: c.id || c._id,
+          name: c.name,
+          recipeName: c.recipe?.name || c.itemCode,
+          neededUnits: needed
+        });
+
+        if (!downstreamMap[inp.id]) downstreamMap[inp.id] = [];
+        downstreamMap[inp.id].push({
+          id: c.id || c._id,
+          name: c.name,
+          recipeName: c.recipe?.name || c.itemCode,
+          dailyNeeded: needed
+        });
+      });
+    }
+  });
+
+  // Unique list of all commodities involved
+  const allCommodityCodes = Array.from(new Set([
+    ...Object.keys(rawSupply),
+    ...Object.keys(rawDemand)
+  ]));
+
+  const ledger = allCommodityCodes.map(code => {
+    const supplyUnits = rawSupply[code]?.units || 0;
+    const demandUnits = rawDemand[code]?.units || 0;
+    const balanceUnits = Number((supplyUnits - demandUnits).toFixed(1));
+    const price = prices[code] || 1.0;
+
+    let status = 'balanced';
+    if (balanceUnits > 0.05) status = 'surplus';
+    else if (balanceUnits < -0.05) status = 'deficit';
+
+    const surplusUnits = Math.max(0, balanceUnits);
+    const deficitUnits = Math.max(0, -balanceUnits);
+    const surplusCoins = surplusUnits * price;
+    const deficitCoins = deficitUnits * price;
+
+    return {
+      itemCode: code,
+      unitPrice: price,
+      supplyUnits,
+      demandUnits,
+      balanceUnits,
+      status, // 'surplus' (oversupply) | 'deficit' (undersupply) | 'balanced'
+      surplusUnits,
+      deficitUnits,
+      surplusCoins,
+      deficitCoins,
+      producers: rawSupply[code]?.producers || [],
+      consumers: rawDemand[code]?.consumers || []
+    };
+  });
+
+  // Enriched raw inputs for each company showing insource toggleability & cost changes
+  const enrichedCompanies = baseCompanies.map(comp => {
+    const downstreamConsumers = downstreamMap[comp.itemCode] || [];
+
+    if (comp.isRaw) {
+      const demand = rawDemand[comp.itemCode]?.units || 0;
+      const internalSupplied = Math.min(comp.baseUnits, demand);
+      const externalMarketUnits = Math.max(0, comp.baseUnits - demand);
+      const internalTransferValue = internalSupplied * comp.spotPrice;
+
+      return {
+        ...comp,
+        isSupplyingInternal: internalSupplied > 0,
+        internalSupplied,
+        externalMarketUnits,
+        internalTransferValue,
+        downstreamConsumers
+      };
+    }
+
+    // Finished Goods company inputs
+    const enrichedInputs = (comp.rawInputsBreakdown || []).map(inp => {
+      const owned = rawSupply[inp.id];
+      const hasOwnedProducer = !!(owned && owned.units > 0);
+      const overrideKey = `${comp.id || comp._id}_${inp.id}`;
+
+      // If user has both raw and finished goods companies, raw costs are 0!
+      const isInsourced = hasBothRawAndFinished || (hasOwnedProducer
+        ? (insourceOverrides[overrideKey] !== undefined ? insourceOverrides[overrideKey] : true)
+        : false);
+
+      const availableSupply = owned?.units || 0;
+      const insourcedUnits = hasBothRawAndFinished
+        ? inp.totalUnitsNeededDaily
+        : (isInsourced ? Math.min(inp.totalUnitsNeededDaily, availableSupply) : 0);
+      const deficitUnits = hasBothRawAndFinished ? 0 : Math.max(0, inp.totalUnitsNeededDaily - insourcedUnits);
+      const costAvoided = inp.totalUnitsNeededDaily * inp.unitMarketPrice;
+      const cashOutflow = hasBothRawAndFinished ? 0 : (deficitUnits * inp.unitMarketPrice);
+
+      return {
+        ...inp,
+        hasOwnedProducer: hasBothRawAndFinished || hasOwnedProducer,
+        hasOwnedCompany: hasBothRawAndFinished || hasOwnedProducer,
+        isInsourced,
+        isConstrained: false,
+        insourcedUnits,
+        deficitUnits,
+        costAvoided,
+        savingsCoins: costAvoided,
+        cashOutflow,
+        dailyRawExpense: cashOutflow,
+        ownedProducers: owned?.producers || [],
+        rawProducerCompanies: owned?.producers || []
+      };
+    });
+
+    const totalCostAvoided = enrichedInputs.reduce((sum, inp) => sum + inp.costAvoided, 0);
+    const adjustedRawCashExpense = hasBothRawAndFinished ? 0 : enrichedInputs.reduce((sum, inp) => sum + inp.cashOutflow, 0);
+    const dailyRawExpenseTotal = hasBothRawAndFinished ? 0 : comp.dailyRawExpenseTotal;
+    const baseNetProfit = comp.grossRevenue - dailyRawExpenseTotal - comp.dailyLaborExpense;
+    const adjustedNetProfit = comp.grossRevenue - adjustedRawCashExpense - comp.dailyLaborExpense;
+
+    return {
+      ...comp,
+      rawInputsBreakdown: enrichedInputs,
+      dailyRawExpenseTotal,
+      baseRawCostPerUnit: hasBothRawAndFinished ? 0 : comp.baseRawCostPerUnit,
+      baseNetProfit,
+      totalCostAvoided,
+      adjustedRawCashExpense,
+      adjustedNetProfit,
+      downstreamConsumers
+    };
+  });
+
+  return {
+    ledger,
+    rawSupply,
+    rawDemand,
+    enrichedCompanies
+  };
+}
+
+export function calculatePortfolioOverview({
+  companies = [],
+  userSkills = {},
+  prices = {},
+  insourceOverrides = {}
+}) {
+  const ownerLabor = calculateOwnerPersonalLabor(userSkills);
+
+  // Helper to reliably detect raw extraction facilities even before recipe binding
+  const resolveIsRaw = (c) => {
+    if (typeof c.isRaw === 'boolean') return c.isRaw;
+    const rec = c.recipe || RECIPES.find(r => r.id === (c.itemCode || c.id || c.type || c.recipeId));
+    if (rec) {
+      return rec.type === 'raw' || !rec.inputs || rec.inputs.length === 0;
+    }
+    return false;
+  };
+
+  // Detect whether the user owns both raw resource extraction facilities and finished goods manufacturing facilities
+  const hasRawCompanies = companies.some(c => resolveIsRaw(c));
+  const hasFinishedCompanies = companies.some(c => !resolveIsRaw(c));
+  const hasBothRawAndFinished = hasRawCompanies && hasFinishedCompanies;
+
+  const baseCalculated = companies.map(c => calculateCompanyBaseEconomics(c, prices, insourceOverrides, hasBothRawAndFinished));
+  const { ledger, rawSupply, rawDemand, enrichedCompanies } = calculateSupplyChainLedger(baseCalculated, prices, insourceOverrides, hasBothRawAndFinished);
+
+  // Totals across the portfolio
+  const totalCompanyBasePp = enrichedCompanies.reduce((sum, c) => sum + c.companyBaseDailyPp, 0);
+  const totalCompanyProducedPp = enrichedCompanies.reduce((sum, c) => sum + c.companyProducedDailyPp, 0);
+  const totalDailySelfWorkPp = ownerLabor.dailySelfWorkPp;
+  // Inclusive total PP across enterprise:
+  const totalInclusiveBasePp = totalCompanyBasePp + totalDailySelfWorkPp;
+  const currentReadySelfWorkPp = ownerLabor.currentReadyPp;
+
+  const totalBaseProductionUnits = enrichedCompanies.reduce((sum, c) => sum + c.baseUnits, 0);
+  const totalRawBaseUnits = enrichedCompanies.filter(c => c.isRaw).reduce((sum, c) => sum + c.baseUnits, 0);
+  const totalFinishedBaseUnits = enrichedCompanies.filter(c => !c.isRaw).reduce((sum, c) => sum + c.baseUnits, 0);
+  const totalBaseGrossRevenue = enrichedCompanies.reduce((sum, c) => sum + c.grossRevenue, 0);
+  const totalBaseRawExpense = hasBothRawAndFinished ? 0 : enrichedCompanies.reduce((sum, c) => sum + (c.dailyRawExpenseTotal || 0), 0);
+  const totalBaseLaborExpense = enrichedCompanies.reduce((sum, c) => sum + c.dailyLaborExpense, 0);
+  const totalBaseNetProfit = totalBaseGrossRevenue - totalBaseRawExpense - totalBaseLaborExpense;
+
+  return {
+    ownerLabor,
+    companies: enrichedCompanies,
+    supplyChainLedger: ledger,
+    hasBothRawAndFinished,
+    totals: {
+      totalCompanyBasePp,
+      totalCompanyProducedPp,
+      totalDailySelfWorkPp,
+      totalInclusiveBasePp,
+      currentReadySelfWorkPp,
+      totalBaseProductionUnits,
+      totalRawBaseUnits,
+      totalFinishedBaseUnits,
+      totalBaseGrossRevenue,
+      totalBaseRawExpense,
+      totalBaseLaborExpense,
+      totalBaseNetProfit,
+      hasBothRawAndFinished
+    }
+  };
+}
+
+// Backwards-compatibility wrapper
+export function calculateSupplyChainAndOptimization(params = {}) {
+  return calculatePortfolioOverview(params);
+}
+

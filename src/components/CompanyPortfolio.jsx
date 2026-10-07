@@ -26,12 +26,18 @@ import {
   ChevronLeft,
   ChevronRight,
   UserPlus,
-  ArrowLeft
+  ArrowLeft,
+  Zap,
+  TrendingUp,
+  Target,
+  ArrowRightLeft
 } from 'lucide-react';
 import { RECIPES, ENGINE_UPGRADE_TIERS, STORAGE_UPGRADE_TIERS, getSkillValue } from '../data/gameData';
 import { api, FALLBACK_WAGE_STATS } from '../services/wareraApi';
+import { calculatePortfolioOverview } from '../data/marketMath';
 import ItemIcon from './ItemIcon';
 import StockExchangeListing from './StockExchangeListing';
+import EmployeeAuditModal from './EmployeeAuditModal';
 
 // Reusable tactile Gold Coin icon
 export function GoldCoin({ size = 15, className = '' }) {
@@ -213,9 +219,10 @@ export function mapCompanyFromDossier(c, i = 0, user = null, wageStats = null) {
     const fidelityBonus = typeof w.fidelity === 'number' ? w.fidelity : (typeof w.loyaltyBonus === 'number' ? w.loyaltyBonus : 0);
     const prodLvl = typeof w.productionSkill === 'number' ? w.productionSkill : (typeof w.productionSkillLevel === 'number' ? w.productionSkillLevel : 0);
     const prodBase = w.productionPointsBase || (prodLvl > 10 ? prodLvl : (10 + prodLvl * 3));
-    const energyLvl = typeof w.energySkill === 'number' ? w.energySkill : (typeof w.energySkillLevel === 'number' ? w.energySkillLevel : 10);
-    const energyStamina = w.energyPointsTotal || (energyLvl > 0 ? energyLvl * 10 : 100);
-    const dailySessions = 2.0; // Standard realistic work frequency (2 sessions / day)
+    const energyLvl = typeof w.energySkill === 'number' ? w.energySkill : (typeof w.energySkillLevel === 'number' ? w.energySkillLevel : 0);
+    const energyStamina = w.energyPointsTotal || (30 + energyLvl * 10);
+    // Natural 24h capacity: 10% hourly regen = 2.4 * max stamina per 24 hours. At 10 energy pts/session = 0.24 * stamina
+    const dailySessions = Number((energyStamina * 0.24).toFixed(2));
 
     return {
       id: w._id || w.id || `w-${wIdx}`,
@@ -318,6 +325,8 @@ export default function CompanyPortfolio({
 
   // Live 24h market price movements for accurate valuation growth
   const [priceChanges24h, setPriceChanges24h] = useState({});
+  // Inspected worker for modal audit breakdown
+  const [inspectedWorker, setInspectedWorker] = useState(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -417,42 +426,54 @@ export default function CompanyPortfolio({
       let totalWorkerWages = 0;
 
       const workersList = (comp.workers || []).map(w => {
-        const energyLvl = typeof w.energySkill === 'number' ? w.energySkill : 10;
-        const energyStamina = w.energyPointsTotal || (energyLvl > 0 ? energyLvl * 10 : 100);
-        const dailySessions = typeof w.workSessionsPerDay === 'number' && w.workSessionsPerDay <= 5 
+        const energyLvl = typeof w.energySkill === 'number' ? w.energySkill : 0;
+        const energyStamina = w.energyPointsTotal || (30 + energyLvl * 10);
+        const dailySessions = typeof w.workSessionsPerDay === 'number' && w.workSessionsPerDay > 0
           ? w.workSessionsPerDay 
-          : (typeof w.dailySessions === 'number' && w.dailySessions <= 5 ? w.dailySessions : 2.0);
+          : Number((energyStamina * 0.24).toFixed(2));
 
         const prodLvl = typeof w.productionSkill === 'number' ? w.productionSkill : 0;
         const basePp = w.productionPointsBase || (prodLvl > 10 ? prodLvl : (10 + prodLvl * 3));
         const loyaltyBonus = typeof w.fidelity === 'number' ? w.fidelity : (typeof w.loyaltyBonus === 'number' ? w.loyaltyBonus : 0);
-        const ppPerHit = basePp * (1 + loyaltyBonus / 100);
-        const dailyPp = ppPerHit * dailySessions;
-        const dailyWage = dailyPp * (w.wagePerPp || 0);
+        
+        // Output factors energy level, production level, fidelity, and company production bonus:
+        const workerMultiplier = 1 + ((totalBonusPct + loyaltyBonus) / 100);
+        const dailyBasePp = dailySessions * basePp;
+        const dailyProducedPp = dailySessions * basePp * workerMultiplier;
+        const wageRate = typeof w.wagePerPp === 'number' ? w.wagePerPp : (typeof w.wage === 'number' ? w.wage : 0.146);
+        const dailyWage = dailyProducedPp * wageRate;
 
-        totalWorkerBasePp += dailyPp;
+        totalWorkerBasePp += dailyBasePp;
         totalWorkerWages += dailyWage;
 
         return {
           ...w,
           energySkill: energyLvl,
           energyStamina,
+          energyPointsTotal: energyStamina,
           dailySessions,
+          workSessionsPerDay: dailySessions,
+          productionSkill: prodLvl,
           basePp,
+          productionPointsBase: basePp,
           loyaltyBonus,
-          ppPerHit,
-          dailyPp,
+          fidelity: loyaltyBonus,
+          companyTotalBonusPct: totalBonusPct,
+          workerMultiplier,
+          effectivePpPerHit: basePp * workerMultiplier,
+          ppPerHit: basePp * workerMultiplier,
+          dailyPp: dailyProducedPp,
+          baseDailyPp: dailyBasePp,
+          producedDailyPp: dailyProducedPp,
+          wagePerPp: wageRate,
+          wage: wageRate,
           dailyWage
         };
       });
 
-      // Self-work fallback
-      const selfDailyPp = comp.isSelfWorking ? (2 * 16) : 0; // base 16 PP/hit for self
-      const combinedWorkerPp = comp.isSelfWorking ? selfDailyPp : totalWorkerBasePp;
-      const combinedWageExpense = comp.isSelfWorking ? 0 : totalWorkerWages;
-
-      const totalDailyBasePp = (engineTier.ppPerHour * 24) + combinedWorkerPp;
-      const totalDailyEffectivePp = engineDailyPp + (combinedWorkerPp * bonusMultiplier);
+      // Pure Base Layer: Automated Engine + Hired Employees (Self-work is optimized dynamically across portfolio)
+      const totalDailyBasePp = (engineTier.ppPerHour * 24) + totalWorkerBasePp;
+      const totalDailyEffectivePp = engineDailyPp + (totalWorkerBasePp * bonusMultiplier);
       const unitsPerDay = recipe.pp > 0 ? (totalDailyEffectivePp / recipe.pp) : 0;
 
       // Storage holding capacity in units (exact warehouse size)
@@ -484,8 +505,8 @@ export default function CompanyPortfolio({
         storageCapacityPp,
         storageCapacityUnits,
         workersList,
-        totalWorkerBasePp: combinedWorkerPp,
-        totalWorkerWages: combinedWageExpense,
+        totalWorkerBasePp,
+        totalWorkerWages,
         totalDailyBasePp,
         totalDailyEffectivePp,
         unitsPerDay,
@@ -495,158 +516,48 @@ export default function CompanyPortfolio({
     });
   }, [companies, liveTick]);
 
-  // 2. Complete Financials based on Portfolio Supply-Chain Allocation
+  // 2. Empire-wide Base Portfolio Overview & Supply Chain Ledger
+  const portfolioOverview = useMemo(() => {
+    return calculatePortfolioOverview({
+      companies: baseCompaniesData,
+      userSkills: user?.skills,
+      prices,
+      insourceOverrides
+    });
+  }, [baseCompaniesData, user?.skills, prices, insourceOverrides]);
+
+  // 3. Complete Financials based on Base Operations, Storage, and Upgrades
   const analyzedCompanies = useMemo(() => {
     const steelPrice = prices.steel || 1.72;
     const concretePrice = prices.concrete || 1.70;
-    const marketTaxRate = 0.0;
+    const enrichedList = portfolioOverview?.companies || [];
 
-    // --- Phase 1: Pre-aggregate raw material producers & downstream consumers across portfolio ---
-    // A commodity is considered raw if recipe.type === 'raw' or inputs list is empty
-    const rawSupplies = {};
-    baseCompaniesData.forEach(comp => {
-      const isRaw = comp.recipe.type === 'raw' || (comp.recipe.inputs || []).length === 0;
-      if (isRaw) {
-        if (!rawSupplies[comp.itemCode]) {
-          rawSupplies[comp.itemCode] = {
-            totalCapacity: 0,
-            totalLabor: 0,
-            producers: []
-          };
-        }
-        rawSupplies[comp.itemCode].totalCapacity += comp.unitsPerDay;
-        rawSupplies[comp.itemCode].totalLabor += comp.totalWorkerWages;
-        rawSupplies[comp.itemCode].producers.push(comp);
-      }
-    });
-
-    // Map downstream consumers for each raw input
-    const rawConsumers = {};
-    baseCompaniesData.forEach(comp => {
-      const inputs = comp.recipe.inputs || [];
-      inputs.forEach(inp => {
-        if (!rawConsumers[inp.id]) {
-          rawConsumers[inp.id] = [];
-        }
-        rawConsumers[inp.id].push({
-          id: comp.id || comp._id,
-          name: comp.name,
-          recipeName: comp.recipe.name,
-          dailyNeeded: comp.unitsPerDay * inp.qty
-        });
-      });
-    });
-
-    // --- Phase 2: Compute Each Company's Individual Economics (Transfer Pricing Model) ---
-    return baseCompaniesData.map(comp => {
-      const recipe = comp.recipe;
-      const spotPrice = prices[comp.itemCode] || 1.0;
-      const netSellPrice = spotPrice * (1 - marketTaxRate / 100);
-      const isRawProducer = recipe.type === 'raw' || (recipe.inputs || []).length === 0;
-
-      // Downstream consumers mapping for raw commodities
-      const downstreamConsumers = rawConsumers[comp.itemCode] || [];
-      const isSupplyingInternal = isRawProducer && downstreamConsumers.length > 0;
-
-      // Downstream raw material input analysis for Finished Goods
-      const rawInputsBreakdown = isRawProducer ? [] : (recipe.inputs || []).map(inp => {
-        const itemPrice = prices[inp.id] || 0;
-        const totalUnitsNeededDaily = comp.unitsPerDay * inp.qty;
-        const unitsNeededPerUnit = inp.qty;
-
-        const rawSupply = rawSupplies[inp.id];
-        const hasOwnedCompany = !!(rawSupply && rawSupply.totalCapacity > 0);
-        const rawProducerCompanies = rawSupply?.producers || [];
-
-        const overrideKey = `${comp.id || comp._id}_${inp.id}`;
-        const isInsourced = hasOwnedCompany
-          ? (insourceOverrides[overrideKey] !== undefined ? insourceOverrides[overrideKey] : true)
-          : false;
-
-        const costPerUnit = unitsNeededPerUnit * itemPrice;
-        const dailyRawExpense = totalUnitsNeededDaily * itemPrice;
-        const inpRecipe = RECIPES.find(r => r.id === inp.id) || { name: inp.id };
-
-        return {
-          id: inp.id,
-          name: inpRecipe.name,
-          qtyNeededPerUnit: unitsNeededPerUnit,
-          unitMarketPrice: itemPrice,
-          totalUnitsNeededDaily,
-          costPerUnit,
-          dailyRawExpense,
-          hasOwnedCompany,
-          isInsourced,
-          rawProducerCompanies
-        };
-      });
-
-      const totalRawCostPerUnit = rawInputsBreakdown.reduce((sum, item) => sum + item.costPerUnit, 0);
-      const dailyRawCashExpense = rawInputsBreakdown.reduce((sum, item) => sum + item.dailyRawExpense, 0);
-      const hasRawInputs = rawInputsBreakdown.length > 0;
-      const isAllInsourced = hasRawInputs && rawInputsBreakdown.every(item => item.isInsourced);
-
-      // Financials:
-      // Raw producers receive full credit for economic output: Output Units * Spot Price - Direct Wages
-      // Finished producers deduct raw inputs at spot rate (balanced offset against owned raw facilities)
-      const dailyGrossRevenue = comp.unitsPerDay * spotPrice;
-      const dailyLaborExpense = comp.totalWorkerWages;
-      const laborCostPerUnit = comp.unitsPerDay > 0 ? (dailyLaborExpense / comp.unitsPerDay) : 0;
-
-      const dailyNetProfit = isRawProducer
-        ? (dailyGrossRevenue - dailyLaborExpense)
-        : (dailyGrossRevenue - dailyRawCashExpense - dailyLaborExpense);
-
-      const netProfitPerUnit = isRawProducer
-        ? (spotPrice - laborCostPerUnit)
-        : (spotPrice - totalRawCostPerUnit - laborCostPerUnit);
-
-      const netMarginPct = dailyGrossRevenue > 0 ? (dailyNetProfit / dailyGrossRevenue) * 100 : 0;
-
-      // Workers enriched net contribution (evaluating individual profitability)
-      const enrichedWorkers = comp.workersList.map(w => {
-        const workerEffectivePp = w.dailyPp * comp.bonusMultiplier;
-        const unitsProduced = recipe.pp > 0 ? (workerEffectivePp / recipe.pp) : 0;
-        const grossValue = unitsProduced * spotPrice;
-        const rawExpense = isRawProducer ? 0 : (unitsProduced * totalRawCostPerUnit);
-        const netContribution = grossValue - rawExpense - w.dailyWage;
-
-        return {
-          ...w,
-          workerEffectivePp,
-          unitsProduced,
-          grossValue,
-          rawExpense,
-          sellingFee: 0,
-          netContribution
-        };
-      });
-
-      // Selling / Trade Deductions (0.00% in WarEra commodity order-book)
-      const marketTaxPerUnit = 0.0;
-      const dailyTaxExpense = 0.0;
+    return enrichedList.map(comp => {
+      const recipe = comp.recipe || RECIPES.find(r => r.id === comp.itemCode) || { id: comp.itemCode, name: comp.itemCode, pp: 1, type: 'raw' };
+      const spotPrice = comp.spotPrice || prices[comp.itemCode] || 1.0;
+      const netSellPrice = spotPrice;
+      const isRawProducer = comp.isRaw;
 
       // Storage & Engine Timer (using live accumulated stored PP)
       const storageTier = comp.storageTier || STORAGE_UPGRADE_TIERS.find(t => t.level === comp.storageLevel) || STORAGE_UPGRADE_TIERS[0];
-      const storageCapacity = comp.storageCapacityPp;
-      const currentStoredPp = comp.currentStoredPp;
+      const storageCapacity = comp.storageCapacityPp || storageTier.capacity;
+      const currentStoredPp = comp.currentStoredPp || 0;
       const currentFillPct = Math.min(100, (currentStoredPp / storageCapacity) * 100);
       const remainingPpToFull = Math.max(0, storageCapacity - currentStoredPp);
 
-      // TIME UNTIL FULL USING ENGINE ONLY (in Days + Hours, factoring effective engine speed)
-      const effectiveEnginePph = comp.effectiveEnginePph || (comp.engineTier.ppPerHour * comp.bonusMultiplier);
+      const effectiveEnginePph = comp.effectiveEnginePph || ((comp.engineTier?.ppPerHour || comp.engineLevel || 1) * comp.bonusMultiplier);
       const engineHoursUntilFull = effectiveEnginePph > 0 ? (remainingPpToFull / effectiveEnginePph) : 9999;
       const engineDaysOnly = Math.floor(engineHoursUntilFull / 24);
       const engineHoursRemainder = Math.floor(engineHoursUntilFull % 24);
 
-      // Ready inventory (exact live ready stock)
-      const uncollectedUnits = comp.storedReadyUnits;
+      // Ready inventory
+      const uncollectedUnits = comp.storedReadyUnits || 0;
       const uncollectedValueCoins = uncollectedUnits * netSellPrice;
 
-      // Real-time Asset Worth Breakdown (dynamically updates with concrete, steel, and spot price movements)
-      const concreteInvestedVal = comp.concreteInvested * concretePrice;
-      const steelInEngine = comp.engineTier.steel * steelPrice;
-      const steelInStorage = storageTier.steel * steelPrice;
+      // Real-time Asset Worth Breakdown
+      const concreteInvestedVal = (comp.concreteInvested || 200) * concretePrice;
+      const steelInEngine = (comp.engineTier?.steel || 0) * steelPrice;
+      const steelInStorage = (storageTier?.steel || 0) * steelPrice;
       const inventoryVal = uncollectedValueCoins;
       const baseHardwareVal = concreteInvestedVal + steelInEngine + steelInStorage;
       const baseValuation = (typeof comp.estimatedValue === 'number' && comp.estimatedValue > 0)
@@ -654,14 +565,14 @@ export default function CompanyPortfolio({
         : baseHardwareVal;
       const totalCalculatedWorth = baseValuation + inventoryVal;
 
-      // 24-Hour Enterprise Value Growth (Operational net profit + inventory price shift)
+      // 24-Hour Enterprise Value Growth
       const itemPriceChange = priceChanges24h[comp.itemCode];
-      const inventoryPriceDelta = (itemPriceChange?.changeDiff || 0) * comp.storedReadyUnits;
-      const growth24hCoins = dailyNetProfit + inventoryPriceDelta;
+      const inventoryPriceDelta = (itemPriceChange?.changeDiff || 0) * (comp.storedReadyUnits || 0);
+      const growth24hCoins = comp.baseNetProfit + inventoryPriceDelta;
       const baselineValuation = Math.max(1, totalCalculatedWorth - growth24hCoins);
       const growth24hPct = (growth24hCoins / baselineValuation) * 100;
 
-      // Upgrades Plain English (omitted when facility is fully automated or max storage level is reached)
+      // Upgrades
       const maxEngineLevel = 5;
       const nextEngineTier = (comp.engineLevel < maxEngineLevel) 
         ? (ENGINE_UPGRADE_TIERS.find(t => t.level === comp.engineLevel + 1) || null)
@@ -671,11 +582,11 @@ export default function CompanyPortfolio({
       let engineExtraProfitDaily = 0;
       let enginePaybackDays = 999;
 
-      if (nextEngineTier) {
+      if (nextEngineTier && comp.engineTier) {
         engineUpgradeSteel = nextEngineTier.steel - comp.engineTier.steel;
         engineUpgradeCoins = engineUpgradeSteel * steelPrice;
         const extraDailyUnits = recipe.pp > 0 ? ((24 * comp.bonusMultiplier) / recipe.pp) : 0;
-        engineExtraProfitDaily = extraDailyUnits * netProfitPerUnit;
+        engineExtraProfitDaily = extraDailyUnits * comp.baseNetProfitPerUnit;
         enginePaybackDays = engineExtraProfitDaily > 0 ? (engineUpgradeCoins / engineExtraProfitDaily) : 999;
       }
 
@@ -690,7 +601,26 @@ export default function CompanyPortfolio({
       if (nextStorageTier) {
         storageUpgradeSteel = nextStorageTier.steel - storageTier.steel;
         storageExtraCapacity = nextStorageTier.capacity - storageCapacity;
+        storageExtraEngineHours = effectiveEnginePph > 0 ? (storageExtraCapacity / effectiveEnginePph) : 0;
       }
+
+      // Workers enriched net contribution (evaluating individual profitability)
+      const enrichedWorkers = (comp.workersList || []).map(w => {
+        const unitsProduced = recipe.pp > 0 ? (w.producedDailyPp / recipe.pp) : 0;
+        const grossValue = unitsProduced * spotPrice;
+        const rawExpense = isRawProducer ? 0 : (unitsProduced * comp.baseRawCostPerUnit);
+        const netContribution = grossValue - rawExpense - w.dailyWage;
+
+        return {
+          ...w,
+          unitsProduced,
+          grossValue,
+          rawExpense,
+          sellingFee: 0,
+          netContribution
+        };
+      });
+
       const hasEmployees = enrichedWorkers.length > 0;
 
       return {
@@ -700,25 +630,11 @@ export default function CompanyPortfolio({
         spotPrice,
         netSellPrice,
         isRawProducer,
-        unitExtractionCost: laborCostPerUnit,
-        isSupplyingInternal,
-        downstreamConsumers,
-        rawInputsBreakdown,
-        hasRawInputs,
-        isAllInsourced,
-        dailyRawCashExpense,
-        totalRawCostPerUnit,
         enrichedWorkers,
         hasEmployees,
-        dailyLaborExpense,
-        laborCostPerUnit,
-        marketTaxPerUnit,
-        dailyTaxExpense,
-        netProfitPerUnit,
-        netMarginPct,
-        dailyGrossRevenue,
-        dailyNetProfit,
+        storageTier,
         storageCapacity,
+        storageCapacityPp: storageCapacity,
         currentStoredPp,
         currentFillPct,
         remainingPpToFull,
@@ -745,7 +661,7 @@ export default function CompanyPortfolio({
         storageExtraEngineHours
       };
     });
-  }, [baseCompaniesData, prices, priceChanges24h, insourceOverrides]);
+  }, [portfolioOverview, prices, priceChanges24h]);
 
   // Filtered companies based on staffFilter: 'all' | 'withEmployees' | 'withoutEmployees'
   const filteredCompanies = useMemo(() => {
@@ -872,6 +788,11 @@ export default function CompanyPortfolio({
           companies={analyzedCompanies}
           user={user}
           dossier={dossier}
+          portfolioTotals={portfolioOverview?.totals}
+          ownerLabor={portfolioOverview?.ownerLabor}
+          supplyChainLedger={portfolioOverview?.supplyChainLedger}
+          prices={prices}
+          priceChanges24h={priceChanges24h}
           onSelectCompany={(compId) => {
             setSelectedCompanyId(compId);
             setViewMode('details');
@@ -942,15 +863,6 @@ export default function CompanyPortfolio({
 
                 <div className="flex items-center space-x-1.5 shrink-0">
                   <button
-                    onClick={handleRefreshActiveCompany}
-                    disabled={isRefreshingLive}
-                    className="flex items-center space-x-1 px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold font-mono transition cursor-pointer"
-                    title="Sync live data directly from WarEra API"
-                  >
-                    <RotateCw className={`w-3.5 h-3.5 ${isRefreshingLive ? 'animate-spin text-amber-500' : 'text-slate-500'}`} />
-                    <span className="hidden sm:inline">{isRefreshingLive ? 'Syncing...' : 'Sync Live'}</span>
-                  </button>
-                  <button
                     onClick={() => handleDelete(activeCompany.id)}
                     className="p-1.5 text-slate-300 hover:text-rose-600 hover:bg-rose-50 transition cursor-pointer"
                     title="Delete this facility"
@@ -1000,19 +912,68 @@ export default function CompanyPortfolio({
                       {activeCompany.growth24hCoins >= 0 ? '+' : ''}{(activeCompany.growth24hCoins / 24).toFixed(2)} ({(activeCompany.growth24hPct / 24).toFixed(2)}%) past 1h
                     </span>
                   </div>
-                  <div className="flex justify-between items-center pt-0.5">
-                    <span>Net Operating Cashflow:</span>
-                    <div className="text-right">
-                      <span className={`font-black ${activeCompany.dailyNetProfit >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
-                        {activeCompany.dailyNetProfit >= 0 ? '+' : ''}{activeCompany.dailyNetProfit.toFixed(1)}/day
-                      </span>
-                      {activeCompany.isSupplyingInternal && (
-                        <span className="text-[10px] text-emerald-600 block font-normal font-sans">
-                          (Supplying internal pipeline)
-                        </span>
-                      )}
-                    </div>
+                  <div className="flex justify-between items-center pt-1 border-t border-slate-200/60">
+                    <span className="font-bold text-slate-800">Base Production:</span>
+                    <strong className="text-slate-900 font-mono">
+                      {activeCompany.baseUnits.toFixed(1)} units/day
+                    </strong>
                   </div>
+                  <div className="flex justify-between items-center text-slate-600">
+                    <span>Base Revenue / day:</span>
+                    <strong className="text-slate-900 font-mono">
+                      +{activeCompany.grossRevenue.toFixed(2)} Coins/day
+                    </strong>
+                  </div>
+                  <div className="flex justify-between items-center text-slate-600">
+                    <span>Costs of Raw Material / day:</span>
+                    <strong className={activeCompany.dailyRawExpenseTotal > 0 ? "text-rose-600 font-mono" : "text-slate-400 font-mono"}>
+                      {activeCompany.dailyRawExpenseTotal > 0 ? `-${activeCompany.dailyRawExpenseTotal.toFixed(2)}` : '0.00'} Coins/day
+                    </strong>
+                  </div>
+                  <div className="flex justify-between items-center text-slate-600">
+                    <span>Base Salaries Paid / day:</span>
+                    <strong className={activeCompany.dailyLaborExpense > 0 ? "text-amber-800 font-mono" : "text-slate-400 font-mono"}>
+                      {activeCompany.dailyLaborExpense > 0 ? `-${activeCompany.dailyLaborExpense.toFixed(2)}` : '0.00'} Coins/day
+                    </strong>
+                  </div>
+                  <div className="flex justify-between items-center pt-1 border-t border-slate-200/40">
+                    <span className="font-bold text-slate-800">Base Profit / day:</span>
+                    <strong className={`font-bold font-mono ${activeCompany.baseNetProfit >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
+                      {activeCompany.baseNetProfit >= 0 ? '+' : ''}{activeCompany.baseNetProfit.toFixed(2)} Coins/day
+                    </strong>
+                  </div>
+                  <div className="flex justify-between items-center text-slate-600">
+                    <span>Base PP (Daily):</span>
+                    <strong className="text-slate-900 font-mono">
+                      {activeCompany.companyBaseDailyPp.toFixed(1)} PP/day
+                    </strong>
+                  </div>
+                  <div className="flex justify-between items-center text-slate-600">
+                    <span>Produced PP (Bonuses):</span>
+                    <strong className="text-blue-900 font-mono">
+                      {activeCompany.companyProducedDailyPp.toFixed(1)} PP/day
+                    </strong>
+                  </div>
+                  <div className="flex justify-between items-center text-slate-600">
+                    <span>PP Ratio:</span>
+                    <strong className="text-slate-900 font-mono">
+                      {activeCompany.ppRatioPct.toFixed(1)}%
+                    </strong>
+                  </div>
+                  <div className="flex justify-between items-center text-slate-600">
+                    <span>Price / Base PP:</span>
+                    <strong className="text-slate-900 font-mono">
+                      {activeCompany.pricePerBasePp.toFixed(3)} Coins/PP
+                    </strong>
+                  </div>
+                  {(activeCompany.totalCostAvoided || 0) > 0 && (
+                    <div className="flex justify-between items-center pt-1 border-t border-slate-200/40 text-emerald-700 font-bold">
+                      <span>Adjusted Net (Insourced):</span>
+                      <strong className="font-mono">
+                        +{activeCompany.adjustedNetProfit.toFixed(2)}/day (+{activeCompany.totalCostAvoided.toFixed(2)} saved)
+                      </strong>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -1105,31 +1066,57 @@ export default function CompanyPortfolio({
                     {/* Worker Breakdown */}
                     <div className="space-y-1.5 font-mono text-[11px] text-slate-600 flex-1 flex flex-col justify-around">
                       <div className="flex justify-between items-center">
-                        <span>Wage:</span>
-                        <strong className="text-amber-800 font-bold">{currentWorker.wagePerPp.toFixed(3)}/PP</strong>
+                        <span>Contract Wage:</span>
+                        <strong className="text-amber-800 font-bold">{currentWorker.wagePerPp.toFixed(3)} C/PP</strong>
                       </div>
                       <div className="flex justify-between items-center">
-                        <span>Base Prod:</span>
-                        <strong className="text-slate-900">Lv.{currentWorker.productionSkill || 0} ({currentWorker.basePp} PP)</strong>
+                        <span>Base Production:</span>
+                        <strong className="text-slate-900">Lv.{currentWorker.productionSkill || 0} ({currentWorker.basePp} PP/hit)</strong>
                       </div>
                       <div className="flex justify-between items-center">
-                        <span>Loyalty Bonus:</span>
-                        <strong className="text-emerald-700">+{currentWorker.loyaltyBonus || 0}% ({currentWorker.ppPerHit.toFixed(1)} PP/hit)</strong>
+                        <span>Bonuses:</span>
+                        <strong className="text-emerald-700">
+                          {currentWorker.companyTotalBonusPct > 0 ? `+${currentWorker.companyTotalBonusPct}% Co.` : ''}
+                          {currentWorker.loyaltyBonus > 0 ? ` +${currentWorker.loyaltyBonus}% Fidel.` : ''}
+                          {(!currentWorker.companyTotalBonusPct && !currentWorker.loyaltyBonus) ? '0%' : ''}
+                          <span className="text-slate-500 font-normal ml-1">({(currentWorker.effectivePpPerHit || currentWorker.ppPerHit || (currentWorker.basePp * (currentWorker.workerMultiplier || 1))).toFixed(1)} PP/hit)</span>
+                        </strong>
                       </div>
                       <div className="flex justify-between items-center">
-                        <span>Energy:</span>
-                        <strong className="text-slate-900">Lv.{currentWorker.energySkill || 0} ({currentWorker.energyStamina} Energy • {currentWorker.dailySessions.toFixed(1)} hits/d)</strong>
+                        <span>Energy Stamina:</span>
+                        <strong className="text-slate-900">Lv.{currentWorker.energySkill || 0} ({currentWorker.energyStamina} pts • {currentWorker.dailySessions.toFixed(1)} hits/d)</strong>
                       </div>
                       <div className="flex justify-between items-center">
                         <span>Daily Output:</span>
                         <strong className="text-slate-900">{currentWorker.dailyPp.toFixed(1)} PP/d</strong>
                       </div>
-                      <div className="flex justify-between items-center pt-1 text-slate-900 font-bold">
+                      <div className="flex justify-between items-center">
+                        <span>Daily Salary:</span>
+                        <strong className="text-amber-800">-{currentWorker.dailyWage.toFixed(2)} C/d</strong>
+                      </div>
+                      <div className="flex justify-between items-center pt-1 text-slate-900 font-bold border-t border-slate-200">
                         <span>Net Contribution:</span>
                         <span className={`font-black ${currentWorker.netContribution >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
-                          {currentWorker.netContribution >= 0 ? '+' : ''}{currentWorker.netContribution.toFixed(2)}/d
+                          {currentWorker.netContribution >= 0 ? '+' : ''}{currentWorker.netContribution.toFixed(2)} C/d
                         </span>
                       </div>
+
+                      <button
+                        type="button"
+                        onClick={() => setInspectedWorker({
+                          ...currentWorker,
+                          companyName: activeCompany.name,
+                          companyItemCode: activeCompany.itemCode,
+                          companyTotalBonusPct: activeCompany.totalBonusPct,
+                          recipe: activeCompany.recipe,
+                          spotPrice: activeCompany.spotPrice,
+                          baseRawCostPerUnit: activeCompany.baseRawCostPerUnit
+                        })}
+                        className="w-full mt-2 py-1.5 px-3 bg-slate-900 hover:bg-slate-800 text-white text-[11px] font-mono font-bold transition cursor-pointer flex items-center justify-center space-x-1"
+                      >
+                        <span>Audit Skills & Salary Math</span>
+                        <span>↗</span>
+                      </button>
                     </div>
                   </div>
                 ) : (
@@ -1306,40 +1293,42 @@ export default function CompanyPortfolio({
                   </div>
                   <div className="flex justify-between items-center">
                     <span>Raw Material Cost:</span>
-                    <strong className={activeCompany.totalRawCostPerUnit > 0 ? "text-rose-600 font-bold" : (activeCompany.hasRawInputs ? "text-emerald-700 font-bold" : "text-slate-500 font-bold")}>
-                      {activeCompany.hasRawInputs ? (
-                        activeCompany.totalRawCostPerUnit > 0 ? (
+                    <strong className={activeCompany.baseRawCostPerUnit > 0 ? "text-rose-600 font-bold" : (activeCompany.isRaw ? "text-slate-500 font-bold" : "text-emerald-700 font-bold")}>
+                      {activeCompany.isRaw ? (
+                        <span>0.000 (Natural Extraction)</span>
+                      ) : (
+                        (activeCompany.totalCostAvoided || 0) > 0 ? (
                           <span>
-                            -{activeCompany.totalRawCostPerUnit.toFixed(3)}
-                            {activeCompany.isAllInsourced && (
-                              <span className="text-[10px] text-emerald-700 font-sans font-normal ml-1">
-                                (Insourced)
-                              </span>
-                            )}
+                            -{((activeCompany.adjustedRawCashExpense || 0) / (activeCompany.baseUnits || 1)).toFixed(3)}
+                            <span className="text-[10px] text-emerald-700 font-sans font-normal ml-1">
+                              (+{((activeCompany.totalCostAvoided || 0) / (activeCompany.baseUnits || 1)).toFixed(3)} saved)
+                            </span>
                           </span>
                         ) : (
-                          <span>0.000 (Insourced)</span>
+                          <span>-{activeCompany.baseRawCostPerUnit.toFixed(3)} (Market Spot)</span>
                         )
-                      ) : (
-                        <span>0.000 (Natural Extraction)</span>
                       )}
                     </strong>
                   </div>
                   <div className="flex justify-between items-center">
                     <span>Hired Labor Wages:</span>
-                    <strong className={activeCompany.laborCostPerUnit > 0 ? "text-amber-800 font-bold" : "text-slate-500 font-bold"}>
-                      {activeCompany.laborCostPerUnit > 0 ? `-${activeCompany.laborCostPerUnit.toFixed(3)}` : '0.000'}
+                    <strong className={activeCompany.baseLaborCostPerUnit > 0 ? "text-amber-800 font-bold" : "text-slate-500 font-bold"}>
+                      {activeCompany.baseLaborCostPerUnit > 0 ? `-${activeCompany.baseLaborCostPerUnit.toFixed(3)}` : '0.000'}
                     </strong>
                   </div>
-                  <div className="flex justify-between items-center">
-                    <span>Trade Deductions:</span>
-                    <strong className="text-slate-500 font-bold">0.00% (0.000)</strong>
-                  </div>
-                  <div className="flex justify-between items-center pt-2 text-slate-900 font-bold">
-                    <span>Net Profit per Unit:</span>
-                    <span className={`font-black text-sm ${activeCompany.netProfitPerUnit >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
-                      {activeCompany.netProfitPerUnit >= 0 ? '+' : ''}{activeCompany.netProfitPerUnit.toFixed(3)}
+                  <div className="flex justify-between items-center pt-2 text-slate-900 font-bold border-t border-slate-100">
+                    <span>Base Net Profit / Unit:</span>
+                    <span className={`font-black text-sm ${activeCompany.baseNetProfitPerUnit >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
+                      {activeCompany.baseNetProfitPerUnit >= 0 ? '+' : ''}{activeCompany.baseNetProfitPerUnit.toFixed(3)}
                     </span>
+                  </div>
+                  <div className="flex justify-between items-center text-slate-600 pt-1 border-t border-slate-200/40">
+                    <span>Produced PP / Base PP Ratio:</span>
+                    <strong className="text-slate-900 font-mono">{activeCompany.ppRatioPct.toFixed(1)}%</strong>
+                  </div>
+                  <div className="flex justify-between items-center text-slate-600">
+                    <span>Price / Base PP:</span>
+                    <strong className="text-slate-900 font-mono">{activeCompany.pricePerBasePp.toFixed(3)} Coins/PP</strong>
                   </div>
                 </div>
               </div>
@@ -1389,37 +1378,60 @@ export default function CompanyPortfolio({
 
                 <div className="space-y-2 pt-3 border-t border-slate-200/60 font-mono text-xs">
                   <div className="flex justify-between items-center text-slate-700">
-                    <span>Daily Extraction Output:</span>
+                    <span className="font-bold text-slate-800">Base Production:</span>
                     <strong className="text-slate-900 font-sans">
-                      {activeCompany.unitsPerDay.toFixed(1)} units/day (@ {activeCompany.spotPrice.toFixed(3)} Spot)
+                      {activeCompany.baseUnits.toFixed(1)} units/day
                     </strong>
                   </div>
 
                   <div className="flex justify-between items-center text-slate-700">
-                    <span>Gross Output Value Created:</span>
+                    <span>Base Revenue / day:</span>
                     <strong className="text-slate-900 font-sans">
-                      +{(activeCompany.unitsPerDay * activeCompany.spotPrice).toFixed(2)} Coins/day
+                      +{(activeCompany.baseUnits * activeCompany.spotPrice).toFixed(2)} Coins/day
                     </strong>
                   </div>
 
                   <div className="flex justify-between items-center text-slate-700">
-                    <span>Direct Labor Expenses (Wages):</span>
-                    <strong className="text-slate-800 font-sans">
-                      -{activeCompany.dailyLaborExpense.toFixed(2)} Coins/day
+                    <span>Costs of Raw Material / day:</span>
+                    <strong className="text-slate-400 font-sans">
+                      0.00 Coins/day (Natural Extraction)
+                    </strong>
+                  </div>
+
+                  <div className="flex justify-between items-center text-slate-700">
+                    <span>Base Salaries Paid / day:</span>
+                    <strong className={activeCompany.dailyLaborExpense > 0 ? "text-amber-800 font-sans" : "text-slate-400 font-sans"}>
+                      {activeCompany.dailyLaborExpense > 0 ? `-${activeCompany.dailyLaborExpense.toFixed(2)}` : '0.00'} Coins/day
+                    </strong>
+                  </div>
+
+                  <div className="flex justify-between items-center text-slate-700">
+                    <span>Internal Facility Feed:</span>
+                    <strong className="text-emerald-700 font-sans">
+                      {activeCompany.internalSupplied ? activeCompany.internalSupplied.toFixed(1) : '0.0'} units/day (+{(activeCompany.internalTransferValue || 0).toFixed(2)} Coins transfer credit)
+                    </strong>
+                  </div>
+
+                  <div className="flex justify-between items-center text-slate-700">
+                    <span>Commercial Market Surplus:</span>
+                    <strong className="text-slate-900 font-sans">
+                      {activeCompany.externalMarketUnits ? activeCompany.externalMarketUnits.toFixed(1) : activeCompany.baseUnits.toFixed(1)} units/day (+{((activeCompany.externalMarketUnits ?? activeCompany.baseUnits) * activeCompany.spotPrice).toFixed(2)} Coins market sales)
                     </strong>
                   </div>
 
                   <div className="flex justify-between items-center pt-1 border-t border-slate-200/60 text-slate-900 font-bold">
-                    <span>Net Facility Economic Value:</span>
-                    <span className={`font-black font-sans text-sm ${activeCompany.dailyNetProfit >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
-                      {activeCompany.dailyNetProfit >= 0 ? '+' : ''}{activeCompany.dailyNetProfit.toFixed(2)} Coins/day ({activeCompany.netMarginPct.toFixed(1)}% margin)
-                    </span>
+                    <span>Base Profit / day:</span>
+                    <div className="text-right">
+                      <span className={`font-black font-sans text-sm block ${activeCompany.baseNetProfit >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
+                        {activeCompany.baseNetProfit >= 0 ? '+' : ''}{activeCompany.baseNetProfit.toFixed(2)} Coins/day
+                      </span>
+                    </div>
                   </div>
 
                   {activeCompany.downstreamConsumers && activeCompany.downstreamConsumers.length > 0 ? (
                     <div className="pt-2 border-t border-slate-200/60 text-xs font-sans space-y-1.5">
                       <div className="flex items-center justify-between text-slate-600">
-                        <span className="font-bold text-emerald-800">✔ Internal Supply Status:</span>
+                        <span className="font-bold text-emerald-800">Internal Supply Status:</span>
                         <span className="text-[11px] text-slate-500 font-mono">Offset against downstream costs</span>
                       </div>
                       <div className="flex items-center flex-wrap gap-2 pt-1">
@@ -1434,20 +1446,60 @@ export default function CompanyPortfolio({
                           >
                             <span>{dc.name}</span>
                             <span className="text-[10px] text-blue-500 font-mono">({dc.recipeName} • {dc.dailyNeeded?.toFixed(0)} u/d)</span>
-                            <span className="text-[10px] opacity-70">↗</span>
+                            <span className="text-[10px] opacity-70 font-mono">→</span>
                           </button>
                         ))}
                       </div>
                     </div>
                   ) : (
                     <div className="pt-2 border-t border-slate-200/60 text-xs text-slate-600 font-sans">
-                      <span>✔ 100% of production is available for market export or strategic stockpile accumulation.</span>
+                      <span>100% of production is available for market export or strategic stockpile accumulation.</span>
                     </div>
                   )}
                 </div>
               </div>
             ) : (
               <div className="space-y-4">
+                {/* Finished Goods Base Breakdown Banner */}
+                <div className="bg-slate-50 p-4 border border-slate-200/80 space-y-2">
+                  <div className="flex items-center justify-between pb-1.5 border-b border-slate-200/60 font-sans">
+                    <span className="font-extrabold text-slate-900 text-sm">Finished Goods Base Production & Sourcing Summary</span>
+                    <span className="text-xs font-mono font-bold text-slate-600">Standard Baseline</span>
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 font-mono text-xs">
+                    <div>
+                      <span className="text-[10px] text-slate-400 block font-sans">Base Production</span>
+                      <strong className="text-slate-900">{activeCompany.baseUnits.toFixed(1)} u/d</strong>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-slate-400 block font-sans">Base Revenue</span>
+                      <strong className="text-slate-900">+{activeCompany.grossRevenue.toFixed(2)} C/d</strong>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-slate-400 block font-sans">Raw Material Costs</span>
+                      <strong className="text-rose-600">-{activeCompany.dailyRawExpenseTotal.toFixed(2)} C/d</strong>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-slate-400 block font-sans">Base Salaries Paid</span>
+                      <strong className={activeCompany.dailyLaborExpense > 0 ? "text-amber-800" : "text-slate-400"}>
+                        {activeCompany.dailyLaborExpense > 0 ? `-${activeCompany.dailyLaborExpense.toFixed(2)}` : '0.00'} C/d
+                      </strong>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-slate-400 block font-sans">Base Profit</span>
+                      <strong className={activeCompany.baseNetProfit >= 0 ? 'text-emerald-700 font-bold' : 'text-rose-700 font-bold'}>
+                        {activeCompany.baseNetProfit >= 0 ? '+' : ''}{activeCompany.baseNetProfit.toFixed(2)} C/d
+                      </strong>
+                    </div>
+                  </div>
+                  {(activeCompany.totalCostAvoided || 0) > 0 && (
+                    <div className="pt-1.5 border-t border-slate-200/50 flex justify-between items-center text-xs font-mono text-emerald-800">
+                      <span>In-House Sourcing Cost Avoidance:</span>
+                      <strong>+{activeCompany.totalCostAvoided.toFixed(2)} C/day saved (Adjusted Net: +{activeCompany.adjustedNetProfit.toFixed(2)} C/d)</strong>
+                    </div>
+                  )}
+                </div>
+
                 {activeCompany.rawInputsBreakdown.map(inp => (
                   <div key={inp.id} className="bg-slate-50/70 p-4 space-y-3">
                     
@@ -1496,7 +1548,7 @@ export default function CompanyPortfolio({
                             ? 'bg-emerald-100 text-emerald-800' 
                             : (inp.hasOwnedCompany ? 'bg-slate-200 text-slate-700' : 'bg-slate-200 text-slate-600')
                         }`}>
-                          {inp.isInsourced ? 'Insourced' : (inp.hasOwnedCompany ? 'Market' : 'Market (No Facility)')}
+                          {inp.isInsourced ? `Insourced (+${inp.savingsCoins.toFixed(1)} C saved)` : (inp.hasOwnedCompany ? 'Market Purchase' : 'Market (No Facility)')}
                         </span>
                       </div>
                     </div>
@@ -1519,20 +1571,25 @@ export default function CompanyPortfolio({
                       </div>
 
                       <div className="flex justify-between items-center">
-                        <span>Sourcing Method:</span>
+                        <span>Sourcing Breakdown:</span>
                         {inp.isInsourced ? (
                           <div className="text-right">
                             <span className="text-emerald-700 font-bold font-sans">
-                              Internally Supplied (Balanced)
+                              {inp.unitsTransferred.toFixed(1)} units Internally Supplied (+{inp.savingsCoins.toFixed(2)} Coins saved)
                             </span>
+                            {inp.deficitUnits > 0 && (
+                              <div className="text-[11px] text-amber-700 font-sans">
+                                + {inp.deficitUnits.toFixed(1)} units bought from market (-{inp.dailyRawExpense.toFixed(2)} Coins)
+                              </div>
+                            )}
                             {inp.rawProducerCompanies.length > 0 && (
-                              <div className="text-[11px] text-slate-500 font-sans">
+                              <div className="text-[11px] text-slate-500 font-sans pt-0.5">
                                 ↳ Secured by{' '}
                                 {inp.rawProducerCompanies.map(sc => (
                                   <button
-                                    key={sc.id}
+                                    key={sc.id || sc.companyId}
                                     type="button"
-                                    onClick={() => setSelectedCompanyId(sc.id)}
+                                    onClick={() => setSelectedCompanyId(sc.id || sc.companyId)}
                                     className="font-bold text-blue-600 hover:text-blue-800 hover:underline cursor-pointer inline-flex items-center gap-0.5 ml-1"
                                   >
                                     <span>{sc.name}</span>
@@ -1555,14 +1612,14 @@ export default function CompanyPortfolio({
                       </div>
 
                       <div className="flex justify-between items-center pt-2 text-slate-900 font-bold">
-                        <span>Daily Raw Material Cost (Deducted):</span>
+                        <span>Daily Raw Material Cash Outflow:</span>
                         <div className="text-right">
-                          <span className="text-rose-600 font-black text-sm block">
-                            -{inp.dailyRawExpense.toFixed(2)}/day
+                          <span className={`font-black text-sm block ${inp.dailyRawExpense > 0 ? 'text-rose-600' : 'text-emerald-700'}`}>
+                            {inp.dailyRawExpense > 0 ? `-${inp.dailyRawExpense.toFixed(2)}/day` : '0.00/day (100% Insourced)'}
                           </span>
-                          {inp.isInsourced && (
+                          {inp.isInsourced && inp.savingsCoins > 0 && (
                             <span className="text-[11px] text-emerald-600 font-normal font-sans">
-                              Offset against owned raw producer output
+                              Offset against owned raw producer output (+{inp.savingsCoins.toFixed(2)} Coins/day internal savings)
                             </span>
                           )}
                         </div>
@@ -1578,6 +1635,15 @@ export default function CompanyPortfolio({
       )}
 
 
+
+      {/* Dedicated Employee Mathematical Audit Modal */}
+      {inspectedWorker && (
+        <EmployeeAuditModal
+          isOpen={Boolean(inspectedWorker)}
+          onClose={() => setInspectedWorker(null)}
+          worker={inspectedWorker}
+        />
+      )}
 
     </div>
   );

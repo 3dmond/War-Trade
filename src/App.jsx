@@ -116,12 +116,13 @@ export default function App() {
 
   // Continuous background polling of user dossier (companies, live in-storage accumulation, real workers)
   useEffect(() => {
-    if (!dossier?.user?._id) return;
+    const targetUserId = dossier?.user?._id || dossier?.user?.id || dossier?.user?.username;
+    if (!targetUserId) return;
 
     let isCancelled = false;
     const refreshDossier = async () => {
       try {
-        const freshDossier = await api.resolveUserFull(dossier.user._id);
+        const freshDossier = await api.resolveUserFull(targetUserId);
         if (!isCancelled && freshDossier?.user) {
           setDossier(freshDossier);
           try {
@@ -133,14 +134,14 @@ export default function App() {
       }
     };
 
-    // Run immediately, then poll every 20 seconds
+    // Run immediately on page load/mount, then continuously sync every 12 seconds
     refreshDossier();
-    const interval = setInterval(refreshDossier, 20000);
+    const interval = setInterval(refreshDossier, 12000);
     return () => {
       isCancelled = true;
       clearInterval(interval);
     };
-  }, [dossier?.user?._id]);
+  }, [dossier?.user?._id, dossier?.user?.username]);
 
   const handleDisconnect = () => {
     setDossier(null);
