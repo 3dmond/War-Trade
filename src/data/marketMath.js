@@ -447,10 +447,11 @@ export function calculateCompanyBaseEconomics(comp, prices = {}, insourceOverrid
 
   const workersList = (comp.workersList || comp.workers || []).map(w => {
     const wProdLvl = typeof w.productionSkill === 'number' ? w.productionSkill : 0;
-    const wBaseSessionPp = w.productionPointsBase || (10 + wProdLvl * 3);
+    const wBaseSessionPp = w.productionPointsBase || (wProdLvl > 10 ? wProdLvl : (10 + wProdLvl * 3));
     const wEnergyLvl = typeof w.energySkill === 'number' ? w.energySkill : 0;
     const wEnergyTotal = w.energyPointsTotal || (30 + wEnergyLvl * 10);
     const wSessions = Number((wEnergyTotal * 0.24).toFixed(2));
+    const wFidelity = typeof w.fidelity === 'number' ? w.fidelity : (typeof w.loyaltyBonus === 'number' ? w.loyaltyBonus : 0);
     // 1. Worker Labor PP per session (what contracted wage is paid on):
     // In WarEra, wages compensate employee labor base + fidelity + regional development efficiency,
     // NOT the facility's raw deposit/production bonus (which belongs to company).
