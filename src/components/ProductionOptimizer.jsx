@@ -21,7 +21,7 @@ export default function ProductionOptimizer({ prices, onRefreshPrices, isRefresh
   const [hasDeposit, setHasDeposit] = useState(true); // +30% region deposit bonus
   const [countryBonus, setCountryBonus] = useState(5.5); // % from strategic resources
   const [workMode, setWorkMode] = useState('self'); // 'self' (Entrepreneurship) or 'hired' (Energy)
-  const [workerWagePerPp, setWorkerWagePerPp] = useState(0.146); // Coins per PP paid to worker
+  const [workerWagePerPp, setWorkerWagePerPp] = useState(0.146); // BTC per PP paid to worker
   const [marketTaxRate, setMarketTaxRate] = useState(3.0); // % sales/market tax
   const [userProductionSkill, setUserProductionSkill] = useState(16); // PP per click (base 10 + skill)
 
@@ -146,7 +146,7 @@ export default function ProductionOptimizer({ prices, onRefreshPrices, isRefresh
               PRODUCTION PROFITABILITY & ROI MATRIX
             </h2>
             <p className="text-xs text-slate-400 font-mono mt-0.5">
-              Real-time net margin analyzer. Tells you exactly what to craft for maximum coin return per stamina click.
+              Real-time net margin analyzer. Tells you exactly what to craft for maximum BTC return per stamina click.
             </p>
           </div>
 
@@ -176,11 +176,11 @@ export default function ProductionOptimizer({ prices, onRefreshPrices, isRefresh
             <div className="mt-2 flex items-baseline justify-between">
               <span className="text-base font-bold text-white">{bestProfitPerPp?.name}</span>
               <span className="text-sm font-mono font-bold text-emerald-400">
-                +{bestProfitPerPp?.netProfitPerPp.toFixed(4)} <span className="text-[10px] text-slate-400">Coins/PP</span>
+                +{bestProfitPerPp?.netProfitPerPp.toFixed(4)} <span className="text-[10px] text-slate-400">BTC/PP</span>
               </span>
             </div>
             <p className="text-[11px] text-slate-400 mt-1">
-              Yields <strong className="text-white">+{bestProfitPerPp?.profitPerSession.toFixed(2)} Coins</strong> per 10 Stamina work session.
+              Yields <strong className="text-white">+{bestProfitPerPp?.profitPerSession.toFixed(2)} BTC</strong> per 10 Stamina work session.
             </p>
           </div>
 
@@ -189,18 +189,18 @@ export default function ProductionOptimizer({ prices, onRefreshPrices, isRefresh
             <div className="flex items-center justify-between text-xs text-amber-400 font-mono font-semibold">
               <span className="flex items-center gap-1.5">
                 <Coins className="w-3.5 h-3.5 text-amber-400" />
-                MAX COINS / SESSION
+                MAX BTC / SESSION
               </span>
               <span className="px-1.5 py-0.5 rounded bg-amber-950 text-amber-300 text-[10px] font-bold">HEAVY GAIN</span>
             </div>
             <div className="mt-2 flex items-baseline justify-between">
               <span className="text-base font-bold text-white">{bestPerSession?.name}</span>
               <span className="text-sm font-mono font-bold text-emerald-400">
-                +{bestPerSession?.profitPerSession.toFixed(2)} <span className="text-[10px] text-slate-400">Coins</span>
+                +{bestPerSession?.profitPerSession.toFixed(2)} <span className="text-[10px] text-slate-400">BTC</span>
               </span>
             </div>
             <p className="text-[11px] text-slate-400 mt-1">
-              Sale spot price: <strong className="text-white">{bestPerSession?.salePrice.toFixed(3)}</strong> Coins/unit.
+              Sale spot price: <strong className="text-white">{bestPerSession?.salePrice.toFixed(3)}</strong> BTC/unit.
             </p>
           </div>
 
@@ -313,7 +313,7 @@ export default function ProductionOptimizer({ prices, onRefreshPrices, isRefresh
               </button>
             </div>
             <p className="text-[10px] text-slate-500 mt-1">
-              {workMode === 'self' ? 'Free (uses Entrepreneurship)' : `Wage: ${workerWagePerPp} Coins/PP`}
+              {workMode === 'self' ? 'Free (uses Entrepreneurship)' : `Wage: ${workerWagePerPp} BTC/PP`}
             </p>
           </div>
 
@@ -447,7 +447,7 @@ export default function ProductionOptimizer({ prices, onRefreshPrices, isRefresh
             <h3 className="text-sm font-bold text-white font-mono">AUTOMATED ENGINE UPGRADE ROI CALCULATOR</h3>
           </div>
           <span className="text-xs text-slate-400 font-mono">
-            Steel Spot Price: <strong className="text-white">{(prices.steel || 1.725).toFixed(3)} Coins</strong>
+            Steel Spot Price: <strong className="text-white">{(prices.steel || 1.725).toFixed(3)} BTC</strong>
           </span>
         </div>
 
@@ -497,7 +497,7 @@ export default function ProductionOptimizer({ prices, onRefreshPrices, isRefresh
               <span className="text-lg font-bold text-amber-400 font-mono">
                 {engineRoi.upgradeCostInCoins.toFixed(1)}
               </span>
-              <span className="text-[10px] text-slate-500 block mt-1">Coins</span>
+              <span className="text-[10px] text-slate-500 block mt-1">BTC</span>
             </div>
 
             <div className="p-3 bg-[#121826] border border-[#1a2335] rounded-lg">

@@ -383,9 +383,9 @@ export function calculateLaborEconomics({
  * - Personal Labor (Self-Work PP) calculated strictly at account/portfolio level.
  * - Per-Company economics are 100% Base Operations (Engine + Hired Labor).
  * - Standard finished goods earnings are inclusive of raw material costs.
- * - Supply Chain Balance Ledger tracks over/undersupply across the empire.
+ * - Supply Chain Balance Ledger tracks over/undersupply across the portfolio.
  * - Ratios: Produced PP vs Base PP (%), Price generated per Base PP.
- * - Total Empire PP is inclusive of self-work PP.
+ * - Total Enterprise PP is inclusive of self-work PP.
  */
 
 export function calculateOwnerPersonalLabor(userSkills = {}) {
@@ -541,9 +541,9 @@ export function calculateCompanyBaseEconomics(comp, prices = {}, insourceOverrid
   const spotToRecipePpRatio = recipe.pp > 0 ? (spotPrice / recipe.pp) : 0;
 
   // Raw Material Costs:
-  // For users with both raw and finished goods companies, raw materials are supplied internally => cost is 0.
-  // For users with only finished goods companies (no raw facilities), raw materials are bought from market.
-  const isRawZeroCost = isRaw || hasBothRawAndFinished;
+  // Raw extraction facilities incur zero raw material expense.
+  // Manufacturing facilities consume recipe inputs at market spot prices.
+  const isRawZeroCost = isRaw;
 
   let unitRawMarketCost = 0;
   const rawInputsBreakdown = isRaw ? [] : (recipe.inputs || []).map(inp => {
@@ -554,7 +554,7 @@ export function calculateCompanyBaseEconomics(comp, prices = {}, insourceOverrid
     const marketRawExpense = totalUnitsNeededDaily * itemPrice;
     unitRawMarketCost += costPerUnit;
 
-    const actualDailyRawExpense = isRawZeroCost ? 0 : marketRawExpense;
+    const actualDailyRawExpense = marketRawExpense;
 
     return {
       id: inp.id,
@@ -565,19 +565,19 @@ export function calculateCompanyBaseEconomics(comp, prices = {}, insourceOverrid
       costPerUnit,
       marketRawExpense,
       dailyRawExpense: actualDailyRawExpense,
-      isInsourced: isRawZeroCost,
-      savingsCoins: isRawZeroCost ? marketRawExpense : 0
+      isInsourced: false,
+      savingsCoins: 0
     };
   });
 
-  const dailyRawExpenseTotal = isRawZeroCost ? 0 : (baseUnits * unitRawMarketCost);
+  const dailyRawExpenseTotal = isRaw ? 0 : (baseUnits * unitRawMarketCost);
   const dailyLaborExpense = workersDailyWages;
 
   // Base Net Profit
   const baseNetProfit = grossRevenue - dailyRawExpenseTotal - dailyLaborExpense;
 
   const baseLaborCostPerUnit = baseUnits > 0 ? (dailyLaborExpense / baseUnits) : 0;
-  const baseRawCostPerUnit = isRawZeroCost ? 0 : unitRawMarketCost;
+  const baseRawCostPerUnit = isRaw ? 0 : unitRawMarketCost;
   const baseNetProfitPerUnit = spotPrice - baseRawCostPerUnit - baseLaborCostPerUnit;
 
   const baseNetMarginPct = grossRevenue > 0 ? (baseNetProfit / grossRevenue) * 100 : 0;
@@ -762,8 +762,8 @@ export function calculateSupplyChainLedger(baseCompanies = [], prices = {}, inso
     });
 
     const totalCostAvoided = enrichedInputs.reduce((sum, inp) => sum + inp.costAvoided, 0);
-    const adjustedRawCashExpense = hasBothRawAndFinished ? 0 : enrichedInputs.reduce((sum, inp) => sum + inp.cashOutflow, 0);
-    const dailyRawExpenseTotal = hasBothRawAndFinished ? 0 : comp.dailyRawExpenseTotal;
+    const adjustedRawCashExpense = enrichedInputs.reduce((sum, inp) => sum + inp.cashOutflow, 0);
+    const dailyRawExpenseTotal = comp.dailyRawExpenseTotal;
     const baseNetProfit = comp.grossRevenue - dailyRawExpenseTotal - comp.dailyLaborExpense;
     const adjustedNetProfit = comp.grossRevenue - adjustedRawCashExpense - comp.dailyLaborExpense;
 
@@ -771,7 +771,7 @@ export function calculateSupplyChainLedger(baseCompanies = [], prices = {}, inso
       ...comp,
       rawInputsBreakdown: enrichedInputs,
       dailyRawExpenseTotal,
-      baseRawCostPerUnit: hasBothRawAndFinished ? 0 : comp.baseRawCostPerUnit,
+      baseRawCostPerUnit: comp.baseRawCostPerUnit,
       baseNetProfit,
       totalCostAvoided,
       adjustedRawCashExpense,
@@ -826,7 +826,7 @@ export function calculatePortfolioOverview({
   const totalRawBaseUnits = enrichedCompanies.filter(c => c.isRaw).reduce((sum, c) => sum + c.baseUnits, 0);
   const totalFinishedBaseUnits = enrichedCompanies.filter(c => !c.isRaw).reduce((sum, c) => sum + c.baseUnits, 0);
   const totalBaseGrossRevenue = enrichedCompanies.reduce((sum, c) => sum + c.grossRevenue, 0);
-  const totalBaseRawExpense = hasBothRawAndFinished ? 0 : enrichedCompanies.reduce((sum, c) => sum + (c.dailyRawExpenseTotal || 0), 0);
+  const totalBaseRawExpense = enrichedCompanies.reduce((sum, c) => sum + (c.dailyRawExpenseTotal || 0), 0);
   const totalBaseLaborExpense = enrichedCompanies.reduce((sum, c) => sum + c.dailyLaborExpense, 0);
   const totalBaseNetProfit = totalBaseGrossRevenue - totalBaseRawExpense - totalBaseLaborExpense;
 

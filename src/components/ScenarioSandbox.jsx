@@ -3,7 +3,7 @@ import {
   FlaskConical, 
   Swords, 
   Building2, 
-  Coins, 
+  BTC, 
   Zap, 
   ShieldAlert, 
   Percent, 
@@ -207,7 +207,7 @@ export default function ScenarioSandbox({ prices }) {
               DECISION & SCENARIO SIMULATION SANDBOX
             </h2>
             <p className="text-xs text-slate-400 font-mono mt-0.5">
-              Simulate complex game decisions before committing coins, steel, concrete, or stamina.
+              Simulate complex game decisions before committing BTC, steel, concrete, or stamina.
             </p>
           </div>
 
@@ -417,15 +417,15 @@ export default function ScenarioSandbox({ prices }) {
                     <span className="text-[11px] text-slate-400 font-bold block mb-1">CAMPAIGN COSTS:</span>
                     <div className="flex justify-between text-slate-300">
                       <span>Ammo Consumed:</span>
-                      <span className="text-red-400">-{combatSimulation.totalAmmoCost.toFixed(2)} Coins</span>
+                      <span className="text-red-400">-{combatSimulation.totalAmmoCost.toFixed(2)} BTC</span>
                     </div>
                     <div className="flex justify-between text-slate-300">
                       <span>Estimated Wear & Tear:</span>
-                      <span className="text-red-400">-{(combatHits * 0.15).toFixed(2)} Coins</span>
+                      <span className="text-red-400">-{(combatHits * 0.15).toFixed(2)} BTC</span>
                     </div>
                     <div className="flex justify-between text-white font-bold pt-1 border-t border-[#1a2335]">
                       <span>Total Expenditure:</span>
-                      <span className="text-red-400">-{combatSimulation.totalExpenditure.toFixed(2)} Coins</span>
+                      <span className="text-red-400">-{combatSimulation.totalExpenditure.toFixed(2)} BTC</span>
                     </div>
                   </div>
 
@@ -433,16 +433,16 @@ export default function ScenarioSandbox({ prices }) {
                     <span className="text-[11px] text-slate-400 font-bold block mb-1">LOOT & DROP REVENUE:</span>
                     <div className="flex justify-between text-slate-300">
                       <span>Cases Market Value:</span>
-                      <span className="text-emerald-400">+{combatSimulation.totalLootValue.toFixed(2)} Coins</span>
+                      <span className="text-emerald-400">+{combatSimulation.totalLootValue.toFixed(2)} BTC</span>
                     </div>
                     <div className="flex justify-between text-slate-300">
                       <span>Case Spot Price:</span>
-                      <span className="text-slate-400">{(prices.case1 || 3.69).toFixed(2)} Coins / unit</span>
+                      <span className="text-slate-400">{(prices.case1 || 3.69).toFixed(2)} BTC / unit</span>
                     </div>
                     <div className="flex justify-between text-white font-bold pt-1 border-t border-[#1a2335]">
                       <span>Net Combat Balance:</span>
                       <span className={combatSimulation.netCampaignBalance >= 0 ? 'text-emerald-400' : 'text-red-400'}>
-                        {combatSimulation.netCampaignBalance >= 0 ? '+' : ''}{combatSimulation.netCampaignBalance.toFixed(2)} Coins
+                        {combatSimulation.netCampaignBalance >= 0 ? '+' : ''}{combatSimulation.netCampaignBalance.toFixed(2)} BTC
                       </span>
                     </div>
                   </div>
@@ -491,11 +491,11 @@ export default function ScenarioSandbox({ prices }) {
                 </div>
                 <div className="flex justify-between">
                   <span>Concrete Spot Price:</span>
-                  <span className="text-slate-400">{concretePrice.toFixed(3)} Coins</span>
+                  <span className="text-slate-400">{concretePrice.toFixed(3)} BTC</span>
                 </div>
                 <div className="flex justify-between text-amber-400 font-bold border-t border-[#1f2b45] pt-1">
                   <span>Total Capital Required:</span>
-                  <span>{expansionAnalysis.newCompanyCost.toFixed(1)} Coins</span>
+                  <span>{expansionAnalysis.newCompanyCost.toFixed(1)} BTC</span>
                 </div>
               </div>
               <p className="text-[11px] text-slate-400 leading-relaxed pt-2">
@@ -518,11 +518,11 @@ export default function ScenarioSandbox({ prices }) {
                 </div>
                 <div className="flex justify-between">
                   <span>Steel Spot Price:</span>
-                  <span className="text-slate-400">{steelPrice.toFixed(3)} Coins</span>
+                  <span className="text-slate-400">{steelPrice.toFixed(3)} BTC</span>
                 </div>
                 <div className="flex justify-between text-amber-400 font-bold border-t border-[#1f2b45] pt-1">
                   <span>Total Capital Required:</span>
-                  <span>{expansionAnalysis.engineCost.toFixed(1)} Coins</span>
+                  <span>{expansionAnalysis.engineCost.toFixed(1)} BTC</span>
                 </div>
                 <div className="flex justify-between text-cyan-300">
                   <span>Passive PP Produced / Day:</span>
@@ -556,7 +556,7 @@ export default function ScenarioSandbox({ prices }) {
               <div>
                 <div className="flex justify-between items-center mb-1">
                   <label className="text-slate-400">Offered Wage per PP:</label>
-                  <span className="text-white font-bold">{wagePerPp.toFixed(3)} Coins/PP</span>
+                  <span className="text-white font-bold">{wagePerPp.toFixed(3)} BTC/PP</span>
                 </div>
                 <input
                   type="range" min="0.117" max="0.176" step="0.001"
@@ -612,23 +612,23 @@ export default function ScenarioSandbox({ prices }) {
               <span className="text-[11px] text-slate-400 font-bold block mb-1">WORK SESSION FINANCIAL BREAKDOWN:</span>
               <div className="flex justify-between text-slate-300">
                 <span>Gross Wage Paid by Company Owner:</span>
-                <span className="text-white font-bold">{wageTaxAnalysis.grossWage.toFixed(4)} Coins</span>
+                <span className="text-white font-bold">{wageTaxAnalysis.grossWage.toFixed(4)} BTC</span>
               </div>
               <div className="flex justify-between text-slate-300">
                 <span>Total Income Tax Deducted:</span>
-                <span className="text-red-400">-{wageTaxAnalysis.totalTaxAmount.toFixed(4)} Coins</span>
+                <span className="text-red-400">-{wageTaxAnalysis.totalTaxAmount.toFixed(4)} BTC</span>
               </div>
               <div className="flex justify-between text-slate-300 pl-4 border-l border-[#1f2b45]">
                 <span>State Treasury Receives:</span>
-                <span className="text-emerald-400">+{wageTaxAnalysis.stateKeptTax.toFixed(4)} Coins</span>
+                <span className="text-emerald-400">+{wageTaxAnalysis.stateKeptTax.toFixed(4)} BTC</span>
               </div>
               <div className="flex justify-between text-slate-300 pl-4 border-l border-[#1f2b45]">
                 <span>Resistance Hijacked ({wageTaxAnalysis.resistanceHijackPct}%):</span>
-                <span className="text-red-400">+{wageTaxAnalysis.hijackedAmount.toFixed(4)} Coins</span>
+                <span className="text-red-400">+{wageTaxAnalysis.hijackedAmount.toFixed(4)} BTC</span>
               </div>
               <div className="flex justify-between text-white font-bold pt-2 border-t border-[#1f2b45] text-sm">
                 <span>Worker Take-Home Pay:</span>
-                <span className="text-cyan-400">+{wageTaxAnalysis.workerNetWage.toFixed(4)} Coins</span>
+                <span className="text-cyan-400">+{wageTaxAnalysis.workerNetWage.toFixed(4)} BTC</span>
               </div>
             </div>
           </div>

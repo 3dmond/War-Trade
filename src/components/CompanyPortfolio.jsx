@@ -42,11 +42,11 @@ import EmployeeAuditModal from './EmployeeAuditModal';
 // Reusable tactile Gold Coin icon
 export function GoldCoin({ size = 15, className = '' }) {
   return (
-    <span className={`inline-flex items-center justify-center shrink-0 align-middle ${className}`} title="Coins">
+    <span className={`inline-flex items-center justify-center shrink-0 align-middle ${className}`} title="BTC">
       <svg width={size} height={size} viewBox="0 0 24 24" fill="none" className="shrink-0">
         <circle cx="12" cy="12" r="10" fill="url(#goldGrad)" stroke="#b45309" strokeWidth="1.2" />
         <circle cx="12" cy="12" r="7.5" stroke="#fef3c7" strokeWidth="0.8" opacity="0.8" />
-        <text x="12" y="15.5" textAnchor="middle" fontSize="10" fontWeight="900" fill="#78350f" fontFamily="sans-serif">C</text>
+        <text x="12" y="15.5" textAnchor="middle" fontSize="10" fontWeight="900" fill="#78350f" fontFamily="sans-serif">₿</text>
         <defs>
           <linearGradient id="goldGrad" x1="4" y1="4" x2="20" y2="20" gradientUnits="userSpaceOnUse">
             <stop stopColor="#fef08a" />
@@ -386,7 +386,7 @@ export default function CompanyPortfolio({
   // Keep selected ID valid
   const effectiveSelectedId = selectedCompanyId || companies[0]?.id;
 
-  // Management Skill & Empire-wide Hiring Capacity
+  // Management Skill & Portfolio-wide Hiring Capacity
   const managementSkill = user?.skills?.management;
   const managementLevel = managementSkill?.level ?? 0;
   const maxHiringSlots = managementSkill?.total ?? managementSkill?.value ?? (4 + managementLevel * 2);
@@ -550,7 +550,7 @@ export default function CompanyPortfolio({
     });
   }, [companies, liveTick]);
 
-  // 2. Empire-wide Base Portfolio Overview & Supply Chain Ledger
+  // 2. Portfolio-wide Base Portfolio Overview & Supply Chain Ledger
   const portfolioOverview = useMemo(() => {
     return calculatePortfolioOverview({
       companies: baseCompaniesData,
@@ -942,7 +942,7 @@ export default function CompanyPortfolio({
                   </div>
                   <div className="flex justify-between items-center pt-0.5">
                     <span>Hourly Growth:</span>
-                    <span className={`font-black ${activeCompany.growth24hCoins >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
+                    <span className={`font-black ${activeCompany.growth24hCoins > 0 ? 'text-emerald-500' : activeCompany.growth24hCoins < 0 ? 'text-red-500' : 'text-blue-500'}`}>
                       {activeCompany.growth24hCoins >= 0 ? '+' : ''}{(activeCompany.growth24hCoins / 24).toFixed(2)} ({(activeCompany.growth24hPct / 24).toFixed(2)}%) past 1h
                     </span>
                   </div>
@@ -954,26 +954,26 @@ export default function CompanyPortfolio({
                   </div>
                   <div className="flex justify-between items-center text-slate-600">
                     <span>Base Revenue / day:</span>
-                    <strong className="text-slate-900 font-mono">
-                      +{activeCompany.grossRevenue.toFixed(2)} Coins/day
+                    <strong className="text-emerald-500 font-mono">
+                      +{activeCompany.grossRevenue.toFixed(2)} BTC/day
                     </strong>
                   </div>
                   <div className="flex justify-between items-center text-slate-600">
                     <span>Costs of Raw Material / day:</span>
-                    <strong className={activeCompany.dailyRawExpenseTotal > 0 ? "text-rose-600 font-mono" : "text-slate-400 font-mono"}>
-                      {activeCompany.dailyRawExpenseTotal > 0 ? `-${activeCompany.dailyRawExpenseTotal.toFixed(2)}` : '0.00'} Coins/day
+                    <strong className={activeCompany.dailyRawExpenseTotal > 0 ? "text-red-500 font-mono" : "text-blue-500 font-mono"}>
+                      {activeCompany.dailyRawExpenseTotal > 0 ? `-${activeCompany.dailyRawExpenseTotal.toFixed(2)}` : '0.00'} BTC/day
                     </strong>
                   </div>
                   <div className="flex justify-between items-center text-slate-600">
                     <span>Base Salaries Paid / day:</span>
-                    <strong className={activeCompany.dailyLaborExpense > 0 ? "text-amber-800 font-mono" : "text-slate-400 font-mono"}>
-                      {activeCompany.dailyLaborExpense > 0 ? `-${activeCompany.dailyLaborExpense.toFixed(2)}` : '0.00'} Coins/day
+                    <strong className={activeCompany.dailyLaborExpense > 0 ? "text-red-500 font-mono" : "text-blue-500 font-mono"}>
+                      {activeCompany.dailyLaborExpense > 0 ? `-${activeCompany.dailyLaborExpense.toFixed(2)}` : '0.00'} BTC/day
                     </strong>
                   </div>
                   <div className="flex justify-between items-center pt-1 border-t border-slate-200/40">
                     <span className="font-bold text-slate-800">Base Profit / day:</span>
-                    <strong className={`font-bold font-mono ${activeCompany.baseNetProfit >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
-                      {activeCompany.baseNetProfit >= 0 ? '+' : ''}{activeCompany.baseNetProfit.toFixed(2)} Coins/day
+                    <strong className={`font-bold font-mono ${activeCompany.baseNetProfit > 0 ? 'text-emerald-500' : activeCompany.baseNetProfit < 0 ? 'text-red-500' : 'text-blue-500'}`}>
+                      {activeCompany.baseNetProfit >= 0 ? '+' : ''}{activeCompany.baseNetProfit.toFixed(2)} BTC/day
                     </strong>
                   </div>
                   <div className="flex justify-between items-center text-slate-600">
@@ -997,7 +997,7 @@ export default function CompanyPortfolio({
                   <div className="flex justify-between items-center text-slate-600">
                     <span>Price / Base PP:</span>
                     <strong className="text-slate-900 font-mono">
-                      {activeCompany.pricePerBasePp.toFixed(3)} Coins/PP
+                      {activeCompany.pricePerBasePp.toFixed(3)} BTC/PP
                     </strong>
                   </div>
                   {(activeCompany.totalCostAvoided || 0) > 0 && (
@@ -1101,7 +1101,7 @@ export default function CompanyPortfolio({
                     <div className="space-y-1.5 font-mono text-[11px] text-slate-600 flex-1 flex flex-col justify-around">
                       <div className="flex justify-between items-center">
                         <span>Contract Wage:</span>
-                        <strong className="text-amber-800 font-bold">{currentWorker.wagePerPp.toFixed(3)} C/PP</strong>
+                        <strong className="text-amber-800 font-bold">{currentWorker.wagePerPp.toFixed(3)} BTC/PP</strong>
                       </div>
                       <div className="flex justify-between items-center">
                         <span>Base Production:</span>
@@ -1126,12 +1126,12 @@ export default function CompanyPortfolio({
                       </div>
                       <div className="flex justify-between items-center">
                         <span>Daily Salary:</span>
-                        <strong className="text-amber-800">-{currentWorker.dailyWage.toFixed(2)} C/d</strong>
+                        <strong className="text-red-500">-{currentWorker.dailyWage.toFixed(2)} BTC/d</strong>
                       </div>
                       <div className="flex justify-between items-center pt-1 text-slate-900 font-bold border-t border-slate-200">
                         <span>Net Contribution:</span>
-                        <span className={`font-black ${currentWorker.netContribution >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
-                          {currentWorker.netContribution >= 0 ? '+' : ''}{currentWorker.netContribution.toFixed(2)} C/d
+                        <span className={`font-black ${currentWorker.netContribution > 0 ? 'text-emerald-500' : currentWorker.netContribution < 0 ? 'text-red-500' : 'text-blue-500'}`}>
+                          {currentWorker.netContribution >= 0 ? '+' : ''}{currentWorker.netContribution.toFixed(2)} BTC/d
                         </span>
                       </div>
 
@@ -1201,7 +1201,7 @@ export default function CompanyPortfolio({
                     <span className="text-[11px] font-bold text-slate-800 uppercase tracking-wide">
                       Combined Workforce ({activeCompany.enrichedWorkers.length} Workers)
                     </span>
-                    <span className={`font-black text-xs ${combinedWorkforceStats.combinedNet >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
+                    <span className={`font-black text-xs ${combinedWorkforceStats.combinedNet > 0 ? 'text-emerald-500' : combinedWorkforceStats.combinedNet < 0 ? 'text-red-500' : 'text-blue-500'}`}>
                       Net: {combinedWorkforceStats.combinedNet >= 0 ? '+' : ''}{combinedWorkforceStats.combinedNet.toFixed(2)}/day
                     </span>
                   </div>
@@ -1216,11 +1216,11 @@ export default function CompanyPortfolio({
                     </div>
                     <div className="p-1.5">
                       <span className="text-[10px] text-slate-400 block font-sans">Total Wages</span>
-                      <strong className="text-rose-600 font-mono">-{combinedWorkforceStats.combinedWages.toFixed(2)}/d</strong>
+                      <strong className={`${combinedWorkforceStats.combinedWages > 0 ? 'text-red-500' : 'text-blue-500'} font-mono`}>-{combinedWorkforceStats.combinedWages.toFixed(2)}/d</strong>
                     </div>
                     <div className="p-1.5">
                       <span className="text-[10px] text-slate-400 block font-sans">Net Cashflow</span>
-                      <strong className={`font-mono ${combinedWorkforceStats.combinedNet >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
+                      <strong className={`font-mono ${combinedWorkforceStats.combinedNet > 0 ? 'text-emerald-500' : combinedWorkforceStats.combinedNet < 0 ? 'text-red-500' : 'text-blue-500'}`}>
                         +{combinedWorkforceStats.combinedNet.toFixed(2)}/d
                       </strong>
                     </div>
@@ -1327,14 +1327,14 @@ export default function CompanyPortfolio({
                   </div>
                   <div className="flex justify-between items-center">
                     <span>Raw Material Cost:</span>
-                    <strong className={activeCompany.baseRawCostPerUnit > 0 ? "text-rose-600 font-bold" : (activeCompany.isRaw ? "text-slate-500 font-bold" : "text-emerald-700 font-bold")}>
+                    <strong className={activeCompany.baseRawCostPerUnit > 0 ? "text-red-500 font-bold" : (activeCompany.isRaw ? "text-blue-500 font-bold" : "text-emerald-500 font-bold")}>
                       {activeCompany.isRaw ? (
                         <span>0.000 (Natural Extraction)</span>
                       ) : (
                         (activeCompany.totalCostAvoided || 0) > 0 ? (
                           <span>
                             -{((activeCompany.adjustedRawCashExpense || 0) / (activeCompany.baseUnits || 1)).toFixed(3)}
-                            <span className="text-[10px] text-emerald-700 font-sans font-normal ml-1">
+                            <span className="text-[10px] text-emerald-500 font-sans font-normal ml-1">
                               (+{((activeCompany.totalCostAvoided || 0) / (activeCompany.baseUnits || 1)).toFixed(3)} saved)
                             </span>
                           </span>
@@ -1346,13 +1346,13 @@ export default function CompanyPortfolio({
                   </div>
                   <div className="flex justify-between items-center">
                     <span>Hired Labor Wages:</span>
-                    <strong className={activeCompany.baseLaborCostPerUnit > 0 ? "text-amber-800 font-bold" : "text-slate-500 font-bold"}>
+                    <strong className={activeCompany.baseLaborCostPerUnit > 0 ? "text-red-500 font-bold" : "text-blue-500 font-bold"}>
                       {activeCompany.baseLaborCostPerUnit > 0 ? `-${activeCompany.baseLaborCostPerUnit.toFixed(3)}` : '0.000'}
                     </strong>
                   </div>
                   <div className="flex justify-between items-center pt-2 text-slate-900 font-bold border-t border-slate-100">
                     <span>Base Net Profit / Unit:</span>
-                    <span className={`font-black text-sm ${activeCompany.baseNetProfitPerUnit >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
+                    <span className={`font-black text-sm ${activeCompany.baseNetProfitPerUnit > 0 ? 'text-emerald-500' : activeCompany.baseNetProfitPerUnit < 0 ? 'text-red-500' : 'text-blue-500'}`}>
                       {activeCompany.baseNetProfitPerUnit >= 0 ? '+' : ''}{activeCompany.baseNetProfitPerUnit.toFixed(3)}
                     </span>
                   </div>
@@ -1362,7 +1362,7 @@ export default function CompanyPortfolio({
                   </div>
                   <div className="flex justify-between items-center text-slate-600">
                     <span>Price / Base PP:</span>
-                    <strong className="text-slate-900 font-mono">{activeCompany.pricePerBasePp.toFixed(3)} Coins/PP</strong>
+                    <strong className="text-slate-900 font-mono">{activeCompany.pricePerBasePp.toFixed(3)} BTC/PP</strong>
                   </div>
                 </div>
               </div>
@@ -1407,7 +1407,7 @@ export default function CompanyPortfolio({
                   <span className="font-extrabold text-slate-900 text-sm">Natural Resource Extraction Ledger</span>
                 </div>
                 <p className="text-xs text-slate-500">
-                  This facility extracts commodities directly from regional deposits. Daily output is valued at live exchange spot price ({activeCompany.spotPrice.toFixed(3)} Coins) and services your empire's supply pipeline.
+                  This facility extracts commodities directly from regional deposits. Daily output is valued at live exchange spot price ({activeCompany.spotPrice.toFixed(3)} BTC) and services your portfolio's supply pipeline.
                 </p>
 
                 <div className="space-y-2 pt-3 border-t border-slate-200/60 font-mono text-xs">
@@ -1421,43 +1421,43 @@ export default function CompanyPortfolio({
                   <div className="flex justify-between items-center text-slate-700">
                     <span>Base Revenue / day:</span>
                     <strong className="text-slate-900 font-sans">
-                      +{(activeCompany.baseUnits * activeCompany.spotPrice).toFixed(2)} Coins/day
+                      +{(activeCompany.baseUnits * activeCompany.spotPrice).toFixed(2)} BTC/day
                     </strong>
                   </div>
 
                   <div className="flex justify-between items-center text-slate-700">
                     <span>Costs of Raw Material / day:</span>
                     <strong className="text-slate-400 font-sans">
-                      0.00 Coins/day (Natural Extraction)
+                      0.00 BTC/day (Natural Extraction)
                     </strong>
                   </div>
 
                   <div className="flex justify-between items-center text-slate-700">
                     <span>Base Salaries Paid / day:</span>
-                    <strong className={activeCompany.dailyLaborExpense > 0 ? "text-amber-800 font-sans" : "text-slate-400 font-sans"}>
-                      {activeCompany.dailyLaborExpense > 0 ? `-${activeCompany.dailyLaborExpense.toFixed(2)}` : '0.00'} Coins/day
+                    <strong className={activeCompany.dailyLaborExpense > 0 ? "text-red-500 font-sans" : "text-blue-500 font-sans"}>
+                      {activeCompany.dailyLaborExpense > 0 ? `-${activeCompany.dailyLaborExpense.toFixed(2)}` : '0.00'} BTC/day
                     </strong>
                   </div>
 
                   <div className="flex justify-between items-center text-slate-700">
                     <span>Internal Facility Feed:</span>
-                    <strong className="text-emerald-700 font-sans">
-                      {activeCompany.internalSupplied ? activeCompany.internalSupplied.toFixed(1) : '0.0'} units/day (+{(activeCompany.internalTransferValue || 0).toFixed(2)} Coins transfer credit)
+                    <strong className="text-emerald-500 font-sans">
+                      {activeCompany.internalSupplied ? activeCompany.internalSupplied.toFixed(1) : '0.0'} units/day (+{(activeCompany.internalTransferValue || 0).toFixed(2)} BTC transfer credit)
                     </strong>
                   </div>
 
                   <div className="flex justify-between items-center text-slate-700">
                     <span>Commercial Market Surplus:</span>
                     <strong className="text-slate-900 font-sans">
-                      {activeCompany.externalMarketUnits ? activeCompany.externalMarketUnits.toFixed(1) : activeCompany.baseUnits.toFixed(1)} units/day (+{((activeCompany.externalMarketUnits ?? activeCompany.baseUnits) * activeCompany.spotPrice).toFixed(2)} Coins market sales)
+                      {activeCompany.externalMarketUnits ? activeCompany.externalMarketUnits.toFixed(1) : activeCompany.baseUnits.toFixed(1)} units/day (+{((activeCompany.externalMarketUnits ?? activeCompany.baseUnits) * activeCompany.spotPrice).toFixed(2)} BTC market sales)
                     </strong>
                   </div>
 
                   <div className="flex justify-between items-center pt-1 border-t border-slate-200/60 text-slate-900 font-bold">
                     <span>Base Profit / day:</span>
                     <div className="text-right">
-                      <span className={`font-black font-sans text-sm block ${activeCompany.baseNetProfit >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
-                        {activeCompany.baseNetProfit >= 0 ? '+' : ''}{activeCompany.baseNetProfit.toFixed(2)} Coins/day
+                      <span className={`font-black font-sans text-sm block ${activeCompany.baseNetProfit > 0 ? 'text-emerald-500' : activeCompany.baseNetProfit < 0 ? 'text-red-500' : 'text-blue-500'}`}>
+                        {activeCompany.baseNetProfit >= 0 ? '+' : ''}{activeCompany.baseNetProfit.toFixed(2)} BTC/day
                       </span>
                     </div>
                   </div>
@@ -1507,29 +1507,29 @@ export default function CompanyPortfolio({
                     </div>
                     <div>
                       <span className="text-[10px] text-slate-400 block font-sans">Base Revenue</span>
-                      <strong className="text-slate-900">+{activeCompany.grossRevenue.toFixed(2)} C/d</strong>
+                      <strong className="text-emerald-500 font-mono">+{activeCompany.grossRevenue.toFixed(2)} BTC/d</strong>
                     </div>
                     <div>
                       <span className="text-[10px] text-slate-400 block font-sans">Raw Material Costs</span>
-                      <strong className="text-rose-600">-{activeCompany.dailyRawExpenseTotal.toFixed(2)} C/d</strong>
+                      <strong className={`${activeCompany.dailyRawExpenseTotal > 0 ? 'text-red-500' : 'text-blue-500'} font-mono`}>-{activeCompany.dailyRawExpenseTotal.toFixed(2)} BTC/d</strong>
                     </div>
                     <div>
                       <span className="text-[10px] text-slate-400 block font-sans">Base Salaries Paid</span>
-                      <strong className={activeCompany.dailyLaborExpense > 0 ? "text-amber-800" : "text-slate-400"}>
-                        {activeCompany.dailyLaborExpense > 0 ? `-${activeCompany.dailyLaborExpense.toFixed(2)}` : '0.00'} C/d
+                      <strong className={`${activeCompany.dailyLaborExpense > 0 ? "text-red-500" : "text-blue-500"} font-mono`}>
+                        {activeCompany.dailyLaborExpense > 0 ? `-${activeCompany.dailyLaborExpense.toFixed(2)}` : '0.00'} BTC/d
                       </strong>
                     </div>
                     <div>
                       <span className="text-[10px] text-slate-400 block font-sans">Base Profit</span>
-                      <strong className={activeCompany.baseNetProfit >= 0 ? 'text-emerald-700 font-bold' : 'text-rose-700 font-bold'}>
-                        {activeCompany.baseNetProfit >= 0 ? '+' : ''}{activeCompany.baseNetProfit.toFixed(2)} C/d
+                      <strong className={`${activeCompany.baseNetProfit > 0 ? 'text-emerald-500 font-bold' : activeCompany.baseNetProfit < 0 ? 'text-red-500 font-bold' : 'text-blue-500 font-bold'} font-mono`}>
+                        {activeCompany.baseNetProfit >= 0 ? '+' : ''}{activeCompany.baseNetProfit.toFixed(2)} BTC/d
                       </strong>
                     </div>
                   </div>
                   {(activeCompany.totalCostAvoided || 0) > 0 && (
-                    <div className="pt-1.5 border-t border-slate-200/50 flex justify-between items-center text-xs font-mono text-emerald-800">
+                    <div className="pt-1.5 border-t border-slate-200/50 flex justify-between items-center text-xs font-mono text-emerald-500">
                       <span>In-House Sourcing Cost Avoidance:</span>
-                      <strong>+{activeCompany.totalCostAvoided.toFixed(2)} C/day saved (Adjusted Net: +{activeCompany.adjustedNetProfit.toFixed(2)} C/d)</strong>
+                      <strong>+{activeCompany.totalCostAvoided.toFixed(2)} BTC/day saved (Adjusted Net: +{activeCompany.adjustedNetProfit.toFixed(2)} BTC/d)</strong>
                     </div>
                   )}
                 </div>
@@ -1609,11 +1609,11 @@ export default function CompanyPortfolio({
                         {inp.isInsourced ? (
                           <div className="text-right">
                             <span className="text-emerald-700 font-bold font-sans">
-                              {inp.unitsTransferred.toFixed(1)} units Internally Supplied (+{inp.savingsCoins.toFixed(2)} Coins saved)
+                              {inp.unitsTransferred.toFixed(1)} units Internally Supplied (+{inp.savingsCoins.toFixed(2)} BTC saved)
                             </span>
                             {inp.deficitUnits > 0 && (
                               <div className="text-[11px] text-amber-700 font-sans">
-                                + {inp.deficitUnits.toFixed(1)} units bought from market (-{inp.dailyRawExpense.toFixed(2)} Coins)
+                                + {inp.deficitUnits.toFixed(1)} units bought from market (-{inp.dailyRawExpense.toFixed(2)} BTC)
                               </div>
                             )}
                             {inp.rawProducerCompanies.length > 0 && (
@@ -1648,12 +1648,12 @@ export default function CompanyPortfolio({
                       <div className="flex justify-between items-center pt-2 text-slate-900 font-bold">
                         <span>Daily Raw Material Cash Outflow:</span>
                         <div className="text-right">
-                          <span className={`font-black text-sm block ${inp.dailyRawExpense > 0 ? 'text-rose-600' : 'text-emerald-700'}`}>
+                          <span className={`font-black text-sm block ${inp.dailyRawExpense > 0 ? 'text-red-500' : 'text-blue-500'}`}>
                             {inp.dailyRawExpense > 0 ? `-${inp.dailyRawExpense.toFixed(2)}/day` : '0.00/day (100% Insourced)'}
                           </span>
                           {inp.isInsourced && inp.savingsCoins > 0 && (
-                            <span className="text-[11px] text-emerald-600 font-normal font-sans">
-                              Offset against owned raw producer output (+{inp.savingsCoins.toFixed(2)} Coins/day internal savings)
+                            <span className="text-[11px] text-emerald-500 font-normal font-sans">
+                              Offset against owned raw producer output (+{inp.savingsCoins.toFixed(2)} BTC/day internal savings)
                             </span>
                           )}
                         </div>

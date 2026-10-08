@@ -111,7 +111,7 @@ export default function LaborScenarioLab({ prices = {}, initialItemCode = 'ammo'
         { name: 'Production', level: 4, note: 'Baseline facility optimization' },
         { name: 'Energy Bar', level: 4, note: 'Passive check-ins' }
       ],
-      pros: ['Generates passive coin while offline', 'Zero wage expense', 'Never misses a work shift'],
+      pros: ['Generates passive BTC while offline', 'Zero wage expense', 'Never misses a work shift'],
       cons: ['Requires significant steel capital investment for upgrades']
     },
     {

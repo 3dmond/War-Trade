@@ -176,7 +176,7 @@ export default function EmployeeAuditModal({
             </div>
             <div>
               <span className="text-[10px] text-slate-400 uppercase block">Payable Salary / Day</span>
-              <strong className="text-amber-800 text-sm font-black">-{dailyWage.toFixed(2)} C</strong>
+              <strong className="text-red-500 text-sm font-black">-{dailyWage.toFixed(2)} BTC</strong>
             </div>
           </div>
 
@@ -244,13 +244,13 @@ export default function EmployeeAuditModal({
               </div>
               <div className="flex justify-between">
                 <span>Worker Fidelity (Loyalty):</span>
-                <strong className={loyalty > 0 ? "text-emerald-700 font-bold" : "text-slate-400"}>
+                <strong className={loyalty > 0 ? "text-emerald-500 font-bold" : "text-blue-500 font-bold"}>
                   {loyalty > 0 ? `+${loyalty}%` : '0%'}
                 </strong>
               </div>
               <div className="flex justify-between">
                 <span>Regional Development Efficiency:</span>
-                <strong className="text-emerald-700 font-bold">+{devPct.toFixed(2)}%</strong>
+                <strong className="text-emerald-500 font-bold">+{devPct.toFixed(2)}%</strong>
               </div>
               <div className="flex justify-between pt-1 border-t border-slate-200 text-slate-900 font-bold">
                 <span>Worker Contract Labor Base:</span>
@@ -263,7 +263,7 @@ export default function EmployeeAuditModal({
               </div>
               <div className="flex justify-between pt-1">
                 <span>Facility Deposit & Production Bonus:</span>
-                <strong className="text-emerald-700 font-bold">+{compBonus.toFixed(1)}%</strong>
+                <strong className="text-emerald-500 font-bold">+{compBonus.toFixed(1)}%</strong>
               </div>
               <div className="flex justify-between pt-1 border-t border-slate-200 text-slate-900 font-bold">
                 <span>Total Factory Production Yield:</span>
@@ -285,7 +285,7 @@ export default function EmployeeAuditModal({
                 <span>Wages, Regional Tax & Payroll Outflow</span>
               </span>
               <span className="text-[11px] text-amber-800 font-bold">
-                -{dailyWage.toFixed(2)} Coins/day
+                -{dailyWage.toFixed(2)} BTC/day
               </span>
             </div>
 
@@ -293,20 +293,20 @@ export default function EmployeeAuditModal({
               <div className="flex justify-between">
                 <span>Contracted Wage Rate:</span>
                 <strong className="text-slate-900 font-bold">
-                  {wageRate.toFixed(3)} <span className="text-slate-500 font-normal">({netWageRate.toFixed(3)})</span> Coins / PP
+                  {wageRate.toFixed(3)} <span className="text-slate-500 font-normal">({netWageRate.toFixed(3)})</span> BTC / PP
                 </strong>
               </div>
               <div className="flex justify-between">
                 <span>Gross Wage Outflow Per Hit:</span>
-                <strong className="text-slate-900">{laborPpPerHit.toFixed(2)} PP * {wageRate.toFixed(3)} C = {grossWagePerHit.toFixed(3)} Coins</strong>
+                <strong className="text-slate-900">{laborPpPerHit.toFixed(2)} PP * {wageRate.toFixed(3)} BTC = {grossWagePerHit.toFixed(3)} BTC</strong>
               </div>
               <div className="flex justify-between">
                 <span>Regional Income Tax ({incomeTaxPct}%):</span>
-                <strong className="text-rose-700">-{taxPerHit.toFixed(3)} Coins / hit</strong>
+                <strong className="text-red-500">-{taxPerHit.toFixed(3)} BTC / hit</strong>
               </div>
               <div className="flex justify-between">
                 <span>Worker Net Take-Home Per Hit:</span>
-                <strong className="text-emerald-700 font-bold">+{netWagePerHit.toFixed(3)} Coins / hit</strong>
+                <strong className={`font-bold ${netWagePerHit > 0 ? 'text-emerald-500' : netWagePerHit < 0 ? 'text-red-500' : 'text-blue-500'}`}>+{netWagePerHit.toFixed(3)} BTC / hit</strong>
               </div>
               <div className="text-[11px] text-slate-400 bg-slate-50 p-2 border border-slate-100">
                 In-game work confirmation: ⛏ {producedPpPerHit.toFixed(2)} PP | 🪙 {netWagePerHit.toFixed(3)} net | 🐙 -{taxPerHit.toFixed(3)} tax | ⚡ 10-19 energy
@@ -314,28 +314,28 @@ export default function EmployeeAuditModal({
 
               <div className="flex justify-between pt-2 border-t border-slate-200 text-slate-900 font-bold">
                 <span>Payable Company Payroll / Day:</span>
-                <strong className="text-amber-800 font-black text-sm">
-                  {dailySessions.toFixed(1)} sessions * {grossWagePerHit.toFixed(3)} C = -{dailyWage.toFixed(2)} Coins/day
+                <strong className="text-red-500 font-black text-sm">
+                  {dailySessions.toFixed(1)} sessions * {grossWagePerHit.toFixed(3)} BTC = -{dailyWage.toFixed(2)} BTC/day
                 </strong>
               </div>
               <div className="flex justify-between text-[11px] text-slate-500">
                 <span>Worker 24h Net Take-Home:</span>
-                <strong className="text-emerald-700">+{netDailyWage.toFixed(2)} Coins/day</strong>
+                <strong className={`${netDailyWage > 0 ? 'text-emerald-500' : netDailyWage < 0 ? 'text-red-500' : 'text-blue-500'}`}>+{netDailyWage.toFixed(2)} BTC/day</strong>
               </div>
 
               {/* Wage Outflow Projections */}
               <div className="grid grid-cols-3 gap-2 pt-2 text-[11px] border-t border-slate-100">
                 <div className="bg-slate-50 p-2 text-center border border-slate-200">
                   <span className="text-slate-400 block text-[10px]">Hourly</span>
-                  <strong className="text-amber-800">-{hourlyWage.toFixed(2)} C</strong>
+                  <strong className="text-red-500">-{hourlyWage.toFixed(2)} BTC</strong>
                 </div>
                 <div className="bg-slate-50 p-2 text-center border border-slate-200">
                   <span className="text-slate-400 block text-[10px]">Weekly (7d)</span>
-                  <strong className="text-amber-800">-{weeklyWage.toFixed(2)} C</strong>
+                  <strong className="text-red-500">-{weeklyWage.toFixed(2)} BTC</strong>
                 </div>
                 <div className="bg-slate-50 p-2 text-center border border-slate-200">
                   <span className="text-slate-400 block text-[10px]">Monthly (30d)</span>
-                  <strong className="text-amber-800">-{monthlyWage.toFixed(2)} C</strong>
+                  <strong className="text-red-500">-{monthlyWage.toFixed(2)} BTC</strong>
                 </div>
               </div>
             </div>
@@ -348,15 +348,15 @@ export default function EmployeeAuditModal({
                 <span className="w-5 h-5 bg-slate-900 text-white flex items-center justify-center text-[10px] font-bold">4</span>
                 <span>Economic Contribution to {worker.companyName}</span>
               </span>
-              <span className={`text-[11px] font-bold ${netContribution >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
-                {netContribution >= 0 ? '+' : ''}{netContribution.toFixed(2)} Coins/day
+              <span className={`text-[11px] font-bold ${netContribution > 0 ? 'text-emerald-500' : netContribution < 0 ? 'text-red-500' : 'text-blue-500'}`}>
+                {netContribution >= 0 ? '+' : ''}{netContribution.toFixed(2)} BTC/day
               </span>
             </div>
 
             <div className="space-y-1.5 text-slate-600">
               <div className="flex justify-between">
                 <span>Facility Item Produced:</span>
-                <strong className="text-slate-900 capitalize">{recipe.name || worker.companyItemCode} ({spotPrice.toFixed(3)} C spot)</strong>
+                <strong className="text-slate-900 capitalize">{recipe.name || worker.companyItemCode} ({spotPrice.toFixed(3)} BTC spot)</strong>
               </div>
               <div className="flex justify-between">
                 <span>Recipe Labor Required:</span>
@@ -368,20 +368,20 @@ export default function EmployeeAuditModal({
               </div>
               <div className="flex justify-between pt-1 border-t border-slate-200">
                 <span>Gross Market Value Created:</span>
-                <strong className="text-slate-900">+{grossValue.toFixed(2)} Coins/day</strong>
+                <strong className="text-emerald-500">+{grossValue.toFixed(2)} BTC/day</strong>
               </div>
               <div className="flex justify-between">
                 <span>Raw Materials Consumed:</span>
-                <strong className="text-rose-700">-{rawExpense.toFixed(2)} Coins/day</strong>
+                <strong className={`${rawExpense > 0 ? 'text-red-500' : 'text-blue-500'}`}>-{rawExpense.toFixed(2)} BTC/day</strong>
               </div>
               <div className="flex justify-between">
                 <span>Salary Paid:</span>
-                <strong className="text-amber-800">-{dailyWage.toFixed(2)} Coins/day</strong>
+                <strong className={`${dailyWage > 0 ? 'text-red-500' : 'text-blue-500'}`}>-{dailyWage.toFixed(2)} BTC/day</strong>
               </div>
               <div className="flex justify-between pt-1.5 border-t-2 border-slate-200 text-slate-900 font-bold">
                 <span>Net Profit Generated by Worker:</span>
-                <strong className={`font-black text-sm ${netContribution >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
-                  {netContribution >= 0 ? '+' : ''}{netContribution.toFixed(2)} Coins/day
+                <strong className={`font-black text-sm ${netContribution > 0 ? 'text-emerald-500' : netContribution < 0 ? 'text-red-500' : 'text-blue-500'}`}>
+                  {netContribution >= 0 ? '+' : ''}{netContribution.toFixed(2)} BTC/day
                 </strong>
               </div>
             </div>

@@ -118,7 +118,7 @@ export default function AccountIntel({
             <span className="text-base font-bold text-amber-400 mt-1 block">
               {(wealth.total || stats.estimatedWealth || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
             </span>
-            <span className="text-[10px] text-slate-500">Coins</span>
+            <span className="text-[10px] text-slate-500">BTC</span>
           </div>
 
           <div className="p-3 bg-[#121826] border border-[#1a2335] rounded-lg">
@@ -126,7 +126,7 @@ export default function AccountIntel({
             <span className="text-base font-bold text-emerald-400 mt-1 block">
               {(wealth.money || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
             </span>
-            <span className="text-[10px] text-slate-500">Coins</span>
+            <span className="text-[10px] text-slate-500">BTC</span>
           </div>
 
           <div className="p-3 bg-[#121826] border border-[#1a2335] rounded-lg">
@@ -142,7 +142,7 @@ export default function AccountIntel({
             <span className="text-base font-bold text-cyan-400 mt-1 block">
               {companies.length} Companies
             </span>
-            <span className="text-[10px] text-slate-500">Valued at {(wealth.companies || 0).toFixed(0)} Coins</span>
+            <span className="text-[10px] text-slate-500">Valued at {(wealth.companies || 0).toFixed(0)} BTC</span>
           </div>
 
           <div className="p-3 bg-[#121826] border border-[#1a2335] rounded-lg">
@@ -218,13 +218,13 @@ export default function AccountIntel({
         </div>
       </div>
 
-      {/* Owned Companies (Industrial Empire) */}
+      {/* Owned Companies (Industrial Portfolio) */}
       <div className="bg-[#0f1523] border border-[#1b253b] rounded-xl p-5 shadow-lg space-y-4">
         <div className="flex items-center justify-between border-b border-[#182033] pb-3">
           <div className="flex items-center space-x-2">
             <Building2 className="w-4 h-4 text-cyan-400" />
             <h3 className="text-sm font-bold text-white">
-              OWNED INDUSTRIAL EMPIRE ({companies.length} COMPANIES)
+              OWNED INDUSTRIAL PORTFOLIO ({companies.length} COMPANIES)
             </h3>
           </div>
           <span className="text-[11px] text-slate-400">Total Workers Employed: {totalWorkers}</span>
@@ -269,7 +269,7 @@ export default function AccountIntel({
                   </div>
                   <div className="flex justify-between border-t border-[#1a2335] pt-1">
                     <span className="text-slate-400">Estimated Value:</span>
-                    <span className="text-emerald-400 font-bold">{comp.estimatedValue?.toFixed(1) || '—'} Coins</span>
+                    <span className="text-emerald-400 font-bold">{comp.estimatedValue?.toFixed(1) || '—'} BTC</span>
                   </div>
                 </div>
 

@@ -292,7 +292,7 @@ export default function MetricBreakdownModal({
       {
         id: 'money',
         label: 'Liquid Treasury',
-        description: 'Available cash balance in game coins',
+        description: 'Available cash balance in game BTC',
         value: liquidMoneyVal,
         change1h: moneyDelta1h,
         change1hPct: liquidMoneyVal > 0 ? (moneyDelta1h / liquidMoneyVal) * 100 : 0,
@@ -400,14 +400,14 @@ export default function MetricBreakdownModal({
                   </div>
                   <div className="text-2xl sm:text-3xl font-black font-mono text-slate-900">
                     {liveTotalNetWorth.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
-                    <span className="text-xs font-normal text-slate-500 ml-1.5">coins</span>
+                    <span className="text-xs font-normal text-slate-500 ml-1.5">BTC</span>
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
                   <div className="text-right">
                     <div className="text-[10px] font-mono uppercase text-slate-400">Past 1-Hour Change</div>
-                    <div className={`text-base font-black font-mono ${hourlyStats.netWorthCoins >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
-                      {hourlyStats.netWorthCoins >= 0 ? '+' : ''}{hourlyStats.netWorthCoins.toFixed(1)} ({hourlyStats.netWorthPct >= 0 ? '+' : ''}{hourlyStats.netWorthPct.toFixed(2)}%)
+                    <div className={`text-base font-black font-mono ${hourlyStats.netWorthCoins > 0 ? 'text-emerald-500' : hourlyStats.netWorthCoins < 0 ? 'text-red-500' : 'text-blue-500'}`}>
+                      {hourlyStats.netWorthCoins > 0 ? '+' : ''}{hourlyStats.netWorthCoins.toFixed(1)} ({hourlyStats.netWorthPct > 0 ? '+' : ''}{hourlyStats.netWorthPct.toFixed(2)}%)
                     </div>
                   </div>
                   <div className="flex bg-slate-100 p-0.5 border border-slate-200 text-xs font-mono">
@@ -448,13 +448,13 @@ export default function MetricBreakdownModal({
                     <div>
                       <div className="text-xs font-bold text-slate-900">Steel (Engine & Storage Upgrades)</div>
                       <div className="text-[11px] text-slate-500 font-mono">
-                        Invested: {constructionMetrics.totalSteelInvested} steel ({constructionMetrics.totalSteelValue.toFixed(1)} C)
+                        Invested: {constructionMetrics.totalSteelInvested} steel ({constructionMetrics.totalSteelValue.toFixed(1)} BTC)
                       </div>
                     </div>
                     <div className="text-right font-mono">
-                      <div className="text-sm font-black text-slate-900">{constructionMetrics.steelPrice.toFixed(3)} C</div>
-                      <div className={`text-[11px] font-bold ${constructionMetrics.steel1hDiff >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
-                        {constructionMetrics.steel1hDiff >= 0 ? '+' : ''}{constructionMetrics.steel1hDiff.toFixed(3)} ({constructionMetrics.steel1hPct >= 0 ? '+' : ''}{constructionMetrics.steel1hPct.toFixed(2)}% /1h)
+                      <div className="text-sm font-black text-slate-900">{constructionMetrics.steelPrice.toFixed(3)} BTC</div>
+                      <div className={`text-[11px] font-bold ${constructionMetrics.steel1hDiff > 0 ? 'text-emerald-500' : constructionMetrics.steel1hDiff < 0 ? 'text-red-500' : 'text-blue-500'}`}>
+                        {constructionMetrics.steel1hDiff > 0 ? '+' : ''}{constructionMetrics.steel1hDiff.toFixed(3)} ({constructionMetrics.steel1hPct > 0 ? '+' : ''}{constructionMetrics.steel1hPct.toFixed(2)}% /1h)
                       </div>
                     </div>
                   </div>
@@ -464,13 +464,13 @@ export default function MetricBreakdownModal({
                     <div>
                       <div className="text-xs font-bold text-slate-900">Concrete (Building Structures)</div>
                       <div className="text-[11px] text-slate-500 font-mono">
-                        Invested: {constructionMetrics.totalConcreteInvested} concrete ({constructionMetrics.totalConcreteValue.toFixed(1)} C)
+                        Invested: {constructionMetrics.totalConcreteInvested} concrete ({constructionMetrics.totalConcreteValue.toFixed(1)} BTC)
                       </div>
                     </div>
                     <div className="text-right font-mono">
-                      <div className="text-sm font-black text-slate-900">{constructionMetrics.concretePrice.toFixed(3)} C</div>
-                      <div className={`text-[11px] font-bold ${constructionMetrics.concrete1hDiff >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
-                        {constructionMetrics.concrete1hDiff >= 0 ? '+' : ''}{constructionMetrics.concrete1hDiff.toFixed(3)} ({constructionMetrics.concrete1hPct >= 0 ? '+' : ''}{constructionMetrics.concrete1hPct.toFixed(2)}% /1h)
+                      <div className="text-sm font-black text-slate-900">{constructionMetrics.concretePrice.toFixed(3)} BTC</div>
+                      <div className={`text-[11px] font-bold ${constructionMetrics.concrete1hDiff > 0 ? 'text-emerald-500' : constructionMetrics.concrete1hDiff < 0 ? 'text-red-500' : 'text-blue-500'}`}>
+                        {constructionMetrics.concrete1hDiff > 0 ? '+' : ''}{constructionMetrics.concrete1hDiff.toFixed(3)} ({constructionMetrics.concrete1hPct > 0 ? '+' : ''}{constructionMetrics.concrete1hPct.toFixed(2)}% /1h)
                       </div>
                     </div>
                   </div>
@@ -509,10 +509,10 @@ export default function MetricBreakdownModal({
                               {asset.description}
                             </td>
                             <td className="py-3 px-3 text-right font-black text-slate-900">
-                              {asset.value.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })} C
+                              {asset.value.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })} BTC
                             </td>
-                            <td className={`py-3 px-3 text-right font-bold ${asset.change1h >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
-                              {asset.change1h >= 0 ? '+' : ''}{asset.change1h.toFixed(1)} ({asset.change1hPct >= 0 ? '+' : ''}{asset.change1hPct.toFixed(2)}%)
+                            <td className={`py-3 px-3 text-right font-bold ${asset.change1h > 0 ? 'text-emerald-500' : asset.change1h < 0 ? 'text-red-500' : 'text-blue-500'}`}>
+                              {asset.change1h > 0 ? '+' : ''}{asset.change1h.toFixed(1)} ({asset.change1hPct > 0 ? '+' : ''}{asset.change1hPct.toFixed(2)}%)
                             </td>
                             <td className="py-3 px-4 text-right font-bold text-slate-800">
                               {asset.sharePct.toFixed(1)}%
@@ -526,10 +526,10 @@ export default function MetricBreakdownModal({
                             PORTFOLIO VALUATION TOTAL
                           </td>
                           <td className="py-3 px-3 text-right text-slate-900 text-sm">
-                            {liveTotalNetWorth.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })} C
+                            {liveTotalNetWorth.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })} BTC
                           </td>
-                          <td className={`py-3 px-3 text-right ${hourlyStats.netWorthCoins >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
-                            {hourlyStats.netWorthCoins >= 0 ? '+' : ''}{hourlyStats.netWorthCoins.toFixed(1)} ({hourlyStats.netWorthPct >= 0 ? '+' : ''}{hourlyStats.netWorthPct.toFixed(2)}%)
+                          <td className={`py-3 px-3 text-right ${hourlyStats.netWorthCoins > 0 ? 'text-emerald-500' : hourlyStats.netWorthCoins < 0 ? 'text-red-500' : 'text-blue-500'}`}>
+                            {hourlyStats.netWorthCoins > 0 ? '+' : ''}{hourlyStats.netWorthCoins.toFixed(1)} ({hourlyStats.netWorthPct > 0 ? '+' : ''}{hourlyStats.netWorthPct.toFixed(2)}%)
                           </td>
                           <td className="py-3 px-4 text-right">
                             100.0%
@@ -586,16 +586,16 @@ export default function MetricBreakdownModal({
                                 Lv.{c.engineLevel || 1} / Lv.{c.storageLevel || 1}
                               </td>
                               <td className="py-2.5 px-3 text-right text-slate-700">
-                                {concreteVal.toFixed(0)} C
+                                {concreteVal.toFixed(0)} BTC
                               </td>
                               <td className="py-2.5 px-3 text-right text-slate-700">
-                                {steelVal.toFixed(0)} C
+                                {steelVal.toFixed(0)} BTC
                               </td>
-                              <td className="py-2.5 px-3 text-right text-emerald-700 font-bold">
-                                {yieldWorth > 0 ? `+${yieldWorth.toFixed(1)} C` : '0.0 C'}
+                              <td className={`py-2.5 px-3 text-right font-bold ${yieldWorth > 0 ? 'text-emerald-500' : 'text-blue-500'}`}>
+                                {yieldWorth > 0 ? `+${yieldWorth.toFixed(1)} BTC` : '0.0 BTC'}
                               </td>
                               <td className="py-2.5 px-3 text-right font-black text-slate-900">
-                                {totalWorth.toFixed(1)} C
+                                {totalWorth.toFixed(1)} BTC
                               </td>
                               <td className="py-2.5 px-4 text-right font-bold text-slate-800">
                                 {sharePct.toFixed(1)}%
@@ -610,16 +610,16 @@ export default function MetricBreakdownModal({
                             FACILITIES TOTAL
                           </td>
                           <td className="py-3 px-3 text-right text-slate-700">
-                            {constructionMetrics.totalConcreteValue.toFixed(0)} C
+                            {constructionMetrics.totalConcreteValue.toFixed(0)} BTC
                           </td>
                           <td className="py-3 px-3 text-right text-slate-700">
-                            {constructionMetrics.totalSteelValue.toFixed(0)} C
+                            {constructionMetrics.totalSteelValue.toFixed(0)} BTC
                           </td>
-                          <td className="py-3 px-3 text-right text-emerald-700">
-                            +{companies.reduce((s, c) => s + (c.uncollectedValueCoins || 0), 0).toFixed(1)} C
+                          <td className={`py-3 px-3 text-right font-bold ${companies.reduce((s, c) => s + (c.uncollectedValueCoins || 0), 0) > 0 ? 'text-emerald-500' : 'text-blue-500'}`}>
+                            +{companies.reduce((s, c) => s + (c.uncollectedValueCoins || 0), 0).toFixed(1)} BTC
                           </td>
                           <td className="py-3 px-3 text-right text-slate-900 text-sm">
-                            {liveFacilitiesVal.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })} C
+                            {liveFacilitiesVal.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })} BTC
                           </td>
                           <td className="py-3 px-4 text-right">
                             100.0%
@@ -643,7 +643,7 @@ export default function MetricBreakdownModal({
                   </div>
                   <div className="text-2xl sm:text-3xl font-black font-mono text-slate-900">
                     +{marketOverview.totalBaseGrossRevenue.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
-                    <span className="text-xs font-normal text-slate-500 ml-1.5">coins/day</span>
+                    <span className="text-xs font-normal text-slate-500 ml-1.5">BTC/day</span>
                   </div>
                 </div>
                 <div className="text-left sm:text-right text-xs font-mono text-slate-600">
@@ -694,13 +694,13 @@ export default function MetricBreakdownModal({
                               {c.recipe?.name || c.itemCode}
                             </td>
                             <td className="py-2.5 px-3 text-right text-slate-600">
-                              {spotPrice.toFixed(3)} C
+                              {spotPrice.toFixed(3)} BTC
                             </td>
                             <td className="py-2.5 px-3 text-right font-bold text-slate-800">
                               {units.toFixed(1)} /day
                             </td>
                             <td className="py-2.5 px-3 text-right font-black text-slate-900">
-                              +{grossRev.toFixed(1)} C
+                              +{grossRev.toFixed(1)} BTC
                             </td>
                             <td className="py-2.5 px-4 text-right font-bold text-slate-800">
                               {sharePct.toFixed(1)}%
@@ -718,7 +718,7 @@ export default function MetricBreakdownModal({
                           {marketOverview.totalBaseDailyUnits.toFixed(1)} /day
                         </td>
                         <td className="py-3 px-3 text-right text-slate-900 text-sm">
-                          +{marketOverview.totalBaseGrossRevenue.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })} C
+                          +{marketOverview.totalBaseGrossRevenue.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })} BTC
                         </td>
                         <td className="py-3 px-4 text-right">
                           100.0%
@@ -741,17 +741,17 @@ export default function MetricBreakdownModal({
                   </div>
                   <div className="text-2xl sm:text-3xl font-black font-mono">
                     {marketOverview.totalBaseRawExpense > 0 ? (
-                      <span className="text-rose-700">
+                      <span className="text-red-500">
                         -{marketOverview.totalBaseRawExpense.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
                       </span>
                     ) : (
-                      <span className="text-emerald-700">
+                      <span className="text-blue-500">
                         0.0
                       </span>
                     )}
-                    <span className="text-xs font-normal text-slate-500 ml-1.5">coins/day</span>
+                    <span className="text-xs font-normal text-slate-500 ml-1.5">BTC/day</span>
                     {marketOverview.hasBothRawAndFinished && (
-                      <span className="ml-2 text-xs font-sans font-bold px-2 py-0.5 bg-emerald-50 text-emerald-800 border border-emerald-200">
+                      <span className="ml-2 text-xs font-sans font-bold px-2 py-0.5 bg-blue-50 text-blue-800 border border-blue-200">
                         100% Insourced
                       </span>
                     )}
@@ -766,7 +766,7 @@ export default function MetricBreakdownModal({
               {marketOverview.hasBothRawAndFinished && (
                 <div className="bg-slate-50 border border-slate-200 p-3.5 text-xs text-slate-700 font-sans flex items-center justify-between">
                   <div>
-                    <span className="font-bold text-slate-900">Dual-Sector Empire Advantage:</span> You operate both raw extraction facilities and finished goods manufacturing plants. Raw material input costs are set to <strong>0 C/day</strong> (internally supplied).
+                    <span className="font-bold text-slate-900">Dual-Sector Portfolio Integration:</span> You operate both raw extraction facilities and finished goods manufacturing plants. Raw material input costs are internally balanced.
                   </div>
                 </div>
               )}
@@ -813,7 +813,7 @@ export default function MetricBreakdownModal({
                                 Primary Resource Extraction (Zero raw material input cost)
                               </td>
                               <td className="py-2.5 px-3 text-right font-bold text-slate-400">
-                                0.0 C
+                                0.0 BTC
                               </td>
                               <td className="py-2.5 px-4 text-right text-slate-400 font-bold">
                                 0.0%
@@ -839,12 +839,12 @@ export default function MetricBreakdownModal({
                                   {(inp.totalUnitsNeededDaily || 0).toFixed(1)}
                                 </td>
                                 <td className="py-2.5 px-3 text-right text-slate-600">
-                                  {(inp.unitMarketPrice || 0).toFixed(3)} C
+                                  {(inp.unitMarketPrice || 0).toFixed(3)} BTC
                                 </td>
-                                <td className={`py-2.5 px-3 text-right font-black ${inp.dailyRawExpense > 0 ? 'text-rose-700' : 'text-emerald-700'}`}>
-                                  {inp.dailyRawExpense > 0 ? `-${inp.dailyRawExpense.toFixed(1)} C` : '0.0 C'}
+                                <td className={`py-2.5 px-3 text-right font-black ${inp.dailyRawExpense > 0 ? 'text-red-500' : 'text-blue-500'}`}>
+                                  {inp.dailyRawExpense > 0 ? `-${inp.dailyRawExpense.toFixed(1)} BTC` : '0.0 BTC'}
                                   {inp.dailyRawExpense === 0 && (
-                                    <span className="block text-[10px] text-emerald-600 font-sans font-normal">Insourced</span>
+                                    <span className="block text-[10px] text-blue-500 font-sans font-normal">Insourced</span>
                                   )}
                                 </td>
                                 <td className="py-2.5 px-4 text-right font-bold text-slate-800">
@@ -861,10 +861,10 @@ export default function MetricBreakdownModal({
                         <td className="py-3 px-4" colSpan={5}>
                           TOTAL DAILY RAW MATERIAL COSTS
                         </td>
-                        <td className={`py-3 px-3 text-right text-sm ${marketOverview.totalBaseRawExpense > 0 ? 'text-rose-700' : 'text-emerald-700'}`}>
+                        <td className={`py-3 px-3 text-right text-sm ${marketOverview.totalBaseRawExpense > 0 ? 'text-red-500' : 'text-blue-500'}`}>
                           {marketOverview.totalBaseRawExpense > 0 
-                            ? `-${marketOverview.totalBaseRawExpense.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })} C`
-                            : '0.0 C'}
+                            ? `-${marketOverview.totalBaseRawExpense.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })} BTC`
+                            : '0.0 BTC'}
                         </td>
                         <td className="py-3 px-4 text-right">
                           {marketOverview.totalBaseRawExpense > 0 ? '100.0%' : '0.0%'}
@@ -885,9 +885,9 @@ export default function MetricBreakdownModal({
                   <div className="text-[11px] font-mono font-bold uppercase text-slate-500">
                     Total Base Salaries Paid
                   </div>
-                  <div className="text-2xl sm:text-3xl font-black font-mono text-amber-800">
+                  <div className="text-2xl sm:text-3xl font-black font-mono text-red-500">
                     -{marketOverview.totalBaseLaborExpense.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
-                    <span className="text-xs font-normal text-slate-500 ml-1.5">coins/day</span>
+                    <span className="text-xs font-normal text-slate-500 ml-1.5">BTC/day</span>
                   </div>
                 </div>
                 <div className="text-left sm:text-right text-xs font-mono text-slate-600">
@@ -996,22 +996,22 @@ export default function MetricBreakdownModal({
                               </td>
                               <td className="py-2.5 px-3 text-center">
                                 {loyalty > 0 ? (
-                                  <span className="text-emerald-700 font-bold">+{loyalty}%</span>
+                                  <span className="text-emerald-500 font-bold">+{loyalty}%</span>
                                 ) : (
-                                  <span className="text-slate-400">0%</span>
+                                  <span className="text-blue-500 font-bold">0%</span>
                                 )}
                               </td>
                               <td className="py-2.5 px-3 text-right font-bold text-slate-700">
-                                <div>{wageRate.toFixed(3)} C</div>
+                                <div>{wageRate.toFixed(3)} BTC</div>
                                 <div className="text-[10px] text-slate-400 font-normal">({netWageRate.toFixed(3)} net)</div>
                               </td>
                               <td className="py-2.5 px-3 text-right font-black text-slate-900">
                                 <div>{dailyPp.toFixed(1)} PP</div>
                                 <div className="text-[10px] text-slate-400 font-normal">{producedPpPerHit.toFixed(1)} PP/hit</div>
                               </td>
-                              <td className="py-2.5 px-4 text-right font-black text-amber-800">
-                                <div>-{dailyWage.toFixed(2)} C</div>
-                                <div className="text-[10px] text-emerald-700 font-normal font-mono">Net: +{netDailyWage.toFixed(2)} C</div>
+                              <td className="py-2.5 px-4 text-right font-black text-red-500">
+                                <div>-{dailyWage.toFixed(2)} BTC</div>
+                                <div className={`text-[10px] font-normal font-mono ${netDailyWage > 0 ? 'text-emerald-500' : netDailyWage < 0 ? 'text-red-500' : 'text-blue-500'}`}>Net: +{netDailyWage.toFixed(2)} BTC</div>
                               </td>
                             </tr>
 
@@ -1150,27 +1150,27 @@ export default function MetricBreakdownModal({
                                         <div className="space-y-1 text-slate-600">
                                           <div className="flex justify-between">
                                             <span>Contracted Wage:</span>
-                                            <strong className="text-slate-900">{wageRate.toFixed(3)} ({netWageRate.toFixed(3)}) C</strong>
+                                            <strong className="text-slate-900">{wageRate.toFixed(3)} ({netWageRate.toFixed(3)}) BTC</strong>
                                           </div>
                                           <div className="flex justify-between">
                                             <span>Gross Wage / Hit:</span>
-                                            <strong className="text-slate-900">{grossWagePerHit.toFixed(3)} C</strong>
+                                            <strong className="text-slate-900">{grossWagePerHit.toFixed(3)} BTC</strong>
                                           </div>
                                           <div className="flex justify-between">
                                             <span>Income Tax ({incomeTaxPct}%):</span>
-                                            <strong className="text-rose-700">-{taxPerHit.toFixed(3)} C</strong>
+                                            <strong className="text-red-500">-{taxPerHit.toFixed(3)} BTC</strong>
                                           </div>
                                           <div className="flex justify-between">
                                             <span>Worker Net / Hit:</span>
-                                            <strong className="text-emerald-700 font-bold">+{netWagePerHit.toFixed(3)} C</strong>
+                                            <strong className={`font-bold ${netWagePerHit > 0 ? 'text-emerald-500' : netWagePerHit < 0 ? 'text-red-500' : 'text-blue-500'}`}>+{netWagePerHit.toFixed(3)} BTC</strong>
                                           </div>
                                           <div className="flex justify-between pt-1 border-t border-slate-200 text-slate-900 font-bold">
                                             <span>Company Payroll / Day:</span>
-                                            <strong className="text-amber-800 font-black text-sm">-{dailyWage.toFixed(2)} C/d</strong>
+                                            <strong className="text-red-500 font-black text-sm">-{dailyWage.toFixed(2)} BTC/d</strong>
                                           </div>
                                           <div className="flex justify-between text-[11px] text-slate-500">
                                             <span>Worker 24h Net:</span>
-                                            <strong className="text-emerald-700">+{netDailyWage.toFixed(2)} C/d</strong>
+                                            <strong className={`${netDailyWage > 0 ? 'text-emerald-500' : netDailyWage < 0 ? 'text-red-500' : 'text-blue-500'}`}>+{netDailyWage.toFixed(2)} BTC/d</strong>
                                           </div>
                                         </div>
                                       </div>
@@ -1183,26 +1183,26 @@ export default function MetricBreakdownModal({
                                           Economic Value Generated for {w.companyName}
                                         </div>
                                         <div className="text-slate-500 text-[11px]">
-                                          Enables <strong>{w.unitsProduced?.toFixed(2) || '0.00'} units/day</strong> of {w.recipe?.name || w.companyItemCode} @ {w.spotPrice?.toFixed(3) || '0.000'} Coins spot
+                                          Enables <strong>{w.unitsProduced?.toFixed(2) || '0.00'} units/day</strong> of {w.recipe?.name || w.companyItemCode} @ {w.spotPrice?.toFixed(3) || '0.000'} BTC spot
                                         </div>
                                       </div>
                                       <div className="flex items-center gap-4 text-right flex-wrap">
                                         <div>
                                           <span className="text-[10px] text-slate-400 block uppercase">Gross Value</span>
-                                          <span className="font-bold text-slate-800">+{w.grossValue?.toFixed(2) || '0.00'} C/d</span>
+                                          <span className="font-bold text-emerald-500">+{w.grossValue?.toFixed(2) || '0.00'} BTC/d</span>
                                         </div>
                                         <div>
                                           <span className="text-[10px] text-slate-400 block uppercase">Raw Outflow</span>
-                                          <span className="font-bold text-rose-700">-{w.rawExpense?.toFixed(2) || '0.00'} C/d</span>
+                                          <span className={`font-bold ${(w.rawExpense || 0) > 0 ? 'text-red-500' : 'text-blue-500'}`}>-{(w.rawExpense || 0).toFixed(2)} BTC/d</span>
                                         </div>
                                         <div>
                                           <span className="text-[10px] text-slate-400 block uppercase">Salary Outflow</span>
-                                          <span className="font-bold text-amber-800">-{dailyWage.toFixed(2)} C/d</span>
+                                          <span className={`font-bold ${dailyWage > 0 ? 'text-red-500' : 'text-blue-500'}`}>-{dailyWage.toFixed(2)} BTC/d</span>
                                         </div>
                                         <div className="pl-2 border-l border-slate-200">
                                           <span className="text-[10px] text-slate-400 block uppercase">Net Contribution</span>
-                                          <span className={`font-black text-sm ${(w.netContribution || 0) >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
-                                            {(w.netContribution || 0) >= 0 ? '+' : ''}{(w.netContribution || 0).toFixed(2)} C/d
+                                          <span className={`font-black text-sm ${(w.netContribution || 0) > 0 ? 'text-emerald-500' : (w.netContribution || 0) < 0 ? 'text-red-500' : 'text-blue-500'}`}>
+                                            {(w.netContribution || 0) >= 0 ? '+' : ''}{(w.netContribution || 0).toFixed(2)} BTC/d
                                           </span>
                                         </div>
                                       </div>
@@ -1223,8 +1223,8 @@ export default function MetricBreakdownModal({
                         <td className="py-3 px-3 text-right text-slate-900">
                           {allWorkers.reduce((s, w) => s + (w.producedDailyPp || w.dailyPp || 0), 0).toFixed(1)} PP
                         </td>
-                        <td className="py-3 px-4 text-right text-amber-800 text-sm">
-                          -{marketOverview.totalBaseLaborExpense.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} C
+                        <td className="py-3 px-4 text-right text-red-500 text-sm">
+                          -{marketOverview.totalBaseLaborExpense.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} BTC
                         </td>
                       </tr>
                     </tfoot>
@@ -1242,15 +1242,15 @@ export default function MetricBreakdownModal({
                   <div className="text-[11px] font-mono font-bold uppercase text-slate-500">
                     Total Base Daily Profit
                   </div>
-                  <div className={`text-2xl sm:text-3xl font-black font-mono ${marketOverview.baseDailyProfit >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
+                  <div className={`text-2xl sm:text-3xl font-black font-mono ${marketOverview.baseDailyProfit > 0 ? 'text-emerald-500' : marketOverview.baseDailyProfit < 0 ? 'text-red-500' : 'text-blue-500'}`}>
                     {marketOverview.baseDailyProfit >= 0 ? '+' : ''}{marketOverview.baseDailyProfit.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
-                    <span className="text-xs font-normal text-slate-500 ml-1.5">coins/day</span>
+                    <span className="text-xs font-normal text-slate-500 ml-1.5">BTC/day</span>
                   </div>
                 </div>
                 <div className="text-left sm:text-right text-xs font-mono text-slate-600">
-                  <div>Portfolio Net Margin: <span className="font-bold text-emerald-700">{marketOverview.baseNetMarginPct.toFixed(1)}%</span></div>
-                  <div>Gross Revenue: <span className="font-bold text-slate-900">+{marketOverview.totalBaseGrossRevenue.toFixed(1)} C</span></div>
-                  <div>Operating Outflows: <span className="font-bold text-rose-700">-{(marketOverview.totalBaseRawExpense + marketOverview.totalBaseLaborExpense).toFixed(1)} C</span></div>
+                  <div>Portfolio Net Margin: <span className={`font-bold ${marketOverview.baseNetMarginPct > 0 ? 'text-emerald-500' : marketOverview.baseNetMarginPct < 0 ? 'text-red-500' : 'text-blue-500'}`}>{marketOverview.baseNetMarginPct.toFixed(1)}%</span></div>
+                  <div>Gross Revenue: <span className="font-bold text-emerald-500">+{marketOverview.totalBaseGrossRevenue.toFixed(1)} BTC</span></div>
+                  <div>Operating Outflows: <span className={`font-bold ${(marketOverview.totalBaseRawExpense + marketOverview.totalBaseLaborExpense) > 0 ? 'text-red-500' : 'text-blue-500'}`}>-{(marketOverview.totalBaseRawExpense + marketOverview.totalBaseLaborExpense).toFixed(1)} BTC</span></div>
                 </div>
               </div>
 
@@ -1291,19 +1291,19 @@ export default function MetricBreakdownModal({
                             <td className="py-2.5 px-3 capitalize text-slate-700">
                               {c.recipe?.name || c.itemCode}
                             </td>
-                            <td className="py-2.5 px-3 text-right text-slate-800 font-bold">
-                              +{rev.toFixed(1)} C
+                            <td className="py-2.5 px-3 text-right text-emerald-500 font-bold">
+                              +{rev.toFixed(1)} BTC
                             </td>
-                            <td className="py-2.5 px-3 text-right text-rose-700 font-bold">
-                              {raw > 0 ? `-${raw.toFixed(1)} C` : '0.0 C'}
+                            <td className={`py-2.5 px-3 text-right font-bold ${raw > 0 ? 'text-red-500' : 'text-blue-500'}`}>
+                              {raw > 0 ? `-${raw.toFixed(1)} BTC` : '0.0 BTC'}
                             </td>
-                            <td className="py-2.5 px-3 text-right text-amber-800 font-bold">
-                              {sal > 0 ? `-${sal.toFixed(1)} C` : '0.0 C'}
+                            <td className={`py-2.5 px-3 text-right font-bold ${sal > 0 ? 'text-red-500' : 'text-blue-500'}`}>
+                              {sal > 0 ? `-${sal.toFixed(1)} BTC` : '0.0 BTC'}
                             </td>
-                            <td className={`py-2.5 px-3 text-right font-black ${net >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
-                              {net >= 0 ? '+' : ''}{net.toFixed(1)} C
+                            <td className={`py-2.5 px-3 text-right font-black ${net > 0 ? 'text-emerald-500' : net < 0 ? 'text-red-500' : 'text-blue-500'}`}>
+                              {net >= 0 ? '+' : ''}{net.toFixed(1)} BTC
                             </td>
-                            <td className={`py-2.5 px-4 text-right font-bold ${margin >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
+                            <td className={`py-2.5 px-4 text-right font-bold ${margin > 0 ? 'text-emerald-500' : margin < 0 ? 'text-red-500' : 'text-blue-500'}`}>
                               {margin.toFixed(1)}%
                             </td>
                           </tr>
@@ -1315,19 +1315,19 @@ export default function MetricBreakdownModal({
                         <td className="py-3 px-4" colSpan={2}>
                           TOTAL BASE DAILY PROFIT
                         </td>
-                        <td className="py-3 px-3 text-right text-slate-800">
-                          +{marketOverview.totalBaseGrossRevenue.toFixed(1)} C
+                        <td className="py-3 px-3 text-right text-emerald-500 font-bold">
+                          +{marketOverview.totalBaseGrossRevenue.toFixed(1)} BTC
                         </td>
-                        <td className="py-3 px-3 text-right text-rose-700">
-                          -{marketOverview.totalBaseRawExpense.toFixed(1)} C
+                        <td className={`py-3 px-3 text-right font-bold ${marketOverview.totalBaseRawExpense > 0 ? 'text-red-500' : 'text-blue-500'}`}>
+                          -{marketOverview.totalBaseRawExpense.toFixed(1)} BTC
                         </td>
-                        <td className="py-3 px-3 text-right text-amber-800">
-                          -{marketOverview.totalBaseLaborExpense.toFixed(1)} C
+                        <td className={`py-3 px-3 text-right font-bold ${marketOverview.totalBaseLaborExpense > 0 ? 'text-red-500' : 'text-blue-500'}`}>
+                          -{marketOverview.totalBaseLaborExpense.toFixed(1)} BTC
                         </td>
-                        <td className={`py-3 px-3 text-right text-sm ${marketOverview.baseDailyProfit >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
-                          {marketOverview.baseDailyProfit >= 0 ? '+' : ''}{marketOverview.baseDailyProfit.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })} C
+                        <td className={`py-3 px-3 text-right text-sm font-black ${marketOverview.baseDailyProfit > 0 ? 'text-emerald-500' : marketOverview.baseDailyProfit < 0 ? 'text-red-500' : 'text-blue-500'}`}>
+                          {marketOverview.baseDailyProfit >= 0 ? '+' : ''}{marketOverview.baseDailyProfit.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })} BTC
                         </td>
-                        <td className="py-3 px-4 text-right text-emerald-700">
+                        <td className={`py-3 px-4 text-right font-bold ${marketOverview.baseNetMarginPct > 0 ? 'text-emerald-500' : marketOverview.baseNetMarginPct < 0 ? 'text-red-500' : 'text-blue-500'}`}>
                           {marketOverview.baseNetMarginPct.toFixed(1)}%
                         </td>
                       </tr>
@@ -1589,7 +1589,7 @@ export default function MetricBreakdownModal({
                   <div className="bg-amber-50 p-2.5 border border-amber-200">
                     <div className="text-amber-800 text-[10px]">Daily Self-Work PP</div>
                     <div className="font-black text-amber-900 text-sm">{marketOverview.totalDailySelfWorkPp.toFixed(1)} PP</div>
-                    <div className="text-[10px] text-amber-700">Empire-wide capacity</div>
+                    <div className="text-[10px] text-amber-700">Portfolio-wide capacity</div>
                   </div>
                 </div>
               </div>
@@ -1686,11 +1686,11 @@ export default function MetricBreakdownModal({
                             <td className="py-2.5 px-3 text-right font-bold text-slate-800">
                               {dailyPp > 0 ? `${dailyPp.toFixed(1)} PP` : '0.0 PP'}
                             </td>
-                            <td className="py-2.5 px-3 text-right font-bold text-amber-800">
-                              {dailyWage > 0 ? `-${dailyWage.toFixed(2)} C` : '0.00 C'}
+                            <td className={`py-2.5 px-3 text-right font-bold ${dailyWage > 0 ? 'text-red-500' : 'text-blue-500'}`}>
+                              {dailyWage > 0 ? `-${dailyWage.toFixed(2)} BTC` : '0.00 BTC'}
                             </td>
                             <td className="py-2.5 px-4 text-right text-slate-600 font-bold">
-                              {costPerPp > 0 ? `${costPerPp.toFixed(3)} C` : '-'}
+                              {costPerPp > 0 ? `${costPerPp.toFixed(3)} BTC` : '-'}
                             </td>
                           </tr>
                         );
@@ -1710,11 +1710,11 @@ export default function MetricBreakdownModal({
                         <td className="py-3 px-3 text-right text-slate-900">
                           {companies.reduce((s, c) => s + (c.workersProducedDailyPp || c.workersBaseDailyPp || 0), 0).toFixed(1)} PP
                         </td>
-                        <td className="py-3 px-3 text-right text-amber-800 text-sm">
-                          -{marketOverview.totalBaseLaborExpense.toFixed(2)} C
+                        <td className="py-3 px-3 text-right text-red-500 text-sm">
+                          -{marketOverview.totalBaseLaborExpense.toFixed(2)} BTC
                         </td>
                         <td className="py-3 px-4 text-right text-slate-900">
-                          {(marketOverview.totalBaseLaborExpense / (companies.reduce((s, c) => s + (c.workersProducedDailyPp || c.workersBaseDailyPp || 0), 0) || 1)).toFixed(3)} C
+                          {(marketOverview.totalBaseLaborExpense / (companies.reduce((s, c) => s + (c.workersProducedDailyPp || c.workersBaseDailyPp || 0), 0) || 1)).toFixed(3)} BTC
                         </td>
                       </tr>
                     </tfoot>
