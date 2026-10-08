@@ -45,29 +45,68 @@ export default function EmployeeAuditModal({
   const full24hRegenPts = Number((stamina * 2.4).toFixed(2));
 
   const prodLvl = typeof worker.productionSkill === 'number' ? worker.productionSkill : 0;
-  const basePp = worker.basePp || worker.productionPointsBase || (10 + prodLvl * 3);
+  const basePp = worker.basePp || worker.productionPointsBase || (prodLvl > 10 ? prodLvl : (10 + prodLvl * 3));
   const compBonus = worker.companyTotalBonusPct || 0;
-  const loyalty = worker.fidelity || worker.loyaltyBonus || 0;
-  const combinedBonusPct = compBonus + loyalty;
-  const outputMultiplier = 1 + (combinedBonusPct / 100);
-  const effectivePpPerHit = basePp * outputMultiplier;
+  const loyalty = typeof worker.fidelity === 'number' ? worker.fidelity : (worker.loyaltyBonus || 0);
+  const devPct = typeof worker.devPct === 'number' ? worker.devPct : 4.88;
+  const incomeTaxPct = typeof worker.incomeTaxPct === 'number' ? worker.incomeTaxPct : 9.0;
+
+  // 1. Worker Labor PP per session (what contracted wage is paid on)
+  const laborMultiplier = (1 + (loyalty / 100)) * (1 + (devPct / 100));
+  const laborPpPerHit = typeof worker.laborPpPerHit === 'number'
+    ? worker.laborPpPerHit
+    : Number((basePp * laborMultiplier).toFixed(2));
+
+  // 2. Company Production PP per session (full factory yield delivered to facility)
+  const producedPpPerHit = typeof worker.producedPpPerHit === 'number'
+    ? worker.producedPpPerHit
+    : Number((laborPpPerHit * (1 + (compBonus * 0.91 / 100))).toFixed(2));
 
   const dailyProducedPp = typeof worker.producedDailyPp === 'number' && worker.producedDailyPp > 0
     ? worker.producedDailyPp
     : (typeof worker.dailyPp === 'number' && worker.dailyPp > 0
         ? worker.dailyPp
-        : (dailySessions * effectivePpPerHit));
+        : Number((dailySessions * producedPpPerHit).toFixed(1)));
+
+  const dailyLaborPp = typeof worker.dailyLaborPp === 'number'
+    ? worker.dailyLaborPp
+    : Number((dailySessions * laborPpPerHit).toFixed(1));
 
   const dailyBasePp = worker.dailyBasePp || (dailySessions * basePp);
   const bonusPpDelta = Math.max(0, dailyProducedPp - dailyBasePp);
 
+  // 3. Contracted Wage Rate, Tax & Payroll Outflows
   const wageRate = typeof worker.wageRate === 'number'
     ? worker.wageRate
-    : (typeof worker.wagePerPp === 'number' ? worker.wagePerPp : (worker.wage || 0.146));
+    : (typeof worker.wagePerPp === 'number' ? worker.wagePerPp : (worker.wage || 0.158));
+
+  const netWageRate = typeof worker.netWageRate === 'number'
+    ? worker.netWageRate
+    : Number((wageRate * (1 - (incomeTaxPct / 100))).toFixed(3));
+
+  const grossWagePerHit = typeof worker.grossWagePerHit === 'number'
+    ? worker.grossWagePerHit
+    : Number((laborPpPerHit * wageRate).toFixed(3));
+
+  const taxPerHit = typeof worker.taxPerHit === 'number'
+    ? worker.taxPerHit
+    : Number((grossWagePerHit * (incomeTaxPct / 100)).toFixed(3));
+
+  const netWagePerHit = typeof worker.netWagePerHit === 'number'
+    ? worker.netWagePerHit
+    : Number((grossWagePerHit - taxPerHit).toFixed(3));
 
   const dailyWage = typeof worker.dailyWage === 'number' && worker.dailyWage > 0
     ? worker.dailyWage
-    : (dailyProducedPp * wageRate);
+    : Number((dailySessions * grossWagePerHit).toFixed(2));
+
+  const dailyTax = typeof worker.dailyTax === 'number'
+    ? worker.dailyTax
+    : Number((dailySessions * taxPerHit).toFixed(2));
+
+  const netDailyWage = typeof worker.netDailyWage === 'number'
+    ? worker.netDailyWage
+    : Number((dailySessions * netWagePerHit).toFixed(2));
 
   const hourlyWage = dailyWage / 24;
   const weeklyWage = dailyWage * 7;
@@ -128,8 +167,8 @@ export default function EmployeeAuditModal({
               <strong className="text-slate-900 text-sm font-black">{dailySessions.toFixed(1)} /day</strong>
             </div>
             <div>
-              <span className="text-[10px] text-slate-400 uppercase block">PP Output / Session</span>
-              <strong className="text-emerald-800 text-sm font-black">{effectivePpPerHit.toFixed(1)} PP</strong>
+              <span className="text-[10px] text-slate-400 uppercase block">Yield / Session</span>
+              <strong className="text-emerald-800 text-sm font-black">{producedPpPerHit.toFixed(1)} PP</strong>
             </div>
             <div>
               <span className="text-[10px] text-slate-400 uppercase block">Daily PP Produced</span>
@@ -186,33 +225,22 @@ export default function EmployeeAuditModal({
             </div>
           </div>
 
-          {/* Step 2: Production Skill, Bonuses & PP Output */}
+          {/* Step 2: Production Skill, Regional Efficiency & Bonuses */}
           <div className="bg-white border border-slate-200 p-4 space-y-3">
             <div className="flex items-center justify-between border-b border-slate-100 pb-2">
               <span className="font-bold text-slate-800 uppercase text-xs flex items-center gap-1.5">
                 <span className="w-5 h-5 bg-slate-900 text-white flex items-center justify-center text-[10px] font-bold">2</span>
-                <span>Production Skill & Bonuses</span>
+                <span>Labor PP vs Factory Yield</span>
               </span>
               <span className="text-[11px] text-emerald-700 font-bold">
-                {effectivePpPerHit.toFixed(2)} PP / session
+                {producedPpPerHit.toFixed(2)} PP yield / session
               </span>
             </div>
 
             <div className="space-y-1.5 text-slate-600">
               <div className="flex justify-between">
                 <span>Production Skill Level:</span>
-                <strong className="text-slate-900">Level {prodLvl}</strong>
-              </div>
-              <div className="flex justify-between">
-                <span>Base Session Production:</span>
-                <strong className="text-slate-900">{basePp} PP / session</strong>
-              </div>
-              <div className="text-[11px] text-slate-400 bg-slate-50 p-2 border border-slate-100">
-                Formula: Base 10 + (3 * Production Level {prodLvl}) = <strong>{basePp} PP</strong>
-              </div>
-              <div className="flex justify-between pt-1">
-                <span>Facility Production Bonus:</span>
-                <strong className="text-emerald-700 font-bold">+{compBonus.toFixed(1)}%</strong>
+                <strong className="text-slate-900">Level {prodLvl} ({basePp} PP base)</strong>
               </div>
               <div className="flex justify-between">
                 <span>Worker Fidelity (Loyalty):</span>
@@ -220,27 +248,41 @@ export default function EmployeeAuditModal({
                   {loyalty > 0 ? `+${loyalty}%` : '0%'}
                 </strong>
               </div>
-              <div className="flex justify-between pt-1 border-t border-slate-200">
-                <span>Combined Output Multiplier:</span>
-                <strong className="text-emerald-800 font-bold">
-                  1 + ({compBonus.toFixed(1)}% + {loyalty}%) / 100 = {outputMultiplier.toFixed(3)}x
-                </strong>
+              <div className="flex justify-between">
+                <span>Regional Development Efficiency:</span>
+                <strong className="text-emerald-700 font-bold">+{devPct.toFixed(2)}%</strong>
               </div>
               <div className="flex justify-between pt-1 border-t border-slate-200 text-slate-900 font-bold">
-                <span>Effective PP Per Session (Hit):</span>
-                <strong className="text-emerald-800 font-black">
-                  {basePp} * {outputMultiplier.toFixed(3)} = {effectivePpPerHit.toFixed(2)} PP
+                <span>Worker Contract Labor Base:</span>
+                <strong className="text-blue-900 font-black">
+                  {laborPpPerHit.toFixed(2)} PP / session
                 </strong>
+              </div>
+              <div className="text-[11px] text-slate-400 bg-slate-50 p-2 border border-slate-100">
+                Formula: {basePp} base * (1 + {loyalty}%) * (1 + {devPct.toFixed(2)}%) = <strong>{laborPpPerHit.toFixed(2)} PP</strong> (basis for salary pay)
+              </div>
+              <div className="flex justify-between pt-1">
+                <span>Facility Deposit & Production Bonus:</span>
+                <strong className="text-emerald-700 font-bold">+{compBonus.toFixed(1)}%</strong>
+              </div>
+              <div className="flex justify-between pt-1 border-t border-slate-200 text-slate-900 font-bold">
+                <span>Total Factory Production Yield:</span>
+                <strong className="text-emerald-800 font-black">
+                  {producedPpPerHit.toFixed(2)} PP / session
+                </strong>
+              </div>
+              <div className="text-[11px] text-slate-400 bg-slate-50 p-2 border border-slate-100">
+                Note: In WarEra, facility deposit bonuses enhance commodity output to company storage, while employee wages are contracted on labor PP.
               </div>
             </div>
           </div>
 
-          {/* Step 3: Total Daily PP & Payable Salary */}
+          {/* Step 3: Contract Wage, Regional Tax & Payroll Outflow */}
           <div className="bg-white border border-slate-200 p-4 space-y-3">
             <div className="flex items-center justify-between border-b border-slate-100 pb-2">
               <span className="font-bold text-slate-800 uppercase text-xs flex items-center gap-1.5">
                 <span className="w-5 h-5 bg-slate-900 text-white flex items-center justify-center text-[10px] font-bold">3</span>
-                <span>Total Daily PP Produced & Salary Pay</span>
+                <span>Wages, Regional Tax & Payroll Outflow</span>
               </span>
               <span className="text-[11px] text-amber-800 font-bold">
                 -{dailyWage.toFixed(2)} Coins/day
@@ -249,29 +291,36 @@ export default function EmployeeAuditModal({
 
             <div className="space-y-1.5 text-slate-600">
               <div className="flex justify-between">
-                <span>Base Daily PP (without bonuses):</span>
-                <strong className="text-slate-700">{dailyBasePp.toFixed(1)} PP/day</strong>
+                <span>Contracted Wage Rate:</span>
+                <strong className="text-slate-900 font-bold">
+                  {wageRate.toFixed(3)} <span className="text-slate-500 font-normal">({netWageRate.toFixed(3)})</span> Coins / PP
+                </strong>
               </div>
               <div className="flex justify-between">
-                <span>Bonus PP Contribution:</span>
-                <strong className="text-emerald-700 font-bold">+{bonusPpDelta.toFixed(1)} PP/day (+{combinedBonusPct.toFixed(1)}%)</strong>
+                <span>Gross Wage Outflow Per Hit:</span>
+                <strong className="text-slate-900">{laborPpPerHit.toFixed(2)} PP * {wageRate.toFixed(3)} C = {grossWagePerHit.toFixed(3)} Coins</strong>
               </div>
-              <div className="flex justify-between pt-1 border-t border-slate-200 text-slate-900 font-bold">
-                <span>Total Daily PP Produced:</span>
-                <strong className="text-blue-900 font-black">
-                  {dailySessions.toFixed(1)} sessions * {effectivePpPerHit.toFixed(2)} PP = {dailyProducedPp.toFixed(1)} PP/day
-                </strong>
+              <div className="flex justify-between">
+                <span>Regional Income Tax ({incomeTaxPct}%):</span>
+                <strong className="text-rose-700">-{taxPerHit.toFixed(3)} Coins / hit</strong>
+              </div>
+              <div className="flex justify-between">
+                <span>Worker Net Take-Home Per Hit:</span>
+                <strong className="text-emerald-700 font-bold">+{netWagePerHit.toFixed(3)} Coins / hit</strong>
+              </div>
+              <div className="text-[11px] text-slate-400 bg-slate-50 p-2 border border-slate-100">
+                In-game work confirmation: ⛏ {producedPpPerHit.toFixed(2)} PP | 🪙 {netWagePerHit.toFixed(3)} net | 🐙 -{taxPerHit.toFixed(3)} tax | ⚡ 10-19 energy
               </div>
 
-              <div className="flex justify-between pt-2 border-t border-slate-200">
-                <span>Contracted Wage Rate:</span>
-                <strong className="text-slate-900 font-bold">{wageRate.toFixed(3)} Coins / PP</strong>
-              </div>
-              <div className="flex justify-between pt-1 text-slate-900 font-bold">
-                <span>Payable Salary Per Day:</span>
+              <div className="flex justify-between pt-2 border-t border-slate-200 text-slate-900 font-bold">
+                <span>Payable Company Payroll / Day:</span>
                 <strong className="text-amber-800 font-black text-sm">
-                  {dailyProducedPp.toFixed(1)} PP * {wageRate.toFixed(3)} C = -{dailyWage.toFixed(2)} Coins/day
+                  {dailySessions.toFixed(1)} sessions * {grossWagePerHit.toFixed(3)} C = -{dailyWage.toFixed(2)} Coins/day
                 </strong>
+              </div>
+              <div className="flex justify-between text-[11px] text-slate-500">
+                <span>Worker 24h Net Take-Home:</span>
+                <strong className="text-emerald-700">+{netDailyWage.toFixed(2)} Coins/day</strong>
               </div>
 
               {/* Wage Outflow Projections */}

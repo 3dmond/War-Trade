@@ -436,12 +436,32 @@ export default function CompanyPortfolio({
         const basePp = w.productionPointsBase || (prodLvl > 10 ? prodLvl : (10 + prodLvl * 3));
         const loyaltyBonus = typeof w.fidelity === 'number' ? w.fidelity : (typeof w.loyaltyBonus === 'number' ? w.loyaltyBonus : 0);
         
-        // Output factors energy level, production level, fidelity, and company production bonus:
-        const workerMultiplier = 1 + ((totalBonusPct + loyaltyBonus) / 100);
+        // 1. Worker Labor PP per session (what contracted wage is paid on):
+        const devPct = typeof comp.regionData?.development === 'number' ? comp.regionData.development : 4.88;
+        const laborMultiplier = (1 + (loyaltyBonus / 100)) * (1 + (devPct / 100));
+        const laborPpPerHit = Number((basePp * laborMultiplier).toFixed(2));
+
+        // 2. Company Production PP per session (full factory yield delivered to company inventory):
+        const companyMultiplier = 1 + (totalBonusPct / 100);
+        const producedPpPerHit = Number((laborPpPerHit * (1 + (totalBonusPct * 0.91 / 100))).toFixed(2));
+
         const dailyBasePp = dailySessions * basePp;
-        const dailyProducedPp = dailySessions * basePp * workerMultiplier;
-        const wageRate = typeof w.wagePerPp === 'number' ? w.wagePerPp : (typeof w.wage === 'number' ? w.wage : 0.146);
-        const dailyWage = dailyProducedPp * wageRate;
+        const dailyLaborPp = Number((dailySessions * laborPpPerHit).toFixed(1));
+        const dailyProducedPp = Number((dailySessions * producedPpPerHit).toFixed(1));
+
+        // 3. Contracted Wage Rate & Regional Income Tax:
+        const wageRate = typeof w.wagePerPp === 'number' ? w.wagePerPp : (typeof w.wage === 'number' ? w.wage : 0.158);
+        const incomeTaxPct = typeof comp.incomeTaxPct === 'number' ? comp.incomeTaxPct : (comp.countryTaxes?.income ?? 9.0);
+        const netWageRate = Number((wageRate * (1 - (incomeTaxPct / 100))).toFixed(3));
+
+        // Per-hit and daily payroll outflows:
+        const grossWagePerHit = Number((laborPpPerHit * wageRate).toFixed(3));
+        const taxPerHit = Number((grossWagePerHit * (incomeTaxPct / 100)).toFixed(3));
+        const netWagePerHit = Number((grossWagePerHit - taxPerHit).toFixed(3));
+
+        const dailyWage = Number((dailySessions * grossWagePerHit).toFixed(2));
+        const dailyTax = Number((dailySessions * taxPerHit).toFixed(2));
+        const netDailyWage = Number((dailySessions * netWagePerHit).toFixed(2));
 
         totalWorkerBasePp += dailyBasePp;
         totalWorkerWages += dailyWage;
@@ -459,15 +479,29 @@ export default function CompanyPortfolio({
           loyaltyBonus,
           fidelity: loyaltyBonus,
           companyTotalBonusPct: totalBonusPct,
-          workerMultiplier,
-          effectivePpPerHit: basePp * workerMultiplier,
-          ppPerHit: basePp * workerMultiplier,
+          incomeTaxPct,
+          devPct,
+          laborPpPerHit,
+          wLaborPpPerHit: laborPpPerHit,
+          producedPpPerHit,
+          wProducedPpPerHit: producedPpPerHit,
+          effectivePpPerHit: producedPpPerHit,
+          ppPerHit: producedPpPerHit,
+          wageRate,
+          wagePerPp: wageRate,
+          wage: wageRate,
+          netWageRate,
+          grossWagePerHit,
+          taxPerHit,
+          netWagePerHit,
           dailyPp: dailyProducedPp,
           baseDailyPp: dailyBasePp,
           producedDailyPp: dailyProducedPp,
-          wagePerPp: wageRate,
-          wage: wageRate,
-          dailyWage
+          dailyLaborPp,
+          dailyWage,
+          grossDailyWage: dailyWage,
+          netDailyWage,
+          dailyTax
         };
       });
 

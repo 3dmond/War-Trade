@@ -312,6 +312,32 @@ export class WarEraService {
     }
   }
 
+  async searchUsers(query) {
+    try {
+      const data = await this.callTrpc('search.searchUsers', { searchText: query });
+      return Array.isArray(data) ? data : (data?.userIds || []);
+    } catch (e) {
+      return [];
+    }
+  }
+
+  async getCountryById(countryId) {
+    if (!countryId) return null;
+    if (this._countryCache && this._countryCache.has(countryId)) {
+      return this._countryCache.get(countryId);
+    }
+    try {
+      const data = await this.callTrpc('country.getCountryById', { countryId });
+      if (data) {
+        if (!this._countryCache) this._countryCache = new Map();
+        this._countryCache.set(countryId, data);
+      }
+      return data;
+    } catch (e) {
+      return null;
+    }
+  }
+
   async getUserLite(userId) {
     if (!userId) return null;
     if (this._userLiteCache && this._userLiteCache.has(userId)) {
@@ -454,6 +480,10 @@ export class WarEraService {
         ? productionBonusData.total
         : undefined;
 
+      const countryId = regionData?.country || comp.country;
+      const countryData = countryId ? await this.getCountryById(countryId) : null;
+      const incomeTaxPct = typeof countryData?.taxes?.income === 'number' ? countryData.taxes.income : 9.0;
+
       return {
         ...comp,
         id: comp._id,
@@ -463,6 +493,9 @@ export class WarEraService {
         countryCode: regionData?.countryCode?.toUpperCase() || 'HQ',
         mainCity: regionData?.mainCity || '',
         regionData: regionData || null,
+        countryData: countryData || null,
+        countryTaxes: countryData?.taxes || { income: 9, market: 1, selfWork: 1 },
+        incomeTaxPct,
         workOfferData: workOfferData || null,
         productionBonusData: productionBonusData || null,
         productionBonus: totalBonusPct,
@@ -572,36 +605,73 @@ export class WarEraService {
     input = input.trim();
     let userId = null;
 
-    // Check 1: WarEra URL match: .../user/68373ebe842134b2efcfd795 or .../profile/...
+    // Check 1: WarEra URL match: .../user/68373ebe842134b2efcfd795, .../company/..., or direct 24-hex ID
     const urlMatch = input.match(/[a-f\d]{24}/i);
     if (urlMatch) {
-      userId = urlMatch[0];
+      const hexId = urlMatch[0];
+      const maybeUser = await this.getUserById(hexId);
+      if (maybeUser) {
+        userId = hexId;
+      } else {
+        const maybeComp = await this.getCompanyById(hexId);
+        if (maybeComp?.user) {
+          userId = maybeComp.user;
+        } else {
+          userId = hexId;
+        }
+      }
     }
 
-    // Check 2: If no 24-hex ID found in input, search by username
+    // Check 2: If no 24-hex ID found in input, search by username across both user search endpoints
     if (!userId) {
-      const searchRes = await this.search(input);
-      const userIds = searchRes?.userIds || [];
-      if (userIds.length === 0) {
+      const cleanInput = input.replace(/^@/, '').trim();
+      const [usersList, anythingRes] = await Promise.all([
+        this.searchUsers(cleanInput),
+        this.search(cleanInput)
+      ]);
+
+      let candidateIds = Array.from(new Set([
+        ...(Array.isArray(usersList) ? usersList : []),
+        ...(Array.isArray(anythingRes?.userIds) ? anythingRes.userIds : [])
+      ]));
+
+      // Fallback: try search without punctuation/spaces or lowercase if first query returned nothing
+      if (candidateIds.length === 0) {
+        const altInput = cleanInput.replace(/[^a-zA-Z0-9]/g, '');
+        if (altInput && altInput !== cleanInput) {
+          const [altUsers, altAny] = await Promise.all([
+            this.searchUsers(altInput),
+            this.search(altInput)
+          ]);
+          candidateIds = Array.from(new Set([
+            ...(Array.isArray(altUsers) ? altUsers : []),
+            ...(Array.isArray(altAny?.userIds) ? altAny.userIds : [])
+          ]));
+        }
+      }
+
+      if (candidateIds.length === 0) {
         throw new Error(`No players found matching "${input}". Check the spelling or paste your profile link directly.`);
       }
 
       // Fetch candidate usernames to match exact or best match
       const candidates = await Promise.all(
-        userIds.slice(0, 10).map(id => this.getUserLite(id))
+        candidateIds.slice(0, 15).map(id => this.getUserLite(id))
       );
       const valid = candidates.filter(Boolean);
       
-      const cleanInput = input.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+      const cleanTarget = cleanInput.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
       valid.sort((a, b) => {
-        const aClean = (a.username || '').replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
-        const bClean = (b.username || '').replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
-        const aExact = a.username?.toLowerCase() === input.toLowerCase() ? 3 : (aClean === cleanInput ? 2 : 0);
-        const bExact = b.username?.toLowerCase() === input.toLowerCase() ? 3 : (bClean === cleanInput ? 2 : 0);
+        const aName = a.username || '';
+        const bName = b.username || '';
+        const aClean = aName.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+        const bClean = bName.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+        const aExact = aName.toLowerCase() === cleanInput.toLowerCase() ? 10 : (aClean === cleanTarget ? 8 : (aClean.startsWith(cleanTarget) ? 4 : 0));
+        const bExact = bName.toLowerCase() === cleanInput.toLowerCase() ? 10 : (bClean === cleanTarget ? 8 : (bClean.startsWith(cleanTarget) ? 4 : 0));
         if (aExact !== bExact) return bExact - aExact;
         return (b.leveling?.level || 0) - (a.leveling?.level || 0);
       });
-      userId = valid[0]?._id || userIds[0];
+      userId = valid[0]?._id || candidateIds[0];
     }
 
     // Fetch user profile, equipment, totalWorkers, wageStats, and all workers grouped by company in parallel

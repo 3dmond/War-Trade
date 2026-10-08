@@ -451,16 +451,39 @@ export function calculateCompanyBaseEconomics(comp, prices = {}, insourceOverrid
     const wEnergyLvl = typeof w.energySkill === 'number' ? w.energySkill : 0;
     const wEnergyTotal = w.energyPointsTotal || (30 + wEnergyLvl * 10);
     const wSessions = Number((wEnergyTotal * 0.24).toFixed(2));
-    const wFidelity = typeof w.fidelity === 'number' ? w.fidelity : (typeof w.loyaltyBonus === 'number' ? w.loyaltyBonus : 0);
+    // 1. Worker Labor PP per session (what contracted wage is paid on):
+    // In WarEra, wages compensate employee labor base + fidelity + regional development efficiency,
+    // NOT the facility's raw deposit/production bonus (which belongs to company).
+    const devPct = typeof comp.regionData?.development === 'number' ? comp.regionData.development : 4.88;
+    const laborEfficiencyMultiplier = (1 + (wFidelity / 100)) * (1 + (devPct / 100));
+    const wLaborPpPerHit = Number((wBaseSessionPp * laborEfficiencyMultiplier).toFixed(2));
+
+    // 2. Company Production PP per session (the full output delivered to the facility):
+    // Factoring the company production bonus (strategic + deposit + ethics):
+    const companyMultiplier = 1 + (totalBonusPct / 100);
+    const wProducedPpPerHit = Number((wLaborPpPerHit * (1 + (totalBonusPct * 0.91 / 100))).toFixed(2));
     const wDailyBase = wBaseSessionPp * wSessions;
-    const wMultiplier = 1 + ((totalBonusPct + wFidelity) / 100);
-    const wProduced = wDailyBase * wMultiplier;
-    const wWageRate = typeof w.wagePerPp === 'number' ? w.wagePerPp : (typeof w.wage === 'number' ? w.wage : 0.146);
-    const wWage = wProduced * wWageRate;
+    const wDailyLaborPp = Number((wSessions * wLaborPpPerHit).toFixed(1));
+    const wProduced = Number((wSessions * wProducedPpPerHit).toFixed(1));
+
+    // 3. Contract Wage, Regional Income Taxes & Net Pay:
+    const wWageRate = typeof w.wagePerPp === 'number' ? w.wagePerPp : (typeof w.wage === 'number' ? w.wage : 0.158);
+    const incomeTaxPct = typeof comp.incomeTaxPct === 'number' ? comp.incomeTaxPct : (comp.countryTaxes?.income ?? 9.0);
+    const netWageRate = Number((wWageRate * (1 - (incomeTaxPct / 100))).toFixed(3));
+
+    // Per-hit outflows:
+    const wGrossWagePerHit = Number((wLaborPpPerHit * wWageRate).toFixed(3));
+    const wTaxPerHit = Number((wGrossWagePerHit * (incomeTaxPct / 100)).toFixed(3));
+    const wNetWagePerHit = Number((wGrossWagePerHit - wTaxPerHit).toFixed(3));
+
+    // 24h Daily Outflows (Company Payroll Expense):
+    const wGrossDailyWage = Number((wSessions * wGrossWagePerHit).toFixed(2));
+    const wDailyTax = Number((wSessions * wTaxPerHit).toFixed(2));
+    const wNetDailyWage = Number((wSessions * wNetWagePerHit).toFixed(2));
 
     workersBaseDailyPp += wDailyBase;
     workersProducedDailyPp += wProduced;
-    workersDailyWages += wWage;
+    workersDailyWages += wGrossDailyWage;
 
     return {
       ...w,
@@ -473,15 +496,33 @@ export function calculateCompanyBaseEconomics(comp, prices = {}, insourceOverrid
       companyTotalBonusPct: totalBonusPct,
       fidelity: wFidelity,
       loyaltyBonus: wFidelity,
-      workerMultiplier: wMultiplier,
-      effectivePpPerHit: wBaseSessionPp * wMultiplier,
-      ppPerHit: wBaseSessionPp * wMultiplier,
-      dailyPp: wProduced,
-      baseDailyPp: wDailyBase,
-      producedDailyPp: wProduced,
+      incomeTaxPct,
+      devPct,
+      wLaborPpPerHit,
+      laborPpPerHit: wLaborPpPerHit,
+      wProducedPpPerHit,
+      producedPpPerHit: wProducedPpPerHit,
+      effectivePpPerHit: wProducedPpPerHit,
+      ppPerHit: wProducedPpPerHit,
+      wageRate: wWageRate,
       wagePerPp: wWageRate,
       wage: wWageRate,
-      dailyWage: wWage
+      netWageRate,
+      wGrossWagePerHit,
+      wTaxPerHit,
+      wNetWagePerHit,
+      grossWagePerHit: wGrossWagePerHit,
+      taxPerHit: wTaxPerHit,
+      netWagePerHit: wNetWagePerHit,
+      dailyPp: wProduced,
+      dailyProducedPp: wProduced,
+      dailyLaborPp: wDailyLaborPp,
+      baseDailyPp: wDailyBase,
+      producedDailyPp: wProduced,
+      dailyWage: wGrossDailyWage,
+      grossDailyWage: wGrossDailyWage,
+      netDailyWage: wNetDailyWage,
+      dailyTax: wDailyTax
     };
   });
 

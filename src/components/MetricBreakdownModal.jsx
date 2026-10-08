@@ -77,26 +77,63 @@ export default function MetricBreakdownModal({
       const workers = comp.workersList || comp.workers || [];
       workers.forEach(w => {
         const energyLvl = typeof w.energySkill === 'number' ? w.energySkill : (typeof w.energySkillLevel === 'number' ? w.energySkillLevel : 0);
-        const stamina = w.energyPointsTotal || (30 + energyLvl * 10);
+        const stamina = w.energyStamina || w.energyPointsTotal || (30 + energyLvl * 10);
         const dailySessions = typeof w.dailySessions === 'number' && w.dailySessions > 0
           ? w.dailySessions
           : (typeof w.workSessionsPerDay === 'number' && w.workSessionsPerDay > 0
               ? w.workSessionsPerDay
               : Number((stamina * 0.24).toFixed(2)));
         const prodLvl = typeof w.productionSkill === 'number' ? w.productionSkill : (typeof w.productionSkillLevel === 'number' ? w.productionSkillLevel : 0);
-        const basePp = w.productionPointsBase || (prodLvl > 10 ? prodLvl : (10 + prodLvl * 3));
+        const basePp = w.basePp || w.productionPointsBase || (prodLvl > 10 ? prodLvl : (10 + prodLvl * 3));
         const loyalty = typeof w.fidelity === 'number' ? w.fidelity : (typeof w.loyaltyBonus === 'number' ? w.loyaltyBonus : 0);
-        const workerMultiplier = 1 + ((compBonus + loyalty) / 100);
-        const dailyBasePp = dailySessions * basePp;
+        const devPct = typeof w.devPct === 'number' ? w.devPct : (typeof comp.regionData?.development === 'number' ? comp.regionData.development : 4.88);
+        const incomeTaxPct = typeof w.incomeTaxPct === 'number' ? w.incomeTaxPct : (typeof comp.incomeTaxPct === 'number' ? comp.incomeTaxPct : (comp.countryTaxes?.income ?? 9.0));
+
+        // 1. Worker Labor PP per session (what contracted wage is paid on)
+        const laborMultiplier = (1 + (loyalty / 100)) * (1 + (devPct / 100));
+        const laborPpPerHit = typeof w.laborPpPerHit === 'number'
+          ? w.laborPpPerHit
+          : Number((basePp * laborMultiplier).toFixed(2));
+
+        // 2. Company Production PP per session (full factory yield delivered to company inventory)
+        const producedPpPerHit = typeof w.producedPpPerHit === 'number'
+          ? w.producedPpPerHit
+          : Number((laborPpPerHit * (1 + (compBonus * 0.91 / 100))).toFixed(2));
+
+        const dailyBasePp = typeof w.baseDailyPp === 'number' ? w.baseDailyPp : (dailySessions * basePp);
+        const dailyLaborPp = typeof w.dailyLaborPp === 'number' ? w.dailyLaborPp : Number((dailySessions * laborPpPerHit).toFixed(1));
         const dailyProducedPp = typeof w.producedDailyPp === 'number' && w.producedDailyPp > 0
           ? w.producedDailyPp
-          : (dailySessions * basePp * workerMultiplier);
+          : (typeof w.dailyPp === 'number' && w.dailyPp > 0 ? w.dailyPp : Number((dailySessions * producedPpPerHit).toFixed(1)));
+
+        // 3. Contracted Wage Rate & Regional Income Tax
         const wageRate = typeof w.wageRate === 'number'
           ? w.wageRate
-          : (typeof w.wagePerPp === 'number' ? w.wagePerPp : (typeof w.wage === 'number' ? w.wage : 0.146));
+          : (typeof w.wagePerPp === 'number' ? w.wagePerPp : (typeof w.wage === 'number' ? w.wage : 0.158));
+        const netWageRate = typeof w.netWageRate === 'number'
+          ? w.netWageRate
+          : Number((wageRate * (1 - (incomeTaxPct / 100))).toFixed(3));
+
+        // Per-hit and daily payroll outflows
+        const grossWagePerHit = typeof w.grossWagePerHit === 'number'
+          ? w.grossWagePerHit
+          : Number((laborPpPerHit * wageRate).toFixed(3));
+        const taxPerHit = typeof w.taxPerHit === 'number'
+          ? w.taxPerHit
+          : Number((grossWagePerHit * (incomeTaxPct / 100)).toFixed(3));
+        const netWagePerHit = typeof w.netWagePerHit === 'number'
+          ? w.netWagePerHit
+          : Number((grossWagePerHit - taxPerHit).toFixed(3));
+
         const dailyWage = typeof w.dailyWage === 'number' && w.dailyWage > 0
           ? w.dailyWage
-          : (dailyProducedPp * wageRate);
+          : Number((dailySessions * grossWagePerHit).toFixed(2));
+        const dailyTax = typeof w.dailyTax === 'number'
+          ? w.dailyTax
+          : Number((dailySessions * taxPerHit).toFixed(2));
+        const netDailyWage = typeof w.netDailyWage === 'number'
+          ? w.netDailyWage
+          : Number((dailySessions * netWagePerHit).toFixed(2));
 
         const recipe = comp.recipe || { pp: 1, name: comp.itemCode || 'Product' };
         const spotPrice = comp.spotPrice || prices[comp.itemCode] || 1.0;
@@ -124,15 +161,27 @@ export default function MetricBreakdownModal({
           productionPointsBase: basePp,
           fidelity: loyalty,
           loyaltyBonus: loyalty,
-          workerMultiplier,
-          effectivePpPerHit: basePp * workerMultiplier,
-          ppPerHit: basePp * workerMultiplier,
+          devPct,
+          incomeTaxPct,
+          laborPpPerHit,
+          producedPpPerHit,
+          effectivePpPerHit: producedPpPerHit,
+          ppPerHit: producedPpPerHit,
           dailyBasePp,
+          dailyLaborPp,
           producedDailyPp: dailyProducedPp,
           dailyPp: dailyProducedPp,
           wageRate,
           wagePerPp: wageRate,
+          wage: wageRate,
+          netWageRate,
+          grossWagePerHit,
+          taxPerHit,
+          netWagePerHit,
           dailyWage,
+          grossDailyWage: dailyWage,
+          netDailyWage,
+          dailyTax,
           unitsProduced,
           grossValue,
           rawExpense,
@@ -141,7 +190,7 @@ export default function MetricBreakdownModal({
       });
     });
     return list;
-  }, [companies]);
+  }, [companies, prices]);
 
   // Steel and Concrete Capital Influence Math
   const constructionMetrics = useMemo(() => {
@@ -867,7 +916,7 @@ export default function MetricBreakdownModal({
                         <th className="py-2.5 px-3 font-bold text-center">Daily Sessions</th>
                         <th className="py-2.5 px-3 font-bold">PP Skill & Base</th>
                         <th className="py-2.5 px-3 font-bold text-center">Fidelity</th>
-                        <th className="py-2.5 px-3 font-bold text-right">Wage Rate</th>
+                        <th className="py-2.5 px-3 font-bold text-right">Wage Rate (Net)</th>
                         <th className="py-2.5 px-3 font-bold text-right">Daily PP Produced</th>
                         <th className="py-2.5 px-4 font-bold text-right">Payable Salary / Day</th>
                       </tr>
@@ -884,21 +933,34 @@ export default function MetricBreakdownModal({
                               ? w.workSessionsPerDay
                               : Number((stamina * 0.24).toFixed(2)));
                         const prodLvl = w.productionSkill ?? 0;
-                        const basePp = w.basePp || w.productionPointsBase || (10 + prodLvl * 3);
-                        const loyalty = w.fidelity || w.loyaltyBonus || 0;
+                        const basePp = w.basePp || w.productionPointsBase || (prodLvl > 10 ? prodLvl : (10 + prodLvl * 3));
+                        const loyalty = typeof w.fidelity === 'number' ? w.fidelity : (w.loyaltyBonus || 0);
                         const compBonus = w.companyTotalBonusPct || 0;
-                        const combinedBonusPct = compBonus + loyalty;
-                        const outputMultiplier = 1 + (combinedBonusPct / 100);
-                        const effectivePpPerHit = basePp * outputMultiplier;
+                        const devPct = typeof w.devPct === 'number' ? w.devPct : 4.88;
+                        const incomeTaxPct = typeof w.incomeTaxPct === 'number' ? w.incomeTaxPct : 9.0;
+
+                        const laborPpPerHit = typeof w.laborPpPerHit === 'number' ? w.laborPpPerHit : Number((basePp * (1 + loyalty / 100) * (1 + devPct / 100)).toFixed(2));
+                        const producedPpPerHit = typeof w.producedPpPerHit === 'number' ? w.producedPpPerHit : Number((laborPpPerHit * (1 + (compBonus * 0.91 / 100))).toFixed(2));
+
                         const dailyPp = typeof w.producedDailyPp === 'number' && w.producedDailyPp > 0
                           ? w.producedDailyPp
                           : (typeof w.dailyPp === 'number' && w.dailyPp > 0
                               ? w.dailyPp
-                              : (sessions * effectivePpPerHit));
-                        const wageRate = typeof w.wageRate === 'number' ? w.wageRate : (typeof w.wagePerPp === 'number' ? w.wagePerPp : (w.wage || 0.146));
+                              : Number((sessions * producedPpPerHit).toFixed(1)));
+
+                        const wageRate = typeof w.wageRate === 'number' ? w.wageRate : (typeof w.wagePerPp === 'number' ? w.wagePerPp : (w.wage || 0.158));
+                        const netWageRate = typeof w.netWageRate === 'number' ? w.netWageRate : Number((wageRate * (1 - (incomeTaxPct / 100))).toFixed(3));
+
+                        const grossWagePerHit = typeof w.grossWagePerHit === 'number' ? w.grossWagePerHit : Number((laborPpPerHit * wageRate).toFixed(3));
+                        const taxPerHit = typeof w.taxPerHit === 'number' ? w.taxPerHit : Number((grossWagePerHit * (incomeTaxPct / 100)).toFixed(3));
+                        const netWagePerHit = typeof w.netWagePerHit === 'number' ? w.netWagePerHit : Number((grossWagePerHit - taxPerHit).toFixed(3));
+
                         const dailyWage = typeof w.dailyWage === 'number' && w.dailyWage > 0
                           ? w.dailyWage
-                          : (dailyPp * wageRate);
+                          : Number((sessions * grossWagePerHit).toFixed(2));
+                        const netDailyWage = typeof w.netDailyWage === 'number'
+                          ? w.netDailyWage
+                          : Number((sessions * netWagePerHit).toFixed(2));
 
                         return (
                           <React.Fragment key={workerKey}>
@@ -940,13 +1002,16 @@ export default function MetricBreakdownModal({
                                 )}
                               </td>
                               <td className="py-2.5 px-3 text-right font-bold text-slate-700">
-                                {wageRate.toFixed(3)} C
+                                <div>{wageRate.toFixed(3)} C</div>
+                                <div className="text-[10px] text-slate-400 font-normal">({netWageRate.toFixed(3)} net)</div>
                               </td>
                               <td className="py-2.5 px-3 text-right font-black text-slate-900">
-                                {dailyPp.toFixed(1)} PP
+                                <div>{dailyPp.toFixed(1)} PP</div>
+                                <div className="text-[10px] text-slate-400 font-normal">{producedPpPerHit.toFixed(1)} PP/hit</div>
                               </td>
                               <td className="py-2.5 px-4 text-right font-black text-amber-800">
-                                -{dailyWage.toFixed(2)} C
+                                <div>-{dailyWage.toFixed(2)} C</div>
+                                <div className="text-[10px] text-emerald-700 font-normal font-mono">Net: +{netDailyWage.toFixed(2)} C</div>
                               </td>
                             </tr>
 
@@ -1036,74 +1101,76 @@ export default function MetricBreakdownModal({
                                         </div>
                                       </div>
 
-                                      {/* Pillar 2: PP Skill & Bonuses */}
+                                      {/* Pillar 2: PP Skill, Regional Efficiency & Bonuses */}
                                       <div className="bg-slate-50 p-3.5 border border-slate-200/80 space-y-2 font-mono text-xs">
                                         <div className="text-[11px] font-bold text-slate-700 uppercase flex items-center justify-between">
-                                          <span>2. PP / Session</span>
-                                          <span className="text-slate-400 font-normal">Output per Hit</span>
+                                          <span>2. Labor PP vs Yield</span>
+                                          <span className="text-slate-400 font-normal">Per Session</span>
                                         </div>
                                         <div className="space-y-1 text-slate-600">
                                           <div className="flex justify-between">
-                                            <span>Production Skill:</span>
-                                            <strong className="text-slate-900">Level {prodLvl}</strong>
-                                          </div>
-                                          <div className="flex justify-between">
                                             <span>Base Session PP:</span>
-                                            <strong className="text-slate-900">{basePp} PP/session</strong>
-                                          </div>
-                                          <div className="text-[10px] text-slate-400">
-                                            Formula: 10 + (3 * Lv.{prodLvl}) = {basePp}
-                                          </div>
-                                          <div className="flex justify-between pt-1 border-t border-slate-200">
-                                            <span>Facility Bonus:</span>
-                                            <strong className="text-emerald-700 font-bold">+{compBonus.toFixed(1)}%</strong>
+                                            <strong className="text-slate-900">{basePp} PP</strong>
                                           </div>
                                           <div className="flex justify-between">
-                                            <span>Worker Fidelity:</span>
+                                            <span>Worker Loyalty:</span>
                                             <strong className={loyalty > 0 ? "text-emerald-700 font-bold" : "text-slate-400"}>
                                               {loyalty > 0 ? `+${loyalty}%` : '0%'}
                                             </strong>
                                           </div>
+                                          <div className="flex justify-between">
+                                            <span>Region Dev Efficiency:</span>
+                                            <strong className="text-emerald-700 font-bold">+{devPct.toFixed(2)}%</strong>
+                                          </div>
                                           <div className="flex justify-between pt-1 border-t border-slate-200 text-slate-900 font-bold">
-                                            <span>Effective PP / Hit:</span>
-                                            <strong className="text-emerald-800 font-black">
-                                              {effectivePpPerHit.toFixed(2)} PP/hit
+                                            <span>Contract Labor Base:</span>
+                                            <strong className="text-blue-900 font-black">
+                                              {laborPpPerHit.toFixed(2)} PP / hit
                                             </strong>
                                           </div>
-                                          <div className="text-[10px] text-emerald-700/80">
-                                            Math: {basePp} * {outputMultiplier.toFixed(3)}x
+                                          <div className="flex justify-between">
+                                            <span>Facility Deposit Bonus:</span>
+                                            <strong className="text-emerald-700 font-bold">+{compBonus.toFixed(1)}%</strong>
+                                          </div>
+                                          <div className="flex justify-between pt-1 border-t border-slate-200 text-slate-900 font-bold">
+                                            <span>Factory Yield / Hit:</span>
+                                            <strong className="text-emerald-800 font-black">
+                                              {producedPpPerHit.toFixed(2)} PP / hit
+                                            </strong>
                                           </div>
                                         </div>
                                       </div>
 
-                                      {/* Pillar 3: Daily PP -> Payable Salary */}
+                                      {/* Pillar 3: Wages & Regional Income Tax */}
                                       <div className="bg-slate-50 p-3.5 border border-slate-200/80 space-y-2 font-mono text-xs">
                                         <div className="text-[11px] font-bold text-slate-700 uppercase flex items-center justify-between">
-                                          <span>3. Payable Salary</span>
-                                          <span className="text-slate-400 font-normal">Daily Outflow</span>
+                                          <span>3. Wages & Taxes</span>
+                                          <span className="text-slate-400 font-normal">Payroll Outflow</span>
                                         </div>
                                         <div className="space-y-1 text-slate-600">
                                           <div className="flex justify-between">
-                                            <span>Total PP Produced:</span>
-                                            <strong className="text-slate-900 font-bold">{dailyPp.toFixed(1)} PP/day</strong>
-                                          </div>
-                                          <div className="text-[10px] text-slate-400">
-                                            Math: {sessions.toFixed(1)} hits * {effectivePpPerHit.toFixed(1)} PP
-                                          </div>
-                                          <div className="flex justify-between pt-1 border-t border-slate-200">
                                             <span>Contracted Wage:</span>
-                                            <strong className="text-slate-900">{wageRate.toFixed(3)} C/PP</strong>
+                                            <strong className="text-slate-900">{wageRate.toFixed(3)} ({netWageRate.toFixed(3)}) C</strong>
                                           </div>
                                           <div className="flex justify-between">
-                                            <span>Hourly / Monthly:</span>
-                                            <strong className="text-amber-800">-{(dailyWage / 24).toFixed(2)} / -{(dailyWage * 30).toFixed(1)} C</strong>
+                                            <span>Gross Wage / Hit:</span>
+                                            <strong className="text-slate-900">{grossWagePerHit.toFixed(3)} C</strong>
+                                          </div>
+                                          <div className="flex justify-between">
+                                            <span>Income Tax ({incomeTaxPct}%):</span>
+                                            <strong className="text-rose-700">-{taxPerHit.toFixed(3)} C</strong>
+                                          </div>
+                                          <div className="flex justify-between">
+                                            <span>Worker Net / Hit:</span>
+                                            <strong className="text-emerald-700 font-bold">+{netWagePerHit.toFixed(3)} C</strong>
                                           </div>
                                           <div className="flex justify-between pt-1 border-t border-slate-200 text-slate-900 font-bold">
-                                            <span>Payable Salary / Day:</span>
-                                            <strong className="text-amber-800 font-black text-sm">-{dailyWage.toFixed(2)} Coins/day</strong>
+                                            <span>Company Payroll / Day:</span>
+                                            <strong className="text-amber-800 font-black text-sm">-{dailyWage.toFixed(2)} C/d</strong>
                                           </div>
-                                          <div className="text-[10px] text-amber-700">
-                                            Math: {dailyPp.toFixed(1)} PP * {wageRate.toFixed(3)} C
+                                          <div className="flex justify-between text-[11px] text-slate-500">
+                                            <span>Worker 24h Net:</span>
+                                            <strong className="text-emerald-700">+{netDailyWage.toFixed(2)} C/d</strong>
                                           </div>
                                         </div>
                                       </div>
