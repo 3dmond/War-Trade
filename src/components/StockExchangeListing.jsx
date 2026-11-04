@@ -66,47 +66,58 @@ export default function StockExchangeListing({
   // Aggregate Market Stats (Figures only, no symbols, zero double-counting)
   const marketOverview = useMemo(() => {
     const totalValuation = companies.reduce((sum, c) => sum + (c.totalCalculatedWorth || 0), 0);
-    const baseDailyProfit = typeof portfolioTotals?.totalBaseNetProfit === 'number'
-      ? portfolioTotals.totalBaseNetProfit
-      : companies.reduce((sum, c) => sum + (c.baseNetProfit ?? 0), 0);
-    const totalBaseDailyUnits = typeof portfolioTotals?.totalBaseProductionUnits === 'number'
-      ? portfolioTotals.totalBaseProductionUnits
-      : companies.reduce((sum, c) => sum + (c.baseUnits ?? 0), 0);
-    const totalCompanyBasePp = typeof portfolioTotals?.totalCompanyBasePp === 'number'
-      ? portfolioTotals.totalCompanyBasePp
-      : companies.reduce((sum, c) => sum + (c.companyBaseDailyPp ?? 0), 0);
-    const totalCompanyProducedPp = typeof portfolioTotals?.totalCompanyProducedPp === 'number'
-      ? portfolioTotals.totalCompanyProducedPp
-      : companies.reduce((sum, c) => sum + (c.companyProducedDailyPp ?? 0), 0);
-    const totalDailySelfWorkPp = typeof portfolioTotals?.totalDailySelfWorkPp === 'number'
-      ? portfolioTotals.totalDailySelfWorkPp
-      : (ownerLabor?.dailySelfWorkPp || 0);
-    const totalInclusiveBasePp = typeof portfolioTotals?.totalInclusiveBasePp === 'number'
-      ? portfolioTotals.totalInclusiveBasePp
-      : (totalCompanyBasePp + totalDailySelfWorkPp);
 
-    const totalBaseGrossRevenue = typeof portfolioTotals?.totalBaseGrossRevenue === 'number'
+    // Direct ground-truth aggregations across active companies
+    const sumCompanyGrossRevenue = companies.reduce((sum, c) => sum + (c.dailyGrossRevenue ?? c.grossRevenue ?? 0), 0);
+    const sumCompanyLaborExpense = companies.reduce((sum, c) => sum + (c.dailyLaborExpense ?? 0), 0);
+    const sumCompanyRawExpense = companies.reduce((sum, c) => sum + (c.dailyRawExpenseTotal ?? 0), 0);
+    const sumCompanyNetProfit = companies.reduce((sum, c) => sum + (c.dailyNetProfit ?? c.baseNetProfit ?? 0), 0);
+    const sumCompanyDailyUnits = companies.reduce((sum, c) => sum + (c.baseUnits ?? 0), 0);
+    const sumCompanyProducedPp = companies.reduce((sum, c) => sum + (c.companyProducedDailyPp ?? 0), 0);
+    const sumCompanyBasePp = companies.reduce((sum, c) => sum + (c.companyBaseDailyPp ?? c.companyProducedDailyPp ?? 0), 0);
+    const sumCompanyWorkers = companies.reduce((sum, c) => sum + (c.enrichedWorkers?.length || c.employees?.length || c.workers?.length || 0), 0);
+
+    const totalBaseGrossRevenue = (typeof portfolioTotals?.totalBaseGrossRevenue === 'number' && portfolioTotals.totalBaseGrossRevenue > 0)
       ? portfolioTotals.totalBaseGrossRevenue
-      : companies.reduce((sum, c) => sum + (c.grossRevenue ?? 0), 0);
+      : sumCompanyGrossRevenue;
+
+    const totalBaseLaborExpense = (typeof portfolioTotals?.totalBaseLaborExpense === 'number' && portfolioTotals.totalBaseLaborExpense > 0)
+      ? portfolioTotals.totalBaseLaborExpense
+      : sumCompanyLaborExpense;
+
     const totalBaseRawExpense = typeof portfolioTotals?.totalBaseRawExpense === 'number'
       ? portfolioTotals.totalBaseRawExpense
-      : companies.reduce((sum, c) => sum + (c.dailyRawExpenseTotal ?? 0), 0);
-    const totalBaseLaborExpense = typeof portfolioTotals?.totalBaseLaborExpense === 'number'
-      ? portfolioTotals.totalBaseLaborExpense
-      : companies.reduce((sum, c) => sum + (c.dailyLaborExpense ?? 0), 0);
+      : sumCompanyRawExpense;
+
+    const baseDailyProfit = (typeof portfolioTotals?.totalBaseNetProfit === 'number' && Math.abs(portfolioTotals.totalBaseNetProfit) > 0)
+      ? portfolioTotals.totalBaseNetProfit
+      : sumCompanyNetProfit;
+
+    const totalBaseDailyUnits = (typeof portfolioTotals?.totalBaseProductionUnits === 'number' && portfolioTotals.totalBaseProductionUnits > 0)
+      ? portfolioTotals.totalBaseProductionUnits
+      : sumCompanyDailyUnits;
+
+    const totalCompanyProducedPp = (typeof portfolioTotals?.totalCompanyProducedPp === 'number' && portfolioTotals.totalCompanyProducedPp > 0)
+      ? portfolioTotals.totalCompanyProducedPp
+      : sumCompanyProducedPp;
+
+    const totalCompanyBasePp = (typeof portfolioTotals?.totalCompanyBasePp === 'number' && portfolioTotals.totalCompanyBasePp > 0)
+      ? portfolioTotals.totalCompanyBasePp
+      : sumCompanyBasePp;
+
+    const totalDailySelfWorkPp = 0;
+    const totalInclusiveBasePp = totalCompanyProducedPp;
     const baseNetMarginPct = totalBaseGrossRevenue > 0 ? (baseDailyProfit / totalBaseGrossRevenue) * 100 : 0;
 
-    const totalRawBaseUnits = typeof portfolioTotals?.totalRawBaseUnits === 'number'
-      ? portfolioTotals.totalRawBaseUnits
-      : companies.filter(c => c.isRaw).reduce((sum, c) => sum + (c.baseUnits ?? 0), 0);
-    const totalFinishedBaseUnits = typeof portfolioTotals?.totalFinishedBaseUnits === 'number'
-      ? portfolioTotals.totalFinishedBaseUnits
-      : companies.filter(c => !c.isRaw).reduce((sum, c) => sum + (c.baseUnits ?? 0), 0);
+    const totalRawBaseUnits = companies.filter(c => c.isRaw).reduce((sum, c) => sum + (c.baseUnits ?? 0), 0);
+    const totalFinishedBaseUnits = companies.filter(c => !c.isRaw).reduce((sum, c) => sum + (c.baseUnits ?? 0), 0);
 
     const total24hGrowthCoins = companies.reduce((sum, c) => sum + (c.growth24hCoins || 0), 0);
     const baselineValuation = Math.max(1, totalValuation - total24hGrowthCoins);
     const total24hGrowthPct = (total24hGrowthCoins / baselineValuation) * 100;
-    const totalWorkers = companies.reduce((sum, c) => sum + (c.workers?.length || 0), 0);
+    const totalWorkers = (typeof portfolioTotals?.totalEmployees === 'number' && portfolioTotals.totalEmployees > 0)
+      ? portfolioTotals.totalEmployees
+      : sumCompanyWorkers;
 
     return {
       totalValuation,

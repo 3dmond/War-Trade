@@ -426,6 +426,66 @@ export function calculateOwnerPersonalLabor(userSkills = {}) {
   };
 }
 
+// Game-engine calibrated baseline net revenue rates per PP for WarEra commodities (v0.27+)
+export const BASELINE_PP_RATES = {
+  steel: 0.08001,
+  cocain: 0.07708,
+  pill: 0.07708,
+  ammo: 0.07581,
+  coca: 0.10989,
+  mysteriousPlant: 0.10989,
+  petroleum: 0.09969,
+  lead: 0.10319,
+  cookedFish: 0.09921,
+  iron: 0.1135,
+  heavyAmmo: 0.07684,
+  fish: 0.1100,
+  oil: 0.0936,
+  lightAmmo: 0.10286,
+  bread: 0.09485,
+  grain: 0.07641,
+  limestone: 0.09424,
+  concrete: 0.08832,
+  wood: 0.10330,
+  paper: 0.10748,
+  steak: 0.09402,
+  livestock: 0.07679,
+  scraps: 0.22868
+};
+
+/**
+ * Calculates the dynamic net value per PP for any commodity in the game.
+ * For raw goods: spotPrice / recipe.pp
+ * For manufactured goods: (spotPrice - rawMaterialCosts) / recipe.pp
+ */
+export function getItemValuePerPp(itemCode, prices = {}) {
+  const normCode = (itemCode === 'pill' ? 'cocain' : (itemCode === 'mysteriousPlant' ? 'coca' : itemCode));
+  const recipe = RECIPES.find(r => r.id === normCode || r.id === itemCode);
+  const spotPrice = prices[normCode] || prices[itemCode];
+
+  // If live prices are available and recipe has inputs:
+  if (recipe && recipe.inputs && recipe.inputs.length > 0 && typeof spotPrice === 'number' && spotPrice > 0) {
+    const rawCost = recipe.inputs.reduce((sum, inp) => {
+      const inpPrice = prices[inp.id] || (BASELINE_PP_RATES[inp.id] ? BASELINE_PP_RATES[inp.id] * (RECIPES.find(r => r.id === inp.id)?.pp || 1) : 0.10);
+      return sum + (inp.qty * inpPrice);
+    }, 0);
+    const netAddedValue = spotPrice - rawCost;
+    const pp = recipe.pp || 1;
+    const marginPerPp = netAddedValue / pp;
+    if (marginPerPp > 0.02) {
+      return marginPerPp;
+    }
+  }
+
+  // If raw material with spotPrice
+  if (recipe && (!recipe.inputs || recipe.inputs.length === 0) && typeof spotPrice === 'number' && spotPrice > 0) {
+    return spotPrice / (recipe.pp || 1);
+  }
+
+  // Fallback to calibrated in-game baseline rate
+  return BASELINE_PP_RATES[normCode] || BASELINE_PP_RATES[itemCode] || 0.09566;
+}
+
 export function calculateCompanyBaseEconomics(comp, prices = {}, insourceOverrides = {}, hasBothRawAndFinished = false) {
   const id = comp.id || comp._id;
   const recipe = comp.recipe || RECIPES.find(r => r.id === comp.itemCode) || { pp: 1, type: 'raw', inputs: [] };
@@ -435,9 +495,9 @@ export function calculateCompanyBaseEconomics(comp, prices = {}, insourceOverrid
   const totalBonusPct = typeof comp.totalBonusPct === 'number' ? comp.totalBonusPct : 0;
   const bonusMultiplier = 1 + (totalBonusPct / 100);
 
-  // In-game v0.27 employee economics (standard conversion: 0.09566 BTC per PP)
-  const MARKET_VALUE_PER_PP = 0.09566;
-  const rawList = comp.employees || comp.workers || comp.workersList || [];
+  // In-game dynamic commodity rate per PP (derived directly from commodity recipe economics & spot pricing)
+  const ratePerPp = getItemValuePerPp(comp.itemCode, prices);
+  const rawList = comp.employees || comp.workers || comp.workersList || comp.employeesList || [];
 
   const employeesList = rawList.map((w, idx) => {
     const hourlyOutputPp = typeof w.hourlyOutputPp === 'number'
@@ -449,8 +509,10 @@ export function calculateCompanyBaseEconomics(comp, prices = {}, insourceOverrid
 
     const dailyOutputPp = typeof w.dailyOutputPp === 'number' ? w.dailyOutputPp : (hourlyOutputPp * 24);
     const dailyWage = typeof w.dailyWage === 'number' ? w.dailyWage : (hourlyWage * 24);
-    const dailyProductionValue = typeof w.dailyProductionValue === 'number' ? w.dailyProductionValue : (dailyOutputPp * MARKET_VALUE_PER_PP);
-    const dailyProfit = typeof w.dailyProfit === 'number' ? w.dailyProfit : (dailyProductionValue - dailyWage);
+    const dailyProductionValue = typeof w.dailyProductionValue === 'number' && w.ratePerPp === ratePerPp
+      ? w.dailyProductionValue
+      : (dailyOutputPp * ratePerPp);
+    const dailyProfit = dailyProductionValue - dailyWage;
 
     return {
       ...w,
@@ -459,6 +521,7 @@ export function calculateCompanyBaseEconomics(comp, prices = {}, insourceOverrid
       hourlyWage,
       wage: hourlyWage,
       salary: hourlyWage,
+      ratePerPp,
       dailyPp: dailyOutputPp,
       dailyProducedPp: dailyOutputPp,
       dailyOutputPp,
@@ -517,8 +580,9 @@ export function calculateCompanyBaseEconomics(comp, prices = {}, insourceOverrid
     companyBaseDailyPp,
     companyProducedDailyPp,
     ppRatioPct: 100,
-    pricePerBasePp: MARKET_VALUE_PER_PP,
-    spotToRecipePpRatio: MARKET_VALUE_PER_PP,
+    ratePerPp,
+    pricePerBasePp: ratePerPp,
+    spotToRecipePpRatio: ratePerPp,
     baseUnits,
     unitsPerDay: baseUnits,
     grossRevenue,
@@ -615,6 +679,7 @@ export function mapCompanyFromDossier(c, i = 0, user = null) {
   const ownerAvatarUrl = c.ownerAvatarUrl || user?.avatarUrl;
 
   const rawEmployees = c.employees || c.workers || [];
+  const ratePerPp = getItemValuePerPp(c.itemCode);
   const employees = rawEmployees.map((w, wIdx) => {
     const hourlyOutputPp = typeof w.hourlyOutputPp === 'number'
       ? w.hourlyOutputPp
@@ -624,8 +689,8 @@ export function mapCompanyFromDossier(c, i = 0, user = null) {
       : (typeof w.salary === 'number' ? w.salary : (typeof w.estimate?.wage === 'number' ? w.estimate.wage : 0));
     const dailyOutputPp = typeof w.dailyOutputPp === 'number' ? w.dailyOutputPp : (hourlyOutputPp * 24);
     const dailyWage = typeof w.dailyWage === 'number' ? w.dailyWage : (hourlyWage * 24);
-    const dailyProductionValue = typeof w.dailyProductionValue === 'number' ? w.dailyProductionValue : (dailyOutputPp * 0.09566);
-    const dailyProfit = typeof w.dailyProfit === 'number' ? w.dailyProfit : (dailyProductionValue - dailyWage);
+    const dailyProductionValue = typeof w.dailyProductionValue === 'number' && w.ratePerPp === ratePerPp ? w.dailyProductionValue : (dailyOutputPp * ratePerPp);
+    const dailyProfit = typeof w.dailyProfit === 'number' && w.ratePerPp === ratePerPp ? w.dailyProfit : (dailyProductionValue - dailyWage);
 
     return {
       ...w,

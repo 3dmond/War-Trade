@@ -1,4 +1,5 @@
 // WarEra tRPC API Client — updated for v0.27+ employee system
+import { getItemValuePerPp } from '../data/marketMath.js';
 
 const DEFAULT_TOKEN = 'wae_7152c6d478d157069e449cf27f377458bafc5133686f8c222252af4b8828f09e';
 
@@ -64,6 +65,21 @@ export class WarEraService {
       });
 
       if (!res.ok) {
+        if (res.status === 429) {
+          // Rate-limited: wait briefly and retry once
+          await new Promise(r => setTimeout(r, 600));
+          const retryRes = await fetch(requestUrl, {
+            method: 'GET',
+            headers: {
+              'Accept': 'application/json',
+              'x-api-key': this.token
+            }
+          });
+          if (retryRes.ok) {
+            const retryData = await retryRes.json();
+            return retryData.result?.data;
+          }
+        }
         throw new Error(`API returned status ${res.status}`);
       }
 
@@ -116,6 +132,7 @@ export class WarEraService {
 
         // Record persistent live price tick for historical chart integration
         this.recordPriceTick(data);
+        this.lastPrices = data;
         return data;
       }
       return FALLBACK_PRICES;
@@ -386,19 +403,21 @@ export class WarEraService {
 
   /**
    * Enriches employee objects from the v0.27+ live game API.
-   * Standard in-game conversion: Market Value per PP = 0.09566 BTC.
+   * Dynamic in-game conversion based on commodity recipe margins & market spot pricing.
    * Profit = Production Value - Salary
    */
-  enrichEmployees(rawEmployees = [], companyContext = {}) {
+  enrichEmployees(rawEmployees = [], companyContext = {}, prices = {}) {
     if (!Array.isArray(rawEmployees) || rawEmployees.length === 0) return [];
-    const MARKET_VALUE_PER_PP = 0.09566;
+    const itemCode = companyContext.itemCode || 'steel';
+    const effectivePrices = (prices && Object.keys(prices).length > 0) ? prices : (this.lastPrices || {});
+    const ratePerPp = getItemValuePerPp(itemCode, effectivePrices);
 
     return rawEmployees.map((e, idx) => {
       const hourlyWage = typeof e.wage === 'number' ? e.wage : (typeof e.estimate?.wage === 'number' ? e.estimate.wage : (typeof e.salary === 'number' ? e.salary : 0));
       const hourlyOutputPp = typeof e.estimate?.production === 'number' ? e.estimate.production : 0;
       const dailyOutputPp = hourlyOutputPp * 24;
       const dailyWage = hourlyWage * 24;
-      const dailyProductionValue = dailyOutputPp * MARKET_VALUE_PER_PP;
+      const dailyProductionValue = dailyOutputPp * ratePerPp;
       const dailyProfit = dailyProductionValue - dailyWage;
 
       const baseProd = e.base?.production ?? e.baseProduction ?? 0;
@@ -435,6 +454,7 @@ export class WarEraService {
         dailyOutputPp,                    // PP/day
         dailyProductionValue,             // BTC/day
         dailyProfit,                      // BTC/day
+        ratePerPp,                        // BTC/PP
 
         // Status & Morale
         happiness: typeof e.happinessBreakdown?.value === 'number' ? e.happinessBreakdown.value : (typeof e.happiness === 'number' ? e.happiness : 50),
@@ -485,7 +505,7 @@ export class WarEraService {
         this.getCompanyProductionBonus(companyId)
       ]);
 
-      const employees = this.enrichEmployees(rawEmployees, { id: companyId, name: comp.name, itemCode: comp.itemCode });
+      const employees = this.enrichEmployees(rawEmployees, { id: companyId, name: comp.name, itemCode: comp.itemCode }, this.lastPrices || {});
 
       let owner = ownerUser;
       if (!owner && comp.user) {
@@ -553,12 +573,16 @@ export class WarEraService {
       if (allCompanyIds.length === 0) return [];
       
       // Fetch full company details (employees now retrieved via employee.getCompanyEmployees)
-      const companies = await Promise.all(
-        allCompanyIds.map(async (cid) => {
-          return await this.getCompanyFull(cid, ownerUser);
-        })
-      );
-      return companies.filter(Boolean);
+      const companies = [];
+      const batchSize = 4;
+      for (let i = 0; i < allCompanyIds.length; i += batchSize) {
+        const batch = allCompanyIds.slice(i, i + batchSize);
+        const batchResults = await Promise.all(
+          batch.map(cid => this.getCompanyFull(cid, ownerUser))
+        );
+        companies.push(...batchResults.filter(Boolean));
+      }
+      return companies;
     } catch (e) {
       console.warn('Failed to fetch user companies:', e.message);
       return [];

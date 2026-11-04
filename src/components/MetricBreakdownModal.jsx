@@ -1316,10 +1316,6 @@ export default function MetricBreakdownModal({
                     <div className="text-[10px] text-slate-500 uppercase">Base Operations</div>
                     <div className="font-extrabold text-slate-900">{marketOverview.totalCompanyBasePp.toFixed(1)} PP</div>
                   </div>
-                  <div className="bg-slate-50 p-2.5 border border-slate-200">
-                    <div className="text-[10px] text-slate-500 uppercase">Owner Self-Work</div>
-                    <div className="font-extrabold text-amber-800">{marketOverview.totalDailySelfWorkPp.toFixed(1)} PP</div>
-                  </div>
                 </div>
               </div>
 
