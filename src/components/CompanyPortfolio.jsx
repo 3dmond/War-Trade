@@ -34,7 +34,7 @@ import {
 } from 'lucide-react';
 import { RECIPES, ENGINE_UPGRADE_TIERS, STORAGE_UPGRADE_TIERS, getBreakRoomCapacity } from '../data/gameData';
 import { api } from '../services/wareraApi';
-import { calculatePortfolioOverview } from '../data/marketMath';
+import { calculatePortfolioOverview, mapCompanyFromDossier } from '../data/marketMath';
 import ItemIcon from './ItemIcon';
 import StockExchangeListing from './StockExchangeListing';
 import EmployeeAuditModal from './EmployeeAuditModal';
@@ -128,7 +128,7 @@ const DEFAULT_COMPANIES = [
 ];
 
 // Maps raw WarEra API company documents into reactive portfolio state (v0.27+)
-export { mapCompanyFromDossier } from '../data/marketMath';
+export { mapCompanyFromDossier };
 
 export default function CompanyPortfolio({ 
   dossier, 
