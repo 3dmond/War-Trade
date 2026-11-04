@@ -232,6 +232,7 @@ export default function CompanyPortfolio({
     return companies.reduce((sum, c) => sum + (c.maxEmployees ?? getBreakRoomCapacity(c.breakRoomLevel ?? 0)), 0);
   }, [companies]);
 
+  const maxHiringSlots = totalEmployeeCapacity;
   const remainingHiringSlots = Math.max(0, totalEmployeeCapacity - totalEmployedWorkers);
   const isAtHiringLimit = totalEmployedWorkers >= totalEmployeeCapacity;
 
@@ -520,7 +521,7 @@ export default function CompanyPortfolio({
       if (user?._id) {
         const freshDossier = await api.resolveUserFull(user._id);
         if (freshDossier?.companies && freshDossier.companies.length > 0) {
-          const mapped = freshDossier.companies.map((c, i) => mapCompanyFromDossier(c, i, freshDossier.user, wageStats));
+          const mapped = freshDossier.companies.map((c, i) => mapCompanyFromDossier(c, i, freshDossier.user));
           setCompanies(mapped);
           if (onUpdateDossier) {
             onUpdateDossier(freshDossier);
@@ -531,7 +532,7 @@ export default function CompanyPortfolio({
         if (targetId && /^[a-f\d]{24}$/i.test(targetId)) {
           const fresh = await api.getCompanyFull(targetId, user);
           if (fresh) {
-            const mapped = mapCompanyFromDossier(fresh, 0, user, wageStats);
+            const mapped = mapCompanyFromDossier(fresh, 0, user);
             setCompanies(prev => prev.map(c => (c.id === targetId || c._id === targetId) ? mapped : c));
           }
         }
