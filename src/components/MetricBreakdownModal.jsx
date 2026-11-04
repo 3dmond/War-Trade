@@ -90,15 +90,15 @@ export default function MetricBreakdownModal({
         const incomeTaxPct = typeof w.incomeTaxPct === 'number' ? w.incomeTaxPct : (typeof comp.incomeTaxPct === 'number' ? comp.incomeTaxPct : (comp.countryTaxes?.income ?? 9.0));
 
         // 1. Worker Labor PP per session (what contracted wage is paid on)
-        const laborMultiplier = (1 + (loyalty / 100)) * (1 + (devPct / 100));
         const laborPpPerHit = typeof w.laborPpPerHit === 'number'
           ? w.laborPpPerHit
-          : Number((basePp * laborMultiplier).toFixed(2));
+          : basePp;
 
         // 2. Company Production PP per session (full factory yield delivered to company inventory)
+        const totalEffectiveBonusPct = compBonus + loyalty;
         const producedPpPerHit = typeof w.producedPpPerHit === 'number'
           ? w.producedPpPerHit
-          : Number((laborPpPerHit * (1 + (compBonus * 0.91 / 100))).toFixed(2));
+          : Number((basePp * (1 + (totalEffectiveBonusPct / 100))).toFixed(2));
 
         const dailyBasePp = typeof w.baseDailyPp === 'number' ? w.baseDailyPp : (dailySessions * basePp);
         const dailyLaborPp = typeof w.dailyLaborPp === 'number' ? w.dailyLaborPp : Number((dailySessions * laborPpPerHit).toFixed(1));
@@ -939,8 +939,8 @@ export default function MetricBreakdownModal({
                         const devPct = typeof w.devPct === 'number' ? w.devPct : 4.88;
                         const incomeTaxPct = typeof w.incomeTaxPct === 'number' ? w.incomeTaxPct : 9.0;
 
-                        const laborPpPerHit = typeof w.laborPpPerHit === 'number' ? w.laborPpPerHit : Number((basePp * (1 + loyalty / 100) * (1 + devPct / 100)).toFixed(2));
-                        const producedPpPerHit = typeof w.producedPpPerHit === 'number' ? w.producedPpPerHit : Number((laborPpPerHit * (1 + (compBonus * 0.91 / 100))).toFixed(2));
+                        const laborPpPerHit = typeof w.laborPpPerHit === 'number' ? w.laborPpPerHit : basePp;
+                        const producedPpPerHit = typeof w.producedPpPerHit === 'number' ? w.producedPpPerHit : Number((basePp * (1 + ((compBonus + loyalty) / 100))).toFixed(2));
 
                         const dailyPp = typeof w.producedDailyPp === 'number' && w.producedDailyPp > 0
                           ? w.producedDailyPp
@@ -1119,8 +1119,8 @@ export default function MetricBreakdownModal({
                                             </strong>
                                           </div>
                                           <div className="flex justify-between">
-                                            <span>Region Dev Efficiency:</span>
-                                            <strong className="text-emerald-700 font-bold">+{devPct.toFixed(2)}%</strong>
+                                            <span>Regional Development:</span>
+                                            <strong className="text-slate-600 font-bold">+{devPct.toFixed(2)}%</strong>
                                           </div>
                                           <div className="flex justify-between pt-1 border-t border-slate-200 text-slate-900 font-bold">
                                             <span>Contract Labor Base:</span>

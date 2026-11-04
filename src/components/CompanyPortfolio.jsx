@@ -32,8 +32,8 @@ import {
   Target,
   ArrowRightLeft
 } from 'lucide-react';
-import { RECIPES, ENGINE_UPGRADE_TIERS, STORAGE_UPGRADE_TIERS, getSkillValue } from '../data/gameData';
-import { api, FALLBACK_WAGE_STATS } from '../services/wareraApi';
+import { RECIPES, ENGINE_UPGRADE_TIERS, STORAGE_UPGRADE_TIERS, getBreakRoomCapacity } from '../data/gameData';
+import { api } from '../services/wareraApi';
 import { calculatePortfolioOverview } from '../data/marketMath';
 import ItemIcon from './ItemIcon';
 import StockExchangeListing from './StockExchangeListing';
@@ -59,7 +59,7 @@ export function GoldCoin({ size = 15, className = '' }) {
   );
 }
 
-// Preset companies demonstrating supply chain linkages & employee profiles
+// Default companies for demo mode (no dossier connected)
 const DEFAULT_COMPANIES = [
   {
     id: 'c1',
@@ -67,6 +67,8 @@ const DEFAULT_COMPANIES = [
     itemCode: 'heavyAmmo',
     engineLevel: 4,
     storageLevel: 3,
+    breakRoomLevel: 3,
+    maxEmployees: 3,
     production: 180.0,
     concreteInvested: 250,
     regionName: 'Ecuadorian Sierra',
@@ -76,38 +78,8 @@ const DEFAULT_COMPANIES = [
     ethicBonusPct: 30.0,
     totalBonusPct: 40.0,
     estimatedValue: 1850,
-    workers: [
-      {
-        id: 'w-1',
-        userId: '6a68c590bcfca7e78bdc0570',
-        username: 'Xr_7ut',
-        level: 17,
-        avatarUrl: 'https://media.warera.io/avatars/6a68c590bcfca7e78bdc0570-1785360785461-zksfg4f7.jpg',
-        productionSkill: 10,
-        productionPointsBase: 40,
-        energySkill: 10,
-        energyPointsTotal: 100,
-        loyaltyBonus: 10,
-        wagePerPp: 0.129,
-        isRealPlayer: true,
-        isSimulated: false
-      },
-      {
-        id: 'w-2',
-        userId: '68373ebe842134b2efcfd795',
-        username: 'DonPelayo',
-        level: 8,
-        avatarUrl: null,
-        productionSkill: 8,
-        productionPointsBase: 34,
-        energySkill: 8,
-        energyPointsTotal: 80,
-        loyaltyBonus: 5,
-        wagePerPp: 0.145,
-        isRealPlayer: true,
-        isSimulated: false
-      }
-    ],
+    employees: [],
+    workers: [],
     isSelfWorking: false
   },
   {
@@ -116,6 +88,8 @@ const DEFAULT_COMPANIES = [
     itemCode: 'lead',
     engineLevel: 3,
     storageLevel: 3,
+    breakRoomLevel: 2,
+    maxEmployees: 2,
     production: 220.0,
     concreteInvested: 180,
     regionName: 'Ecuadorian Sierra',
@@ -125,20 +99,8 @@ const DEFAULT_COMPANIES = [
     ethicBonusPct: 30.0,
     totalBonusPct: 51.0,
     estimatedValue: 1150,
-    workers: [
-      {
-        id: 'w-3',
-        username: 'MiningBaron',
-        level: 5,
-        productionSkill: 7,
-        productionPointsBase: 31,
-        energySkill: 8,
-        energyPointsTotal: 80,
-        loyaltyBonus: 0,
-        wagePerPp: 0.138,
-        isSimulated: false
-      }
-    ],
+    employees: [],
+    workers: [],
     isSelfWorking: false
   },
   {
@@ -147,146 +109,26 @@ const DEFAULT_COMPANIES = [
     itemCode: 'steel',
     engineLevel: 5,
     storageLevel: 6,
+    breakRoomLevel: 3,
+    maxEmployees: 3,
     production: 965.0,
     concreteInvested: 200,
-    regionName: 'Dubai',
-    countryCode: 'AE',
-    mainCity: 'Dubai',
+    regionName: 'Madrid',
+    countryCode: 'ES',
+    mainCity: 'Madrid',
     hasDepositBonus: false,
-    countryBonusPct: 25.5,
-    ethicBonusPct: 30.0,
-    totalBonusPct: 55.5,
+    countryBonusPct: 0,
+    ethicBonusPct: 0,
+    totalBonusPct: 0,
     estimatedValue: 1528,
+    employees: [],
     workers: [],
     isSelfWorking: false
   },
-  {
-    id: 'c4',
-    name: 'Stall 2',
-    itemCode: 'steel',
-    engineLevel: 5,
-    storageLevel: 6,
-    production: 678.5,
-    concreteInvested: 200,
-    regionName: 'Djibouti City',
-    countryCode: 'DJ',
-    mainCity: 'Djibouti',
-    hasDepositBonus: false,
-    countryBonusPct: 25.5,
-    ethicBonusPct: 30.0,
-    totalBonusPct: 55.5,
-    estimatedValue: 1476,
-    workers: [],
-    isSelfWorking: false
-  },
-  {
-    id: 'c5',
-    name: 'Stall 3',
-    itemCode: 'steel',
-    engineLevel: 6,
-    storageLevel: 6,
-    production: 674.8,
-    concreteInvested: 200,
-    regionName: 'Doha',
-    countryCode: 'QA',
-    mainCity: 'Qatar',
-    hasDepositBonus: false,
-    countryBonusPct: 25.5,
-    ethicBonusPct: 30.0,
-    totalBonusPct: 55.5,
-    estimatedValue: 2048,
-    workers: [],
-    isSelfWorking: false
-  }
 ];
 
-// Mapper to convert raw WarEra API company documents into reactive state
-export function mapCompanyFromDossier(c, i = 0, user = null, wageStats = null) {
-  const fallbackAverage = wageStats?.allowedRange?.average || FALLBACK_WAGE_STATS.allowedRange.average;
-  const id = c._id || c.id || `c-${i}`;
-  const engineLvl = c.activeUpgradeLevels?.automatedEngine || c.automatedEngine?.level || c.engineLevel || 1;
-  const storageLvl = c.activeUpgradeLevels?.storage || c.storage?.level || c.storageLevel || 1;
-  const regionName = c.regionName || c.regionData?.name || (c.region ? 'Regional Sector' : 'Central District');
-  const countryCode = c.countryCode || c.regionData?.countryCode?.toUpperCase() || 'HQ';
-  const mainCity = c.mainCity || c.regionData?.mainCity || '';
-  const ownerUsername = c.ownerUsername || user?.username || 'You';
-  const ownerId = c.ownerId || user?._id || c.user;
-  const ownerAvatarUrl = c.ownerAvatarUrl || user?.avatarUrl;
-
-  const rawWorkers = c.workers || [];
-  const workers = rawWorkers.map((w, wIdx) => {
-    const contractedWage = typeof w.wage === 'number' ? w.wage : (typeof w.wagePerPp === 'number' ? w.wagePerPp : fallbackAverage);
-    const fidelityBonus = typeof w.fidelity === 'number' ? w.fidelity : (typeof w.loyaltyBonus === 'number' ? w.loyaltyBonus : 0);
-    const prodLvl = typeof w.productionSkill === 'number' ? w.productionSkill : (typeof w.productionSkillLevel === 'number' ? w.productionSkillLevel : 0);
-    const prodBase = w.productionPointsBase || (prodLvl > 10 ? prodLvl : (10 + prodLvl * 3));
-    const energyLvl = typeof w.energySkill === 'number' ? w.energySkill : (typeof w.energySkillLevel === 'number' ? w.energySkillLevel : 0);
-    const energyStamina = w.energyPointsTotal || (30 + energyLvl * 10);
-    // Natural 24h capacity: 10% hourly regen = 2.4 * max stamina per 24 hours. At 10 energy pts/session = 0.24 * stamina
-    const dailySessions = Number((energyStamina * 0.24).toFixed(2));
-
-    return {
-      id: w._id || w.id || `w-${wIdx}`,
-      userId: w.userId || w.user,
-      username: w.username || `Worker #${wIdx + 1}`,
-      level: w.level || 1,
-      avatarUrl: w.avatarUrl || null,
-      productionSkill: prodLvl,
-      productionPointsBase: prodBase,
-      energySkill: energyLvl,
-      energyPointsTotal: energyStamina,
-      dailySessions,
-      workSessionsPerDay: dailySessions,
-      loyaltyBonus: fidelityBonus,
-      fidelity: fidelityBonus,
-      wage: contractedWage,
-      wagePerPp: contractedWage,
-      joinedAt: w.joinedAt,
-      isRealPlayer: !!(w.userId || w.user),
-      isSimulated: !!w.isSimulated
-    };
-  });
-
-  const apiBonus = typeof c.productionBonus === 'number'
-    ? c.productionBonus
-    : (typeof c.productionBonusData?.total === 'number'
-        ? c.productionBonusData.total
-        : (typeof c.totalBonusPct === 'number' ? c.totalBonusPct : null));
-
-  const totalBonusPct = apiBonus !== null
-    ? apiBonus
-    : ((c.depositBonusPct ?? (c.hasDepositBonus ? 30.0 : 0.0)) + (c.countryBonusPct ?? 5.5));
-
-  return {
-    id,
-    _id: c._id || id,
-    name: c.name || `Facility #${i + 1}`,
-    itemCode: c.itemCode || 'heavyAmmo',
-    engineLevel: engineLvl,
-    storageLevel: storageLvl,
-    production: typeof c.production === 'number' ? c.production : 0,
-    syncedAt: Date.now(),
-    concreteInvested: c.concreteInvested || 200,
-    regionName,
-    countryCode,
-    mainCity,
-    ownerUsername,
-    ownerId,
-    ownerAvatarUrl,
-    hasDepositBonus: (c.depositBonusPct ?? c.productionBonusData?.depositBonus ?? 0) > 0,
-    depositBonusPct: c.depositBonusPct ?? c.productionBonusData?.depositBonus ?? 0,
-    countryBonusPct: c.countryBonusPct ?? c.productionBonusData?.strategicBonus ?? 5.5,
-    strategicBonus: c.strategicBonus ?? c.productionBonusData?.strategicBonus ?? 0,
-    ethicBonusPct: c.ethicBonusPct ?? c.productionBonusData?.ethicSpecializationBonus ?? 0,
-    productionBonus: totalBonusPct,
-    productionBonusData: c.productionBonusData || null,
-    totalBonusPct,
-    estimatedValue: c.estimatedValue,
-    workOfferData: c.workOfferData || null,
-    workers,
-    isSelfWorking: false,
-    isRealGameCompany: !!c._id
-  };
-}
+// Maps raw WarEra API company documents into reactive portfolio state (v0.27+)
+export { mapCompanyFromDossier } from '../data/marketMath';
 
 export default function CompanyPortfolio({ 
   dossier, 
@@ -298,19 +140,6 @@ export default function CompanyPortfolio({
 }) {
   const user = dossier?.user;
   const userCompanies = dossier?.companies || [];
-
-  // Live in-game wage statistics (from workOffer.getWageStats)
-  const [wageStats, setWageStats] = useState(dossier?.wageStats || FALLBACK_WAGE_STATS);
-
-  useEffect(() => {
-    let isMounted = true;
-    api.getWageStats().then(stats => {
-      if (isMounted && stats?.allowedRange) {
-        setWageStats(stats);
-      }
-    });
-    return () => { isMounted = false; };
-  }, []);
 
   // Active selected company ID - initialized to real company if present
   const [selectedCompanyId, setSelectedCompanyId] = useState(() => {
@@ -366,7 +195,7 @@ export default function CompanyPortfolio({
   // Load companies
   const [companies, setCompanies] = useState(() => {
     if (userCompanies.length > 0) {
-      return userCompanies.map((c, i) => mapCompanyFromDossier(c, i, user, wageStats));
+      return userCompanies.map((c, i) => mapCompanyFromDossier(c, i, user));
     }
     return DEFAULT_COMPANIES;
   });
@@ -374,7 +203,7 @@ export default function CompanyPortfolio({
   // Re-sync whenever incoming dossier/userCompanies changes
   useEffect(() => {
     if (userCompanies && userCompanies.length > 0) {
-      const mapped = userCompanies.map((c, i) => mapCompanyFromDossier(c, i, user, wageStats));
+      const mapped = userCompanies.map((c, i) => mapCompanyFromDossier(c, i, user));
       setCompanies(mapped);
       setSelectedCompanyId(prev => {
         const exists = mapped.some(mc => mc.id === prev || mc._id === prev);
@@ -386,18 +215,25 @@ export default function CompanyPortfolio({
   // Keep selected ID valid
   const effectiveSelectedId = selectedCompanyId || companies[0]?.id;
 
-  // Management Skill & Portfolio-wide Hiring Capacity
+  // v0.27+: Management skill now grants +2% production bonus per level (not slot count)
+  // Capacity is per-company, gated by Break Room upgrade (1/2/3 max per company)
   const managementSkill = user?.skills?.management;
   const managementLevel = managementSkill?.level ?? 0;
-  const maxHiringSlots = managementSkill?.total ?? managementSkill?.value ?? (4 + managementLevel * 2);
+  const managementProductionBonus = managementLevel * 2; // +2% per level
+  const leadershipLevel = user?.skills?.leadership?.level ?? 0;
 
-  // Total workforce across ALL companies
+  // Total employees across portfolio (Break Room per company determines per-company cap)
   const totalEmployedWorkers = useMemo(() => {
-    return companies.reduce((sum, c) => sum + (c.workers?.length || 0), 0);
+    return companies.reduce((sum, c) => sum + (c.employees?.length || c.workers?.length || 0), 0);
   }, [companies]);
 
-  const remainingHiringSlots = Math.max(0, maxHiringSlots - totalEmployedWorkers);
-  const isAtHiringLimit = totalEmployedWorkers >= maxHiringSlots;
+  // Max total capacity = sum of all Break Room capacities across active companies
+  const totalEmployeeCapacity = useMemo(() => {
+    return companies.reduce((sum, c) => sum + (c.maxEmployees ?? getBreakRoomCapacity(c.breakRoomLevel ?? 0)), 0);
+  }, [companies]);
+
+  const remainingHiringSlots = Math.max(0, totalEmployeeCapacity - totalEmployedWorkers);
+  const isAtHiringLimit = totalEmployedWorkers >= totalEmployeeCapacity;
 
   // 1. Base Output Computations
   const baseCompaniesData = useMemo(() => {
@@ -421,93 +257,25 @@ export default function CompanyPortfolio({
       const effectiveEnginePph = engineTier.ppPerHour * bonusMultiplier;
       const engineDailyPp = effectiveEnginePph * 24;
 
-      // Compute total worker PP from employee list
-      let totalWorkerBasePp = 0;
-      let totalWorkerWages = 0;
-
-      const workersList = (comp.workers || []).map(w => {
-        const energyLvl = typeof w.energySkill === 'number' ? w.energySkill : 0;
-        const energyStamina = w.energyPointsTotal || (30 + energyLvl * 10);
-        const dailySessions = typeof w.workSessionsPerDay === 'number' && w.workSessionsPerDay > 0
-          ? w.workSessionsPerDay 
-          : Number((energyStamina * 0.24).toFixed(2));
-
-        const prodLvl = typeof w.productionSkill === 'number' ? w.productionSkill : 0;
-        const basePp = w.productionPointsBase || (prodLvl > 10 ? prodLvl : (10 + prodLvl * 3));
-        const loyaltyBonus = typeof w.fidelity === 'number' ? w.fidelity : (typeof w.loyaltyBonus === 'number' ? w.loyaltyBonus : 0);
-        
-        // 1. Worker Labor PP per session (what contracted wage is paid on):
-        const devPct = typeof comp.regionData?.development === 'number' ? comp.regionData.development : 4.88;
-        const laborMultiplier = (1 + (loyaltyBonus / 100)) * (1 + (devPct / 100));
-        const laborPpPerHit = Number((basePp * laborMultiplier).toFixed(2));
-
-        // 2. Company Production PP per session (full factory yield delivered to company inventory):
-        const companyMultiplier = 1 + (totalBonusPct / 100);
-        const producedPpPerHit = Number((laborPpPerHit * (1 + (totalBonusPct * 0.91 / 100))).toFixed(2));
-
-        const dailyBasePp = dailySessions * basePp;
-        const dailyLaborPp = Number((dailySessions * laborPpPerHit).toFixed(1));
-        const dailyProducedPp = Number((dailySessions * producedPpPerHit).toFixed(1));
-
-        // 3. Contracted Wage Rate & Regional Income Tax:
-        const wageRate = typeof w.wagePerPp === 'number' ? w.wagePerPp : (typeof w.wage === 'number' ? w.wage : 0.158);
-        const incomeTaxPct = typeof comp.incomeTaxPct === 'number' ? comp.incomeTaxPct : (comp.countryTaxes?.income ?? 9.0);
-        const netWageRate = Number((wageRate * (1 - (incomeTaxPct / 100))).toFixed(3));
-
-        // Per-hit and daily payroll outflows:
-        const grossWagePerHit = Number((laborPpPerHit * wageRate).toFixed(3));
-        const taxPerHit = Number((grossWagePerHit * (incomeTaxPct / 100)).toFixed(3));
-        const netWagePerHit = Number((grossWagePerHit - taxPerHit).toFixed(3));
-
-        const dailyWage = Number((dailySessions * grossWagePerHit).toFixed(2));
-        const dailyTax = Number((dailySessions * taxPerHit).toFixed(2));
-        const netDailyWage = Number((dailySessions * netWagePerHit).toFixed(2));
-
-        totalWorkerBasePp += dailyBasePp;
-        totalWorkerWages += dailyWage;
-
+      // v0.27+: employees have the new schema from enrichEmployees()
+      // salary (BTC/hr) and baseProduction/trainedProduction are the core stats
+      // where totalProduction = baseProduction + trainedProduction + traitProduction
+      const employeesList = (comp.employees || comp.workers || []).map(w => {
+        const totalProd = (w.baseProduction ?? 0) + (w.trainedProduction ?? 0) + (w.traitProduction ?? 0);
+        // Daily salary cost: salary is in BTC/hr directly
+        const dailySalary = typeof w.salary === 'number' ? w.salary * 24 : null;
         return {
           ...w,
-          energySkill: energyLvl,
-          energyStamina,
-          energyPointsTotal: energyStamina,
-          dailySessions,
-          workSessionsPerDay: dailySessions,
-          productionSkill: prodLvl,
-          basePp,
-          productionPointsBase: basePp,
-          loyaltyBonus,
-          fidelity: loyaltyBonus,
+          totalProduction: totalProd,
+          dailySalary,
           companyTotalBonusPct: totalBonusPct,
-          incomeTaxPct,
-          devPct,
-          laborPpPerHit,
-          wLaborPpPerHit: laborPpPerHit,
-          producedPpPerHit,
-          wProducedPpPerHit: producedPpPerHit,
-          effectivePpPerHit: producedPpPerHit,
-          ppPerHit: producedPpPerHit,
-          wageRate,
-          wagePerPp: wageRate,
-          wage: wageRate,
-          netWageRate,
-          grossWagePerHit,
-          taxPerHit,
-          netWagePerHit,
-          dailyPp: dailyProducedPp,
-          baseDailyPp: dailyBasePp,
-          producedDailyPp: dailyProducedPp,
-          dailyLaborPp,
-          dailyWage,
-          grossDailyWage: dailyWage,
-          netDailyWage,
-          dailyTax
         };
       });
 
-      // Pure Base Layer: Automated Engine + Hired Employees (Self-work is optimized dynamically across portfolio)
-      const totalDailyBasePp = (engineTier.ppPerHour * 24) + totalWorkerBasePp;
-      const totalDailyEffectivePp = engineDailyPp + (totalWorkerBasePp * bonusMultiplier);
+      const totalWorkerDailySalary = employeesList.reduce((sum, w) => sum + (w.dailySalary ?? 0), 0);
+
+      // Engine base: pure automated hardware, no longer includes worker PP in engine model
+      const totalDailyEffectivePp = engineDailyPp;
       const unitsPerDay = recipe.pp > 0 ? (totalDailyEffectivePp / recipe.pp) : 0;
 
       // Storage holding capacity in units (exact warehouse size)
@@ -538,10 +306,8 @@ export default function CompanyPortfolio({
         storageTier,
         storageCapacityPp,
         storageCapacityUnits,
-        workersList,
-        totalWorkerBasePp,
-        totalWorkerWages,
-        totalDailyBasePp,
+        employeesList,
+        totalWorkerDailySalary,
         totalDailyEffectivePp,
         unitsPerDay,
         currentStoredPp,
@@ -638,22 +404,15 @@ export default function CompanyPortfolio({
         storageExtraEngineHours = effectiveEnginePph > 0 ? (storageExtraCapacity / effectiveEnginePph) : 0;
       }
 
-      // Workers enriched net contribution (evaluating individual profitability)
-      const enrichedWorkers = (comp.workersList || []).map(w => {
-        const unitsProduced = recipe.pp > 0 ? (w.producedDailyPp / recipe.pp) : 0;
-        const grossValue = unitsProduced * spotPrice;
-        const rawExpense = isRawProducer ? 0 : (unitsProduced * comp.baseRawCostPerUnit);
-        const netContribution = grossValue - rawExpense - w.dailyWage;
-
-        return {
-          ...w,
-          unitsProduced,
-          grossValue,
-          rawExpense,
-          sellingFee: 0,
-          netContribution
-        };
-      });
+      // v0.27+ employees: pass through with context enrichment
+      const enrichedWorkers = (comp.employeesList || comp.employees || []).map(w => ({
+        ...w,
+        companyId: comp.id,
+        companyName: comp.name,
+        companyItemCode: comp.itemCode,
+        recipe,
+        spotPrice,
+      }));
 
       const hasEmployees = enrichedWorkers.length > 0;
 
@@ -718,27 +477,14 @@ export default function CompanyPortfolio({
 
   // Combined workforce statistics for active company (mathematically aligned with zero double-counting)
   const combinedWorkforceStats = useMemo(() => {
-    if (!activeCompany?.enrichedWorkers || activeCompany.enrichedWorkers.length === 0) {
-      return null;
-    }
-    const workers = activeCompany.enrichedWorkers;
-    const combinedDailyPp = workers.reduce((sum, w) => sum + (w.dailyPp || 0), 0);
-    const combinedUnits = workers.reduce((sum, w) => sum + (w.unitsProduced || 0), 0);
-    const combinedGrossValue = workers.reduce((sum, w) => sum + (w.grossValue || 0), 0);
-    const combinedRawExpense = workers.reduce((sum, w) => sum + (w.rawExpense || 0), 0);
-    const combinedSellingFee = workers.reduce((sum, w) => sum + (w.sellingFee || 0), 0);
-    const combinedWages = workers.reduce((sum, w) => sum + (w.dailyWage || 0), 0);
-    const combinedNet = combinedGrossValue - combinedRawExpense - combinedSellingFee - combinedWages;
-
+    const workers = activeCompany?.enrichedWorkers || [];
+    if (workers.length === 0) return null;
+    const combinedDailySalary = workers.reduce((sum, w) => sum + (w.dailySalary ?? 0), 0);
+    const totalProd = workers.reduce((sum, w) => sum + (w.totalProduction ?? 0), 0);
     return {
       count: workers.length,
-      combinedDailyPp,
-      combinedUnits,
-      combinedGrossValue,
-      combinedRawExpense,
-      combinedSellingFee,
-      combinedWages,
-      combinedNet
+      combinedDailySalary,
+      totalProduction: totalProd,
     };
   }, [activeCompany?.enrichedWorkers]);
 
@@ -1020,8 +766,8 @@ export default function CompanyPortfolio({
               <div className="flex items-center justify-between pb-1">
                 <div className="flex items-center space-x-2">
                   <Users className="w-4 h-4 text-slate-500" />
-                  <h3 className="text-sm font-extrabold text-slate-900 font-sans">
-                    {activeCompany.enrichedWorkers.length}/{maxHiringSlots} employees
+                <h3 className="text-sm font-extrabold text-slate-900 font-sans">
+                    {activeCompany.enrichedWorkers.length}/{activeCompany.maxEmployees ?? 0} employees
                   </h3>
                 </div>
 
@@ -1099,41 +845,45 @@ export default function CompanyPortfolio({
 
                     {/* Worker Breakdown */}
                     <div className="space-y-1.5 font-mono text-[11px] text-slate-600 flex-1 flex flex-col justify-around">
-                      <div className="flex justify-between items-center">
-                        <span>Contract Wage:</span>
-                        <strong className="text-amber-800 font-bold">{currentWorker.wagePerPp.toFixed(3)} BTC/PP</strong>
-                      </div>
-                      <div className="flex justify-between items-center">
+                       <div className="flex justify-between items-center">
                         <span>Base Production:</span>
-                        <strong className="text-slate-900">Lv.{currentWorker.productionSkill || 0} ({currentWorker.basePp} PP/hit)</strong>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span>Bonuses:</span>
-                        <strong className="text-emerald-700">
-                          {currentWorker.companyTotalBonusPct > 0 ? `+${currentWorker.companyTotalBonusPct}% Co.` : ''}
-                          {currentWorker.loyaltyBonus > 0 ? ` +${currentWorker.loyaltyBonus}% Fidel.` : ''}
-                          {(!currentWorker.companyTotalBonusPct && !currentWorker.loyaltyBonus) ? '0%' : ''}
-                          <span className="text-slate-500 font-normal ml-1">({(currentWorker.effectivePpPerHit || currentWorker.ppPerHit || (currentWorker.basePp * (currentWorker.workerMultiplier || 1))).toFixed(1)} PP/hit)</span>
+                        <strong className="text-slate-900">
+                          {typeof currentWorker.baseProduction === 'number' ? currentWorker.baseProduction.toFixed(1) : '—'}
                         </strong>
                       </div>
                       <div className="flex justify-between items-center">
-                        <span>Energy Stamina:</span>
-                        <strong className="text-slate-900">Lv.{currentWorker.energySkill || 0} ({currentWorker.energyStamina} pts • {currentWorker.dailySessions.toFixed(1)} hits/d)</strong>
+                        <span>Trained Production:</span>
+                        <strong className="text-emerald-700">
+                          +{typeof currentWorker.trainedProduction === 'number' ? currentWorker.trainedProduction.toFixed(1) : '—'}
+                        </strong>
                       </div>
                       <div className="flex justify-between items-center">
-                        <span>Daily Output:</span>
-                        <strong className="text-slate-900">{currentWorker.dailyPp.toFixed(1)} PP/d</strong>
+                        <span>Total Production:</span>
+                        <strong className="text-blue-900">
+                          {typeof currentWorker.totalProduction === 'number' ? currentWorker.totalProduction.toFixed(1) : '—'}
+                        </strong>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span>Happiness:</span>
+                        <strong className="text-slate-900">
+                          {typeof currentWorker.happiness === 'number' ? `${currentWorker.happiness}/100` : '—'}
+                        </strong>
                       </div>
                       <div className="flex justify-between items-center">
                         <span>Daily Salary:</span>
-                        <strong className="text-red-500">-{currentWorker.dailyWage.toFixed(2)} BTC/d</strong>
+                        <strong className={currentWorker.salary ? 'text-red-500' : 'text-slate-400'}>
+                          {typeof currentWorker.salary === 'number' ? `-${currentWorker.dailySalary?.toFixed(2)} BTC/d` : '—'}
+                        </strong>
                       </div>
-                      <div className="flex justify-between items-center pt-1 text-slate-900 font-bold border-t border-slate-200">
-                        <span>Net Contribution:</span>
-                        <span className={`font-black ${currentWorker.netContribution > 0 ? 'text-emerald-500' : currentWorker.netContribution < 0 ? 'text-red-500' : 'text-blue-500'}`}>
-                          {currentWorker.netContribution >= 0 ? '+' : ''}{currentWorker.netContribution.toFixed(2)} BTC/d
-                        </span>
-                      </div>
+                      {currentWorker.traits && currentWorker.traits.length > 0 && (
+                        <div className="flex justify-between items-start">
+                          <span>Traits:</span>
+                          <strong className="text-purple-700 text-right">
+                            {currentWorker.traits.join(', ')}
+                          </strong>
+                        </div>
+                      )}
+   </div>
 
                       <button
                         type="button"
@@ -1152,44 +902,14 @@ export default function CompanyPortfolio({
                         <span>↗</span>
                       </button>
                     </div>
-                  </div>
                 ) : (
-                  <div className="bg-slate-50/70 p-4 space-y-3 flex flex-col justify-between flex-1">
-                    {activeCompany.workOfferData ? (
-                      <div className="space-y-2 font-mono text-[11px] flex-1 flex flex-col justify-between">
-                        <div className="flex items-center justify-between font-sans pb-1.5">
-                          <span className="font-bold text-amber-900 flex items-center gap-1.5 text-xs">
-                            <Briefcase className="w-3.5 h-3.5 text-amber-700" />
-                            <span>Job Opening</span>
-                          </span>
-                          <span className="font-bold text-amber-950 font-mono text-xs">
-                            {activeCompany.workOfferData.wage?.toFixed(3)}/PP
-                          </span>
-                        </div>
-                        <div className="space-y-1.5 flex-1 flex flex-col justify-around">
-                          <div className="flex justify-between">
-                            <span>Open Slots:</span>
-                            <strong className="text-slate-900">{activeCompany.workOfferData.quantity} spots</strong>
-                          </div>
-                          <div className="flex justify-between">
-                            <span>Min Energy:</span>
-                            <strong className="text-slate-900">Lv.{activeCompany.workOfferData.minEnergy || 0}</strong>
-                          </div>
-                          <div className="flex justify-between">
-                            <span>Min Prod:</span>
-                            <strong className="text-slate-900">Lv.{activeCompany.workOfferData.minProduction || 0}</strong>
-                          </div>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="h-full flex flex-col justify-center items-center text-center p-3 text-slate-400 space-y-1">
-                        <Users className="w-6 h-6 text-slate-300 stroke-[1.5]" />
-                        <span className="text-xs font-bold text-slate-600 block">Unstaffed Facility</span>
-                        <p className="text-[11px] text-slate-400 font-sans max-w-[200px]">
-                          Automated Engine delivers {activeCompany.engineTier.ppPerHour * 24} PP/day at 0 wage cost.
-                        </p>
-                      </div>
-                    )}
+                  <div className="bg-slate-50/70 p-4 flex flex-col justify-center items-center text-center flex-1 space-y-1.5">
+                    <Users className="w-6 h-6 text-slate-300 stroke-[1.5]" />
+                    <span className="text-xs font-bold text-slate-600 block">No Employees</span>
+                    <p className="text-[11px] text-slate-400 font-sans max-w-[200px]">
+                      Break Room Lv.{activeCompany.breakRoomLevel ?? 0} — up to {activeCompany.maxEmployees ?? 0} employee{(activeCompany.maxEmployees ?? 0) === 1 ? '' : 's'}.
+                      Engine delivers {(activeCompany.engineTier?.ppPerHour ? activeCompany.engineTier.ppPerHour * 24 : 24)} PP/day at 0 cost.
+                    </p>
                   </div>
                 )}
               </div>
@@ -1199,30 +919,20 @@ export default function CompanyPortfolio({
                 <div className="bg-slate-50/70 p-3 font-mono text-xs text-slate-600 space-y-1.5">
                   <div className="flex items-center justify-between pb-1 font-sans">
                     <span className="text-[11px] font-bold text-slate-800 uppercase tracking-wide">
-                      Combined Workforce ({activeCompany.enrichedWorkers.length} Workers)
+                      Combined Workforce ({activeCompany.enrichedWorkers.length} Employees)
                     </span>
-                    <span className={`font-black text-xs ${combinedWorkforceStats.combinedNet > 0 ? 'text-emerald-500' : combinedWorkforceStats.combinedNet < 0 ? 'text-red-500' : 'text-blue-500'}`}>
-                      Net: {combinedWorkforceStats.combinedNet >= 0 ? '+' : ''}{combinedWorkforceStats.combinedNet.toFixed(2)}/day
+                    <span className="font-black text-xs text-slate-700">
+                      Total Prod: {combinedWorkforceStats.totalProduction.toFixed(1)}
                     </span>
                   </div>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center text-xs">
+                  <div className="grid grid-cols-2 gap-2 text-center text-xs">
                     <div className="p-1.5">
-                      <span className="text-[10px] text-slate-400 block font-sans">Daily PP</span>
-                      <strong className="text-slate-900 font-mono">{combinedWorkforceStats.combinedDailyPp.toFixed(1)}</strong>
+                      <span className="text-[10px] text-slate-400 block font-sans">Total Production</span>
+                      <strong className="text-slate-900 font-mono">{combinedWorkforceStats.totalProduction.toFixed(1)}</strong>
                     </div>
                     <div className="p-1.5">
-                      <span className="text-[10px] text-slate-400 block font-sans">Daily Output</span>
-                      <strong className="text-slate-900 font-mono">{combinedWorkforceStats.combinedUnits.toFixed(2)} u/d</strong>
-                    </div>
-                    <div className="p-1.5">
-                      <span className="text-[10px] text-slate-400 block font-sans">Total Wages</span>
-                      <strong className={`${combinedWorkforceStats.combinedWages > 0 ? 'text-red-500' : 'text-blue-500'} font-mono`}>-{combinedWorkforceStats.combinedWages.toFixed(2)}/d</strong>
-                    </div>
-                    <div className="p-1.5">
-                      <span className="text-[10px] text-slate-400 block font-sans">Net Cashflow</span>
-                      <strong className={`font-mono ${combinedWorkforceStats.combinedNet > 0 ? 'text-emerald-500' : combinedWorkforceStats.combinedNet < 0 ? 'text-red-500' : 'text-blue-500'}`}>
-                        +{combinedWorkforceStats.combinedNet.toFixed(2)}/d
-                      </strong>
+                      <span className="text-[10px] text-slate-400 block font-sans">Daily Salaries</span>
+                      <strong className="text-red-500 font-mono">-{combinedWorkforceStats.combinedDailySalary.toFixed(2)}/d</strong>
                     </div>
                   </div>
                 </div>
@@ -1385,285 +1095,6 @@ export default function CompanyPortfolio({
 
             </div>
 
-          </div>
-
-          {/* 3. BOTTOM SECTION: SUPPLY CHAIN */}
-          <div className="bg-white p-6 space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <h3 className="text-xl font-black text-slate-900 font-sans tracking-tight">
-                  Supply Chain
-                </h3>
-                <p className="text-xs text-slate-500 font-sans">
-                  Raw material sourcing assumptions for this facility
-                </p>
-              </div>
-            </div>
-
-            {activeCompany.rawInputsBreakdown.length === 0 ? (
-              <div className="bg-slate-50/70 p-5 space-y-3 font-sans">
-                <div className="flex items-center space-x-2">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                  <span className="font-extrabold text-slate-900 text-sm">Natural Resource Extraction Ledger</span>
-                </div>
-                <p className="text-xs text-slate-500">
-                  This facility extracts commodities directly from regional deposits. Daily output is valued at live exchange spot price ({activeCompany.spotPrice.toFixed(3)} BTC) and services your portfolio's supply pipeline.
-                </p>
-
-                <div className="space-y-2 pt-3 border-t border-slate-200/60 font-mono text-xs">
-                  <div className="flex justify-between items-center text-slate-700">
-                    <span className="font-bold text-slate-800">Base Production:</span>
-                    <strong className="text-slate-900 font-sans">
-                      {activeCompany.baseUnits.toFixed(1)} units/day
-                    </strong>
-                  </div>
-
-                  <div className="flex justify-between items-center text-slate-700">
-                    <span>Base Revenue / day:</span>
-                    <strong className="text-slate-900 font-sans">
-                      +{(activeCompany.baseUnits * activeCompany.spotPrice).toFixed(2)} BTC/day
-                    </strong>
-                  </div>
-
-                  <div className="flex justify-between items-center text-slate-700">
-                    <span>Costs of Raw Material / day:</span>
-                    <strong className="text-slate-400 font-sans">
-                      0.00 BTC/day (Natural Extraction)
-                    </strong>
-                  </div>
-
-                  <div className="flex justify-between items-center text-slate-700">
-                    <span>Base Salaries Paid / day:</span>
-                    <strong className={activeCompany.dailyLaborExpense > 0 ? "text-red-500 font-sans" : "text-blue-500 font-sans"}>
-                      {activeCompany.dailyLaborExpense > 0 ? `-${activeCompany.dailyLaborExpense.toFixed(2)}` : '0.00'} BTC/day
-                    </strong>
-                  </div>
-
-                  <div className="flex justify-between items-center text-slate-700">
-                    <span>Internal Facility Feed:</span>
-                    <strong className="text-emerald-500 font-sans">
-                      {activeCompany.internalSupplied ? activeCompany.internalSupplied.toFixed(1) : '0.0'} units/day (+{(activeCompany.internalTransferValue || 0).toFixed(2)} BTC transfer credit)
-                    </strong>
-                  </div>
-
-                  <div className="flex justify-between items-center text-slate-700">
-                    <span>Commercial Market Surplus:</span>
-                    <strong className="text-slate-900 font-sans">
-                      {activeCompany.externalMarketUnits ? activeCompany.externalMarketUnits.toFixed(1) : activeCompany.baseUnits.toFixed(1)} units/day (+{((activeCompany.externalMarketUnits ?? activeCompany.baseUnits) * activeCompany.spotPrice).toFixed(2)} BTC market sales)
-                    </strong>
-                  </div>
-
-                  <div className="flex justify-between items-center pt-1 border-t border-slate-200/60 text-slate-900 font-bold">
-                    <span>Base Profit / day:</span>
-                    <div className="text-right">
-                      <span className={`font-black font-sans text-sm block ${activeCompany.baseNetProfit > 0 ? 'text-emerald-500' : activeCompany.baseNetProfit < 0 ? 'text-red-500' : 'text-blue-500'}`}>
-                        {activeCompany.baseNetProfit >= 0 ? '+' : ''}{activeCompany.baseNetProfit.toFixed(2)} BTC/day
-                      </span>
-                    </div>
-                  </div>
-
-                  {activeCompany.downstreamConsumers && activeCompany.downstreamConsumers.length > 0 ? (
-                    <div className="pt-2 border-t border-slate-200/60 text-xs font-sans space-y-1.5">
-                      <div className="flex items-center justify-between text-slate-600">
-                        <span className="font-bold text-emerald-800">Internal Supply Status:</span>
-                        <span className="text-[11px] text-slate-500 font-mono">Offset against downstream costs</span>
-                      </div>
-                      <div className="flex items-center flex-wrap gap-2 pt-1">
-                        <span className="text-slate-500 text-xs">Supplying your facilities:</span>
-                        {activeCompany.downstreamConsumers.map(dc => (
-                          <button
-                            key={dc.id}
-                            type="button"
-                            onClick={() => setSelectedCompanyId(dc.id)}
-                            className="inline-flex items-center gap-1 font-bold text-blue-600 hover:text-blue-800 hover:underline bg-blue-50 px-2 py-0.5 transition cursor-pointer"
-                            title={`Switch to ${dc.name}`}
-                          >
-                            <span>{dc.name}</span>
-                            <span className="text-[10px] text-blue-500 font-mono">({dc.recipeName} • {dc.dailyNeeded?.toFixed(0)} u/d)</span>
-                            <span className="text-[10px] opacity-70 font-mono">→</span>
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="pt-2 border-t border-slate-200/60 text-xs text-slate-600 font-sans">
-                      <span>100% of production is available for market export or strategic stockpile accumulation.</span>
-                    </div>
-                  )}
-                </div>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {/* Finished Goods Base Breakdown Banner */}
-                <div className="bg-slate-50 p-4 border border-slate-200/80 space-y-2">
-                  <div className="flex items-center justify-between pb-1.5 border-b border-slate-200/60 font-sans">
-                    <span className="font-extrabold text-slate-900 text-sm">Finished Goods Base Production & Sourcing Summary</span>
-                    <span className="text-xs font-mono font-bold text-slate-600">Standard Baseline</span>
-                  </div>
-                  <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 font-mono text-xs">
-                    <div>
-                      <span className="text-[10px] text-slate-400 block font-sans">Base Production</span>
-                      <strong className="text-slate-900">{activeCompany.baseUnits.toFixed(1)} u/d</strong>
-                    </div>
-                    <div>
-                      <span className="text-[10px] text-slate-400 block font-sans">Base Revenue</span>
-                      <strong className="text-emerald-500 font-mono">+{activeCompany.grossRevenue.toFixed(2)} BTC/d</strong>
-                    </div>
-                    <div>
-                      <span className="text-[10px] text-slate-400 block font-sans">Raw Material Costs</span>
-                      <strong className={`${activeCompany.dailyRawExpenseTotal > 0 ? 'text-red-500' : 'text-blue-500'} font-mono`}>-{activeCompany.dailyRawExpenseTotal.toFixed(2)} BTC/d</strong>
-                    </div>
-                    <div>
-                      <span className="text-[10px] text-slate-400 block font-sans">Base Salaries Paid</span>
-                      <strong className={`${activeCompany.dailyLaborExpense > 0 ? "text-red-500" : "text-blue-500"} font-mono`}>
-                        {activeCompany.dailyLaborExpense > 0 ? `-${activeCompany.dailyLaborExpense.toFixed(2)}` : '0.00'} BTC/d
-                      </strong>
-                    </div>
-                    <div>
-                      <span className="text-[10px] text-slate-400 block font-sans">Base Profit</span>
-                      <strong className={`${activeCompany.baseNetProfit > 0 ? 'text-emerald-500 font-bold' : activeCompany.baseNetProfit < 0 ? 'text-red-500 font-bold' : 'text-blue-500 font-bold'} font-mono`}>
-                        {activeCompany.baseNetProfit >= 0 ? '+' : ''}{activeCompany.baseNetProfit.toFixed(2)} BTC/d
-                      </strong>
-                    </div>
-                  </div>
-                  {(activeCompany.totalCostAvoided || 0) > 0 && (
-                    <div className="pt-1.5 border-t border-slate-200/50 flex justify-between items-center text-xs font-mono text-emerald-500">
-                      <span>In-House Sourcing Cost Avoidance:</span>
-                      <strong>+{activeCompany.totalCostAvoided.toFixed(2)} BTC/day saved (Adjusted Net: +{activeCompany.adjustedNetProfit.toFixed(2)} BTC/d)</strong>
-                    </div>
-                  )}
-                </div>
-
-                {activeCompany.rawInputsBreakdown.map(inp => (
-                  <div key={inp.id} className="bg-slate-50/70 p-4 space-y-3">
-                    
-                    {/* Header: Commodity & Sourcing Control */}
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                      <div className="flex items-center space-x-3">
-                        <ItemIcon itemCode={inp.id} size={32} />
-                        <div>
-                          <span className="font-extrabold text-slate-900 text-base block font-sans">{inp.name}</span>
-                          <span className="text-xs text-slate-500 font-mono">
-                            Market Price: <strong className="text-slate-800">{inp.unitMarketPrice.toFixed(3)}</strong>
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* Checkbox of whether raw material company is available/insourced */}
-                      <div className="flex items-center space-x-3 self-start sm:self-auto">
-                        <label className={`flex items-center space-x-2.5 px-3.5 py-2 transition select-none ${
-                          inp.hasOwnedCompany ? 'cursor-pointer bg-white hover:bg-slate-50' : 'cursor-not-allowed bg-slate-100 opacity-60'
-                        }`}>
-                          <input
-                            type="checkbox"
-                            checked={inp.isInsourced}
-                            disabled={!inp.hasOwnedCompany}
-                            onChange={(e) => {
-                              if (!inp.hasOwnedCompany) return;
-                              const key = `${activeCompany.id || activeCompany._id}_${inp.id}`;
-                              setInsourceOverrides(prev => ({
-                                ...prev,
-                                [key]: e.target.checked
-                              }));
-                            }}
-                            className={`w-4 h-4 text-emerald-600 focus:ring-emerald-500 accent-emerald-600 ${
-                              inp.hasOwnedCompany ? 'cursor-pointer' : 'cursor-not-allowed'
-                            }`}
-                          />
-                          <span className="text-xs font-bold text-slate-800 font-sans">
-                            {inp.hasOwnedCompany 
-                              ? (inp.isInsourced ? 'Insourced (Default)' : 'Buy from Market')
-                              : 'Buy from Market'}
-                          </span>
-                        </label>
-
-                        <span className={`text-xs font-mono font-bold px-2.5 py-1 ${
-                          inp.isInsourced 
-                            ? 'bg-emerald-100 text-emerald-800' 
-                            : (inp.hasOwnedCompany ? 'bg-slate-200 text-slate-700' : 'bg-slate-200 text-slate-600')
-                        }`}>
-                          {inp.isInsourced ? `Insourced (+${inp.savingsCoins.toFixed(1)} C saved)` : (inp.hasOwnedCompany ? 'Market Purchase' : 'Market (No Facility)')}
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Asset Valuation Breakdown Structure */}
-                    <div className="space-y-2 font-mono text-xs text-slate-600">
-                      <div className="flex justify-between items-center">
-                        <span>Daily Required by Facility:</span>
-                        <strong className="text-slate-900 font-sans">
-                          {inp.totalUnitsNeededDaily.toFixed(1)} units/day
-                          <span className="text-[11px] font-normal text-slate-500 ml-1">
-                            ({inp.qtyNeededPerUnit} per {activeCompany.recipe.name})
-                          </span>
-                        </strong>
-                      </div>
-
-                      <div className="flex justify-between items-center">
-                        <span>Market Unit Price:</span>
-                        <strong className="text-slate-900">{inp.unitMarketPrice.toFixed(3)}</strong>
-                      </div>
-
-                      <div className="flex justify-between items-center">
-                        <span>Sourcing Breakdown:</span>
-                        {inp.isInsourced ? (
-                          <div className="text-right">
-                            <span className="text-emerald-700 font-bold font-sans">
-                              {inp.unitsTransferred.toFixed(1)} units Internally Supplied (+{inp.savingsCoins.toFixed(2)} BTC saved)
-                            </span>
-                            {inp.deficitUnits > 0 && (
-                              <div className="text-[11px] text-amber-700 font-sans">
-                                + {inp.deficitUnits.toFixed(1)} units bought from market (-{inp.dailyRawExpense.toFixed(2)} BTC)
-                              </div>
-                            )}
-                            {inp.rawProducerCompanies.length > 0 && (
-                              <div className="text-[11px] text-slate-500 font-sans pt-0.5">
-                                ↳ Secured by{' '}
-                                {inp.rawProducerCompanies.map(sc => (
-                                  <button
-                                    key={sc.id || sc.companyId}
-                                    type="button"
-                                    onClick={() => setSelectedCompanyId(sc.id || sc.companyId)}
-                                    className="font-bold text-blue-600 hover:text-blue-800 hover:underline cursor-pointer inline-flex items-center gap-0.5 ml-1"
-                                  >
-                                    <span>{sc.name}</span>
-                                    <span>↗</span>
-                                  </button>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                        ) : (
-                          <span className="text-slate-700 font-sans text-right">
-                            <span>Market ({inp.totalUnitsNeededDaily.toFixed(1)} units @ {inp.unitMarketPrice.toFixed(3)})</span>
-                            {!inp.hasOwnedCompany && (
-                              <span className="text-[11px] text-slate-400 block font-normal">
-                                (No owned producer — purchase required)
-                              </span>
-                            )}
-                          </span>
-                        )}
-                      </div>
-
-                      <div className="flex justify-between items-center pt-2 text-slate-900 font-bold">
-                        <span>Daily Raw Material Cash Outflow:</span>
-                        <div className="text-right">
-                          <span className={`font-black text-sm block ${inp.dailyRawExpense > 0 ? 'text-red-500' : 'text-blue-500'}`}>
-                            {inp.dailyRawExpense > 0 ? `-${inp.dailyRawExpense.toFixed(2)}/day` : '0.00/day (100% Insourced)'}
-                          </span>
-                          {inp.isInsourced && inp.savingsCoins > 0 && (
-                            <span className="text-[11px] text-emerald-500 font-normal font-sans">
-                              Offset against owned raw producer output (+{inp.savingsCoins.toFixed(2)} BTC/day internal savings)
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-
-                  </div>
-                ))}
-              </div>
-            )}
           </div>
         </div>
       )}

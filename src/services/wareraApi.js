@@ -1,4 +1,4 @@
-// WarEra tRPC API Client
+// WarEra tRPC API Client — updated for v0.27+ employee system
 
 const DEFAULT_TOKEN = 'wae_7152c6d478d157069e449cf27f377458bafc5133686f8c222252af4b8828f09e';
 
@@ -29,16 +29,8 @@ export const FALLBACK_PRICES = {
   woodenCase: 6.51
 };
 
-// Live in-game allowed wage statistics fallback (from workOffer.getWageStats)
-export const FALLBACK_WAGE_STATS = {
-  allowedRange: {
-    min: 0.117,
-    max: 0.176,
-    average: 0.1462876611051946
-  },
-  topOffer: 0.169,
-  topEligibleOffer: 0.155
-};
+// NOTE: workOffer endpoints were removed in v0.27+. Wages are now calculated from
+// employee stats: (baseProduction + trainedProduction) / 4 * marketValue * wageExpectation
 
 export class WarEraService {
   constructor(token = null) {
@@ -363,6 +355,27 @@ export class WarEraService {
     }
   }
 
+  async getCompanyEmployees(companyId) {
+    if (!companyId) return [];
+    try {
+      const data = await this.callTrpc('employee.getCompanyEmployees', { companyId });
+      return Array.isArray(data) ? data : [];
+    } catch (e) {
+      console.warn(`Failed to fetch employees for company ${companyId}:`, e.message);
+      return [];
+    }
+  }
+
+  async getMyEmployees() {
+    try {
+      const data = await this.callTrpc('employee.getMyEmployees', {});
+      return Array.isArray(data) ? data : [];
+    } catch (e) {
+      console.warn('Failed to fetch my employees:', e.message);
+      return [];
+    }
+  }
+
   async getCompanyById(companyId) {
     try {
       return await this.callTrpc('company.getById', { companyId });
@@ -371,66 +384,72 @@ export class WarEraService {
     }
   }
 
-  async enrichWorkersList(workers = []) {
-    return await Promise.all(workers.map(async (w, idx) => {
-      let workerUser = null;
-      if (w.user) {
-        workerUser = await this.getUserLite(w.user);
-      }
-      const prodLevel = typeof workerUser?.skills?.production?.level === 'number' 
-        ? workerUser.skills.production.level 
-        : 0;
-      const prodTotal = workerUser?.skills?.production?.value 
-        || workerUser?.skills?.production?.total 
-        || (10 + prodLevel * 3);
+  /**
+   * Enriches employee objects from the v0.27+ live game API.
+   * Standard in-game conversion: Market Value per PP = 0.09566 BTC.
+   * Profit = Production Value - Salary
+   */
+  enrichEmployees(rawEmployees = [], companyContext = {}) {
+    if (!Array.isArray(rawEmployees) || rawEmployees.length === 0) return [];
+    const MARKET_VALUE_PER_PP = 0.09566;
 
-      const energyLevel = typeof workerUser?.skills?.energy?.level === 'number' 
-        ? workerUser.skills.energy.level 
-        : (typeof workerUser?.skills?.stamina?.level === 'number' ? workerUser.skills.stamina.level : 0);
-      const energyTotal = workerUser?.skills?.energy?.value 
-        || workerUser?.skills?.energy?.total 
-        || (30 + energyLevel * 10);
+    return rawEmployees.map((e, idx) => {
+      const hourlyWage = typeof e.wage === 'number' ? e.wage : (typeof e.estimate?.wage === 'number' ? e.estimate.wage : (typeof e.salary === 'number' ? e.salary : 0));
+      const hourlyOutputPp = typeof e.estimate?.production === 'number' ? e.estimate.production : 0;
+      const dailyOutputPp = hourlyOutputPp * 24;
+      const dailyWage = hourlyWage * 24;
+      const dailyProductionValue = dailyOutputPp * MARKET_VALUE_PER_PP;
+      const dailyProfit = dailyProductionValue - dailyWage;
 
-      // Natural 24h energy regeneration capacity:
-      // In WarEra, energy regenerates at 10% per hour = 2.4 * max stamina per 24 hours.
-      // Each work session costs 10 energy points => daily sessions = 0.24 * energyTotal
-      const dailySessions = Number((energyTotal * 0.24).toFixed(2));
-      const contractedWage = typeof w.wage === 'number' ? w.wage : 0.146;
-      const loyalty = typeof w.fidelity === 'number' ? w.fidelity : 0;
+      const baseProd = e.base?.production ?? e.baseProduction ?? 0;
+      const trainedProd = e.trained?.production ?? e.trainedProduction ?? 0;
+      const luck = (e.base?.luck ?? 0) + (e.trained?.luck ?? 0);
+      const resp = (e.base?.responsibility ?? 0) + (e.trained?.responsibility ?? 0);
 
       return {
-        id: w._id || `w-${idx}`,
-        userId: w.user,
-        username: workerUser?.username || `Worker #${idx + 1}`,
-        avatarUrl: workerUser?.avatarUrl || null,
-        level: workerUser?.leveling?.level || 1,
-        productionSkill: prodLevel,
-        productionPointsBase: prodTotal,
-        energySkill: energyLevel,
-        energyPointsTotal: energyTotal,
-        dailySessions,
-        workSessionsPerDay: dailySessions,
-        loyaltyBonus: loyalty,
-        fidelity: loyalty,
-        wage: contractedWage,
-        wagePerPp: contractedWage,
-        joinedAt: w.joinedAt,
-        employer: w.employer,
-        companyId: w.company,
-        isRealPlayer: true
-      };
-    }));
-  }
+        id: e._id || `emp-${idx}`,
+        _id: e._id,
+        name: e.name || `Employee #${idx + 1}`,
+        username: e.name || `Employee #${idx + 1}`,
+        gender: e.gender || 'male',
+        age: typeof e.age === 'number' ? e.age : 30,
+        avatarUrl: null,
+        level: null,
 
-  async getCompanyWorkers(companyId) {
-    try {
-      const res = await this.callTrpc('worker.getWorkers', { companyId });
-      const workers = res?.workers || [];
-      return await this.enrichWorkersList(workers);
-    } catch (e) {
-      console.warn(`Failed to fetch workers for company ${companyId}:`, e.message);
-      return [];
-    }
+        // Production & Stats
+        baseProduction: baseProd,
+        trainedProduction: trainedProd,
+        luck,
+        responsibility: resp,
+        traits: Array.isArray(e.traits) ? e.traits : [],
+        potential: typeof e.potential === 'number' ? e.potential : null,
+        potentialMax: typeof e.potentialMax === 'number' ? e.potentialMax : null,
+        wageExpectation: typeof e.wageExpectation === 'number' ? e.wageExpectation : 1.0,
+
+        // Compensation & Financials
+        wage: hourlyWage,
+        salary: hourlyWage,               // BTC/hr
+        dailyWage,                        // BTC/day
+        dailySalary: dailyWage,
+        hourlyOutputPp,                   // PP/hr
+        dailyOutputPp,                    // PP/day
+        dailyProductionValue,             // BTC/day
+        dailyProfit,                      // BTC/day
+
+        // Status & Morale
+        happiness: typeof e.happinessBreakdown?.value === 'number' ? e.happinessBreakdown.value : (typeof e.happiness === 'number' ? e.happiness : 50),
+        productionBonus: typeof e.productionBonus?.total === 'number' ? e.productionBonus.total : (typeof e.productionBonus === 'number' ? e.productionBonus : 0),
+        tool: e.toolItem || null,
+        toolStatus: e.toolStatus || null,
+        specializations: e.specializations || {},
+
+        // Context
+        companyId: companyContext.id || e.company || null,
+        companyName: companyContext.name || null,
+        companyItemCode: companyContext.itemCode || null,
+        _raw: e
+      };
+    });
   }
 
   async getRegionById(regionId) {
@@ -441,13 +460,8 @@ export class WarEraService {
     }
   }
 
-  async getWorkOfferById(workOfferId) {
-    try {
-      return await this.callTrpc('workOffer.getById', { workOfferId });
-    } catch (e) {
-      return null;
-    }
-  }
+
+  // workOffer.getById removed in v0.27 — work offers replaced by embedded employee system
 
   async getCompanyProductionBonus(companyId) {
     try {
@@ -459,17 +473,19 @@ export class WarEraService {
     }
   }
 
-  async getCompanyFull(companyId, ownerUser = null, preloadedWorkers = null) {
+  async getCompanyFull(companyId, ownerUser = null) {
     try {
       const comp = await this.getCompanyById(companyId);
       if (!comp) return null;
 
-      const [workers, regionData, workOfferData, productionBonusData] = await Promise.all([
-        preloadedWorkers ? this.enrichWorkersList(preloadedWorkers) : this.getCompanyWorkers(companyId),
+      // v0.27+: fetch actual company employees from employee.getCompanyEmployees
+      const [rawEmployees, regionData, productionBonusData] = await Promise.all([
+        this.getCompanyEmployees(companyId),
         comp.region ? this.getRegionById(comp.region) : null,
-        comp.workOffer ? this.getWorkOfferById(comp.workOffer) : null,
         this.getCompanyProductionBonus(companyId)
       ]);
+
+      const employees = this.enrichEmployees(rawEmployees, { id: companyId, name: comp.name, itemCode: comp.itemCode });
 
       let owner = ownerUser;
       if (!owner && comp.user) {
@@ -482,28 +498,34 @@ export class WarEraService {
 
       const countryId = regionData?.country || comp.country;
       const countryData = countryId ? await this.getCountryById(countryId) : null;
+      // v0.27+: country taxes shape is { income, market, manager } (manager replaced selfWork)
       const incomeTaxPct = typeof countryData?.taxes?.income === 'number' ? countryData.taxes.income : 9.0;
+      const managerTaxPct = typeof countryData?.taxes?.manager === 'number' ? countryData.taxes.manager : 0;
+      const breakRoomLevel = comp.activeUpgradeLevels?.breakRoom ?? 0;
 
       return {
         ...comp,
         id: comp._id,
-        workers: workers || [],
-        workerCount: (workers || []).length,
+        breakRoomLevel,
+        maxEmployees: Math.min(breakRoomLevel, 3),
+        employees: employees || [],
+        workers: employees || [],   // alias for compat
+        workerCount: (employees || []).length,
         regionName: regionData?.name || 'Regional Sector',
         countryCode: regionData?.countryCode?.toUpperCase() || 'HQ',
         mainCity: regionData?.mainCity || '',
         regionData: regionData || null,
         countryData: countryData || null,
-        countryTaxes: countryData?.taxes || { income: 9, market: 1, selfWork: 1 },
+        countryTaxes: countryData?.taxes || { income: 9, market: 1, manager: 0 },
         incomeTaxPct,
-        workOfferData: workOfferData || null,
+        managerTaxPct,
         productionBonusData: productionBonusData || null,
         productionBonus: totalBonusPct,
         totalBonusPct: totalBonusPct,
         strategicBonus: productionBonusData?.strategicBonus ?? 0,
         depositBonusPct: productionBonusData?.depositBonus ?? 0,
         ethicBonusPct: productionBonusData?.ethicSpecializationBonus ?? 0,
-        countryBonusPct: productionBonusData?.strategicBonus ?? 5.5,
+        countryBonusPct: productionBonusData?.strategicBonus ?? 0,
         hasDepositBonus: (productionBonusData?.depositBonus ?? 0) > 0,
         ownerUsername: owner?.username || 'Unknown',
         ownerId: owner?._id || comp.user,
@@ -516,21 +538,29 @@ export class WarEraService {
     }
   }
 
-  async getUserCompanies(userId, ownerUser = null, workersMap = null) {
+  async getUserCompanies(userId, ownerUser = null) {
     try {
-      const res = await this.callTrpc('company.getCompanies', { userId, perPage: 100 });
-      const companyIds = res?.items || [];
-      if (companyIds.length === 0) return [];
+      const allCompanyIds = [];
+      let cursor = undefined;
+      while (true) {
+        const res = await this.callTrpc('company.getCompanies', { userId, cursor });
+        if (!res || !Array.isArray(res.items)) break;
+        allCompanyIds.push(...res.items);
+        if (!res.nextCursor) break;
+        cursor = res.nextCursor;
+      }
+
+      if (allCompanyIds.length === 0) return [];
       
-      // Fetch full company details, real live workers, region info, and work offer for each
+      // Fetch full company details (employees now retrieved via employee.getCompanyEmployees)
       const companies = await Promise.all(
-        companyIds.slice(0, 50).map(async (cid) => {
-          const preloaded = workersMap ? (workersMap.get(cid.toString()) || workersMap.get(cid) || null) : null;
-          return await this.getCompanyFull(cid, ownerUser, preloaded);
+        allCompanyIds.map(async (cid) => {
+          return await this.getCompanyFull(cid, ownerUser);
         })
       );
       return companies.filter(Boolean);
     } catch (e) {
+      console.warn('Failed to fetch user companies:', e.message);
       return [];
     }
   }
@@ -551,38 +581,8 @@ export class WarEraService {
     }
   }
 
-  async getWageStats() {
-    try {
-      const data = await this.callTrpc('workOffer.getWageStats', {});
-      if (data && data.allowedRange) {
-        return data;
-      }
-      return FALLBACK_WAGE_STATS;
-    } catch (e) {
-      console.warn('Failed to fetch live wage stats:', e.message);
-      return FALLBACK_WAGE_STATS;
-    }
-  }
-
-  async getWorkOffersPaginated(params = { limit: 20 }) {
-    try {
-      const data = await this.callTrpc('workOffer.getWorkOffersPaginated', params);
-      return data || null;
-    } catch (e) {
-      console.warn('Failed to fetch live work offers:', e.message);
-      return null;
-    }
-  }
-
-  async getWorkersByUser(userId) {
-    try {
-      const res = await this.callTrpc('worker.getWorkers', { userId });
-      return res?.workersPerCompany || [];
-    } catch (e) {
-      console.warn('Failed to fetch workers by user:', e.message);
-      return [];
-    }
-  }
+  // getWageStats(), getWorkOffersPaginated(), getWorkersByUser() all removed in v0.27+
+  // Wages and worker data are now handled via the embedded employee system
 
   /**
    * Universal User Resolver:
@@ -674,28 +674,14 @@ export class WarEraService {
       userId = valid[0]?._id || candidateIds[0];
     }
 
-    // Fetch user profile, equipment, totalWorkers, wageStats, and all workers grouped by company in parallel
-    const [userProfile, equipment, totalWorkers, wageStats, workersPerCompanyData] = await Promise.all([
+    // Fetch user profile and equipment in parallel
+    const [userProfile, equipment] = await Promise.all([
       this.getUserById(userId),
       this.getUserEquipment(userId),
-      this.getTotalWorkers(userId),
-      this.getWageStats(),
-      this.getWorkersByUser(userId)
     ]);
 
     if (!userProfile) {
       throw new Error(`User with ID ${userId} was not found on WarEra.`);
-    }
-
-    // Build company-to-workers map for instant, zero-failure worker assignment
-    const workersMap = new Map();
-    if (Array.isArray(workersPerCompanyData)) {
-      workersPerCompanyData.forEach(item => {
-        const cId = item.company?._id || item.company;
-        if (cId) {
-          workersMap.set(cId.toString(), item.workers || []);
-        }
-      });
     }
 
     // Resolve home region and current location
@@ -721,10 +707,10 @@ export class WarEraService {
       console.warn('Failed to resolve user regions:', e.message);
     }
 
-    // Fetch all user companies with preloaded workers map for 100% accuracy
-    const companies = await this.getUserCompanies(userId, userProfile, workersMap);
+    // Fetch all user companies — workers embedded in company docs (v0.27+)
+    const companies = await this.getUserCompanies(userId, userProfile);
 
-    // Ensure all companies have complete owner metadata and region information
+    // Ensure all companies have complete owner metadata
     const enrichedCompanies = (companies || []).map(comp => ({
       ...comp,
       ownerUsername: comp.ownerUsername || userProfile.username,
@@ -733,15 +719,13 @@ export class WarEraService {
       isRealGameCompany: true
     }));
 
-    const actualWorkersCount = enrichedCompanies.reduce((sum, c) => sum + (c.workers?.length || 0), 0);
-    const finalTotalWorkers = Math.max(actualWorkersCount, totalWorkers || 0);
+    const totalEmployees = enrichedCompanies.reduce((sum, c) => sum + (c.employees?.length || 0), 0);
 
     return {
       user: userProfile,
       companies: enrichedCompanies,
       equipment: equipment || null,
-      totalWorkers: finalTotalWorkers,
-      wageStats: wageStats || FALLBACK_WAGE_STATS
+      totalWorkers: totalEmployees,
     };
   }
 }

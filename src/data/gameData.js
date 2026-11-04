@@ -1,4 +1,4 @@
-// Game Configuration & Math Reference derived from WarEra Wiki & Game Engine
+// Game Configuration & Math Reference derived from WarEra Wiki & Live Game Engine (updated v0.27+)
 
 export const RECIPES = [
   // Raw Materials
@@ -26,7 +26,7 @@ export const RECIPES = [
   { id: 'heavyAmmo', name: 'Heavy Ammo', type: 'processed', pp: 16, inputs: [{ id: 'lead', qty: 16 }], totalPp: 32, category: 'Munitions', minLevel: 1, effect: 'High-damage combat ammunition' },
   { id: 'cocain', name: 'Combat Pill / Cocain', type: 'processed', pp: 200, inputs: [{ id: 'coca', qty: 200 }], totalPp: 400, category: 'Pharma', minLevel: 5, effect: '+80% Damage Buff for 1 hunger' },
   { id: 'pill', name: 'Combat Pill', type: 'processed', pp: 200, inputs: [{ id: 'coca', qty: 200 }], totalPp: 400, category: 'Pharma', minLevel: 5, effect: '+80% Damage Buff for 1 hunger' },
-  { id: 'paper', name: 'Paper', type: 'processed', pp: 2, inputs: [{ id: 'wood', qty: 2 }], totalPp: 4, category: 'Governance', minLevel: 1, effect: 'Required for Battle Orders, Alliances & Treaties' },
+  { id: 'paper', name: 'Paper', type: 'processed', pp: 1, inputs: [{ id: 'wood', qty: 1 }], totalPp: 2, category: 'Governance', minLevel: 1, effect: 'Required for Battle Orders, Alliances & Treaties' },
 ];
 
 export const SKILL_DEFINITIONS = [
@@ -43,9 +43,10 @@ export const SKILL_DEFINITIONS = [
   // Economic Skills
   { id: 'energy', name: 'Energy Bar', category: 'economy', unlockLevel: 1, baseValue: 30, step: 10, unit: ' pts', maxLevel: 10, desc: 'Worker stamina (consumes 10 pts/work session, regen 10%/hr)' },
   { id: 'companies', name: 'Companies', category: 'economy', unlockLevel: 1, baseValue: 2, step: 1, unit: ' owned', maxLevel: 10, desc: 'Maximum number of companies you can own' },
-  { id: 'management', name: 'Management', category: 'economy', unlockLevel: 10, baseValue: 4, step: 2, unit: ' slots', maxLevel: 10, desc: 'Maximum worker slots across your companies' },
+  { id: 'management', name: 'Management', category: 'economy', unlockLevel: 10, baseValue: 0, step: 1, unit: ' lvl', maxLevel: 10, desc: '+2% production bonus per level applied to every employee in all your companies. Also required to become a paid Manager for another company.' },
+  { id: 'leadership', name: 'Leadership', category: 'economy', unlockLevel: 1, baseValue: 0, step: 1, unit: ' lvl', maxLevel: 10, desc: 'Improves training card quality: +1% Uncommon, +0.6% Rare, +0.3% Epic, +0.1% Legendary per level.' },
   { id: 'entrepreneurship', name: 'Entrepreneurship', category: 'economy', unlockLevel: 1, baseValue: 30, step: 5, unit: ' pts', maxLevel: 10, desc: 'Stamina for self-working in your own companies' },
-  { id: 'production', name: 'Production', category: 'economy', unlockLevel: 1, baseValue: 10, step: 3, unit: ' PP/hit', maxLevel: 10, desc: 'Work efficiency: PP produced per work session' },
+  { id: 'production', name: 'Production', category: 'economy', unlockLevel: 1, baseValue: 10, step: 3, unit: ' PP/hit', maxLevel: 10, desc: 'Work efficiency: PP produced per work session (self-work only)' },
 
   // Special Skills
   { id: 'lootChance', name: 'Loot Chance', category: 'special', unlockLevel: 10, baseValue: 5, step: 2, unit: '%', maxLevel: 10, desc: 'Chance to loot Case (+1%/%) and Elite Case (+0.01%/%) per battle hit' }
@@ -70,6 +71,29 @@ export const STORAGE_UPGRADE_TIERS = [
   { level: 6, steel: 160, capacity: 1200 },
   { level: 7, steel: 320, capacity: 1400 },
 ];
+
+// Break Room upgrade tiers — unlocks employee slots per company (max 3 employees per company)
+export const BREAK_ROOM_TIERS = [
+  { level: 0, maxEmployees: 0, label: 'No Break Room' },
+  { level: 1, maxEmployees: 1, label: 'Break Room I' },
+  { level: 2, maxEmployees: 2, label: 'Break Room II' },
+  { level: 3, maxEmployees: 3, label: 'Break Room III' },
+];
+
+// Employee system capacity constants (v0.27+)
+export const EMPLOYEE_CAPS = {
+  maxPerCompany: 3,          // Hard cap: 3 employees per company (Break Room III)
+  maxCompaniesBase: 12,      // Companies skill Lv10 = 12 companies
+  maxCompaniesPrestige: 13,  // Prestige adds 1 more company slot
+  maxTotalBase: 36,          // 12 × 3
+  maxTotalPrestige: 39,      // 13 × 3
+};
+
+// Returns max employees allowed in a company given its Break Room level
+export function getBreakRoomCapacity(breakRoomLevel = 0) {
+  const tier = BREAK_ROOM_TIERS.find(t => t.level === breakRoomLevel);
+  return tier ? tier.maxEmployees : 0;
+}
 
 // Triangular skill points: cost to reach level N from (N-1) is N. Total cost = N*(N+1)/2.
 export function getSkillCostToLevel(targetLevel) {
@@ -99,9 +123,9 @@ export const ARCHETYPES = {
   tycoon: {
     id: 'tycoon',
     name: 'Industrial Tycoon',
-    tagline: 'Maximize business expansion, PP output, self-working and employee management.',
+    tagline: 'Maximize business expansion with companies, leadership-trained employees, and self-work.',
     icon: 'Factory',
-    priority: ['companies', 'production', 'entrepreneurship', 'energy', 'management'],
+    priority: ['companies', 'energy', 'leadership', 'management', 'entrepreneurship', 'production'],
     secondary: ['health', 'hunger', 'lootChance']
   },
   warlord: {

@@ -52,15 +52,15 @@ export default function EmployeeAuditModal({
   const incomeTaxPct = typeof worker.incomeTaxPct === 'number' ? worker.incomeTaxPct : 9.0;
 
   // 1. Worker Labor PP per session (what contracted wage is paid on)
-  const laborMultiplier = (1 + (loyalty / 100)) * (1 + (devPct / 100));
   const laborPpPerHit = typeof worker.laborPpPerHit === 'number'
     ? worker.laborPpPerHit
-    : Number((basePp * laborMultiplier).toFixed(2));
+    : basePp;
 
   // 2. Company Production PP per session (full factory yield delivered to facility)
+  const totalEffectiveBonusPct = compBonus + loyalty;
   const producedPpPerHit = typeof worker.producedPpPerHit === 'number'
     ? worker.producedPpPerHit
-    : Number((laborPpPerHit * (1 + (compBonus * 0.91 / 100))).toFixed(2));
+    : Number((basePp * (1 + (totalEffectiveBonusPct / 100))).toFixed(2));
 
   const dailyProducedPp = typeof worker.producedDailyPp === 'number' && worker.producedDailyPp > 0
     ? worker.producedDailyPp
@@ -249,8 +249,8 @@ export default function EmployeeAuditModal({
                 </strong>
               </div>
               <div className="flex justify-between">
-                <span>Regional Development Efficiency:</span>
-                <strong className="text-emerald-500 font-bold">+{devPct.toFixed(2)}%</strong>
+                <span>Regional Development:</span>
+                <strong className="text-slate-700 font-bold">+{devPct.toFixed(2)}%</strong>
               </div>
               <div className="flex justify-between pt-1 border-t border-slate-200 text-slate-900 font-bold">
                 <span>Worker Contract Labor Base:</span>
@@ -259,7 +259,7 @@ export default function EmployeeAuditModal({
                 </strong>
               </div>
               <div className="text-[11px] text-slate-400 bg-slate-50 p-2 border border-slate-100">
-                Formula: {basePp} base * (1 + {loyalty}%) * (1 + {devPct.toFixed(2)}%) = <strong>{laborPpPerHit.toFixed(2)} PP</strong> (basis for salary pay)
+                Formula: {basePp} base PP (contracted basis for salary pay)
               </div>
               <div className="flex justify-between pt-1">
                 <span>Facility Deposit & Production Bonus:</span>
@@ -272,7 +272,7 @@ export default function EmployeeAuditModal({
                 </strong>
               </div>
               <div className="text-[11px] text-slate-400 bg-slate-50 p-2 border border-slate-100">
-                Note: In WarEra, facility deposit bonuses enhance commodity output to company storage, while employee wages are contracted on labor PP.
+                Note: In WarEra, facility deposit bonuses (+{compBonus.toFixed(1)}%) and worker loyalty (+{loyalty}%) enhance commodity output to company storage, while employee wages are paid strictly on base labor PP.
               </div>
             </div>
           </div>
