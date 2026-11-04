@@ -580,31 +580,27 @@ export default function StockExchangeListing({
           </div>
         </div>
 
-        {/* Costs of Raw Material Per Day */}
+        {/* Average Labor Cost Per PP */}
         <div 
-          onClick={() => setActiveBreakdownMetric('rawCosts')}
+          onClick={() => setActiveBreakdownMetric('salaries')}
           className="bg-white p-4 space-y-1 border border-slate-200/80 hover:border-slate-400 hover:shadow-xs transition-all cursor-pointer group relative"
-          title="Click to view raw material costs per facility"
+          title="Click to view workforce payroll and average labor cost per PP"
         >
           <div className="flex items-center justify-between">
             <div className="text-slate-500 text-[11px] font-bold uppercase tracking-wider font-mono">
-              Raw Material Costs
+              Labor Cost / PP
             </div>
             <span className="text-[10px] text-slate-400 group-hover:text-amber-800 transition-colors font-mono flex items-center gap-0.5">
               Breakdown <ExternalLink className="w-2.5 h-2.5" />
             </span>
           </div>
-          <div className={`text-xl sm:text-2xl font-black font-mono ${marketOverview.totalBaseRawExpense > 0 ? 'text-red-500' : 'text-blue-500'}`}>
-            {marketOverview.totalBaseRawExpense > 0 
-              ? `-${marketOverview.totalBaseRawExpense.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}` 
-              : '0.0'}
-            <span className="text-xs font-normal text-slate-400 ml-1">/day</span>
+          <div className="text-xl sm:text-2xl font-black font-mono text-slate-900">
+            {(marketOverview.totalCompanyProducedPp > 0 ? (marketOverview.totalBaseLaborExpense / marketOverview.totalCompanyProducedPp) : 0).toFixed(3)}
+            <span className="text-xs font-normal text-slate-400 ml-1">BTC/PP</span>
           </div>
           <div className="text-[11px] text-slate-500 font-sans flex items-center justify-between">
-            <span>Factory input costs</span>
-            <span className={`text-[10px] font-mono ${marketOverview.hasBothRawAndFinished ? 'text-blue-500 font-bold' : 'text-slate-400'}`}>
-              {marketOverview.hasBothRawAndFinished ? 'Insourced (0 BTC)' : 'Spot purchases'}
-            </span>
+            <span>Workforce labor rate</span>
+            <span className="text-slate-400 text-[10px] font-mono">In-game avg</span>
           </div>
         </div>
 
@@ -656,31 +652,30 @@ export default function StockExchangeListing({
           </div>
         </div>
 
-        {/* Base Production (Standard) */}
+        {/* Operating Facilities */}
         <div 
-          onClick={() => setActiveBreakdownMetric('production')}
+          onClick={() => setActiveBreakdownMetric('valuation')}
           className="bg-white p-4 space-y-1 border border-slate-200/80 hover:border-slate-400 hover:shadow-xs transition-all cursor-pointer group relative"
-          title="Click to view physical output units breakdown"
+          title="Click to view all enterprise facilities"
         >
           <div className="flex items-center justify-between">
             <div className="text-slate-500 text-[11px] font-bold uppercase tracking-wider font-mono">
-              Base Production
+              Operating Facilities
             </div>
             <span className="text-[10px] text-slate-400 group-hover:text-amber-800 transition-colors font-mono flex items-center gap-0.5">
               Breakdown <ExternalLink className="w-2.5 h-2.5" />
             </span>
           </div>
           <div className="text-xl sm:text-2xl font-black font-mono text-slate-900">
-            {marketOverview.totalBaseDailyUnits.toFixed(1)} <span className="text-xs font-normal text-slate-400">units/day</span>
+            {companies.length} <span className="text-xs font-normal text-slate-400">Facilities</span>
           </div>
           <div className="text-[11px] text-slate-500 font-sans flex items-center justify-between">
-            <span>Raw: {marketOverview.totalRawBaseUnits.toFixed(1)}</span>
-            <span>•</span>
-            <span>Finished: {marketOverview.totalFinishedBaseUnits.toFixed(1)}</span>
+            <span>Active enterprises</span>
+            <span className="text-emerald-700 font-bold font-mono">100% operational</span>
           </div>
         </div>
 
-        {/* Total Enterprise PP (Inclusive of Self-Work PP) */}
+        {/* Total Enterprise PP (Workforce Daily PP) */}
         <div 
           onClick={() => setActiveBreakdownMetric('pp')}
           className="bg-white p-4 space-y-1 border border-slate-200/80 hover:border-slate-400 hover:shadow-xs transition-all cursor-pointer group relative"
@@ -694,11 +689,15 @@ export default function StockExchangeListing({
               Breakdown <ExternalLink className="w-2.5 h-2.5" />
             </span>
           </div>
-          <div className="text-xl sm:text-2xl font-black font-mono text-slate-900">
-            {marketOverview.totalCompanyProducedPp.toFixed(1)} <span className="text-xs font-normal text-slate-400">PP/day</span>
+          <div className="text-xl sm:text-2xl font-black font-mono text-slate-900 flex items-baseline">
+            <span>{marketOverview.totalCompanyProducedPp.toFixed(1)}</span>
+            <span className="text-xs font-normal text-slate-400 ml-1 mr-2">PP/day</span>
+            <span className="px-1.5 py-0.5 text-[10px] font-mono font-bold bg-blue-100 text-blue-900">
+              ~{Math.round(marketOverview.totalCompanyProducedPp / 1000)}k
+            </span>
           </div>
           <div className="text-[11px] text-slate-500 font-sans truncate">
-            <span>Production Points generated by active facilities</span>
+            <span>Bonuses included (in-game workforce rate)</span>
           </div>
         </div>
 
@@ -782,15 +781,11 @@ export default function StockExchangeListing({
                 <th className="py-3 px-3 min-w-[180px]">Asset / Listing</th>
                 <th className="py-3 px-3">Sector</th>
                 <th className="py-3 px-3 text-right">Market Spot</th>
-                <th className="py-3 px-3 text-right">Base Production</th>
-                <th className="py-3 px-3 text-right">Base Revenue</th>
-                <th className="py-3 px-3 text-right">Raw Costs</th>
+                <th className="py-3 px-3 text-right">Daily PP (24h)</th>
+                <th className="py-3 px-3 text-right">Output Yield</th>
+                <th className="py-3 px-3 text-right">Daily Revenue</th>
                 <th className="py-3 px-3 text-right">Salaries Paid</th>
-                <th className="py-3 px-3 text-right">Base Profit</th>
-                <th className="py-3 px-3 text-right">Base PP</th>
-                <th className="py-3 px-3 text-right">Produced PP</th>
-                <th className="py-3 px-3 text-right">PP Ratio (%)</th>
-                <th className="py-3 px-3 text-right">Price / Base PP</th>
+                <th className="py-3 px-3 text-right">Net Daily Profit</th>
                 <th className="py-3 px-3 text-center min-w-[110px]">Storage</th>
                 <th className="py-3 px-3 text-center min-w-[110px]">Staff & Roles</th>
                 <th className="py-3 px-3 text-center w-20">Action</th>
@@ -872,31 +867,31 @@ export default function StockExchangeListing({
                         )}
                       </td>
 
-                      {/* Base Daily Production (Standard) */}
+                      {/* Daily PP (24h) */}
                       <td className="py-3.5 px-3 text-right whitespace-nowrap">
-                        <span className="font-bold text-slate-900">
+                        <div className="font-bold text-slate-900">
+                          {c.companyProducedDailyPp.toFixed(1)}
+                        </div>
+                        <span className="text-[10px] text-emerald-700 block font-semibold">
+                          Bonuses included
+                        </span>
+                      </td>
+
+                      {/* Daily Output Yield */}
+                      <td className="py-3.5 px-3 text-right whitespace-nowrap">
+                        <span className="font-bold text-slate-800">
                           {(c.baseUnits !== undefined ? c.baseUnits : (c.unitsPerDay || 0)).toFixed(1)}
                         </span>
                         <span className="text-[10px] text-slate-400 ml-1">u/d</span>
                       </td>
 
-                      {/* Base Revenue Per Day */}
+                      {/* Daily Gross Revenue */}
                       <td className="py-3.5 px-3 text-right whitespace-nowrap">
-                        <div className="font-bold text-emerald-500">
-                          +{(c.grossRevenue ?? (c.baseUnits * (c.spotPrice || 0))).toFixed(2)}
+                        <div className="font-bold text-emerald-600">
+                          +{(c.grossRevenue ?? 0).toFixed(2)}
                         </div>
                         <span className="text-[10px] text-slate-400 block font-normal">
                           BTC/day
-                        </span>
-                      </td>
-
-                      {/* Raw Material Costs */}
-                      <td className="py-3.5 px-3 text-right whitespace-nowrap">
-                        <div className={`font-bold ${(c.dailyRawExpenseTotal || 0) > 0 ? 'text-red-500' : 'text-blue-500'}`}>
-                          {(c.dailyRawExpenseTotal || 0) > 0 ? `-${c.dailyRawExpenseTotal.toFixed(2)}` : '0.00'}
-                        </div>
-                        <span className="text-[10px] text-slate-400 block font-normal">
-                          {c.isRaw ? 'Extraction' : 'Market Spot'}
                         </span>
                       </td>
 
@@ -912,50 +907,13 @@ export default function StockExchangeListing({
                         </span>
                       </td>
 
-                      {/* Base Daily Profit (Standard) */}
+                      {/* Net Daily Profit (Matches In-Game Exactly) */}
                       <td className="py-3.5 px-3 text-right whitespace-nowrap">
                         <div className={`font-bold ${baseIncome > 0 ? 'text-emerald-500' : baseIncome < 0 ? 'text-red-500' : 'text-blue-500'}`}>
                           {baseIncome >= 0 ? '+' : ''}{baseIncome.toFixed(2)}
                         </div>
                         <span className="text-[10px] text-slate-400 block font-normal">
                           {c.baseNetMarginPct ? `${c.baseNetMarginPct.toFixed(1)}% margin` : '—'}
-                        </span>
-                      </td>
-
-                      {/* Base PP (Daily) */}
-                      <td className="py-3.5 px-3 text-right whitespace-nowrap">
-                        <div className="font-bold text-slate-900">
-                          {basePp.toFixed(1)}
-                        </div>
-                        <span className="text-[10px] text-slate-400 block font-normal">
-                          Engine + Workers
-                        </span>
-                      </td>
-
-                      {/* Produced PP (with bonuses) */}
-                      <td className="py-3.5 px-3 text-right whitespace-nowrap">
-                        <div className="font-bold text-blue-900">
-                          {prodPp.toFixed(1)}
-                        </div>
-                        <span className="text-[10px] text-emerald-700 font-bold block">
-                          +{c.totalBonusPct ? c.totalBonusPct.toFixed(1) : '0'}% bonus
-                        </span>
-                      </td>
-
-                      {/* PP Ratio (%) */}
-                      <td className="py-3.5 px-3 text-right whitespace-nowrap">
-                        <span className="inline-block px-2 py-0.5 text-xs font-bold font-mono bg-slate-100 text-slate-800">
-                          {ppRatio.toFixed(1)}%
-                        </span>
-                      </td>
-
-                      {/* Price / Base PP */}
-                      <td className="py-3.5 px-3 text-right whitespace-nowrap">
-                        <div className="font-bold text-slate-900">
-                          {priceRatio.toFixed(3)}
-                        </div>
-                        <span className="text-[10px] text-slate-400 block font-normal">
-                          BTC / Base PP
                         </span>
                       </td>
 

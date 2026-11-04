@@ -701,58 +701,44 @@ export default function CompanyPortfolio({
                     </span>
                   </div>
                   <div className="flex justify-between items-center pt-1 border-t border-slate-200/60">
-                    <span className="font-bold text-slate-800">Base Production:</span>
+                    <span className="font-bold text-slate-800">Daily Production (PP):</span>
+                    <div className="text-right">
+                      <strong className="text-slate-900 font-mono">
+                        {activeCompany.companyProducedDailyPp.toFixed(1)} PP/day
+                      </strong>
+                      <span className="text-[10px] text-emerald-700 block font-semibold">
+                        Bonuses included
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex justify-between items-center text-slate-600">
+                    <span>Output Yield:</span>
                     <strong className="text-slate-900 font-mono">
                       {activeCompany.baseUnits.toFixed(1)} units/day
                     </strong>
                   </div>
                   <div className="flex justify-between items-center text-slate-600">
-                    <span>Base Revenue / day:</span>
+                    <span>Daily Gross Revenue:</span>
                     <strong className="text-emerald-500 font-mono">
                       +{activeCompany.grossRevenue.toFixed(2)} BTC/day
                     </strong>
                   </div>
                   <div className="flex justify-between items-center text-slate-600">
-                    <span>Costs of Raw Material / day:</span>
-                    <strong className={activeCompany.dailyRawExpenseTotal > 0 ? "text-red-500 font-mono" : "text-blue-500 font-mono"}>
-                      {activeCompany.dailyRawExpenseTotal > 0 ? `-${activeCompany.dailyRawExpenseTotal.toFixed(2)}` : '0.00'} BTC/day
-                    </strong>
-                  </div>
-                  <div className="flex justify-between items-center text-slate-600">
-                    <span>Base Salaries Paid / day:</span>
+                    <span>Daily Salaries Paid:</span>
                     <strong className={activeCompany.dailyLaborExpense > 0 ? "text-red-500 font-mono" : "text-blue-500 font-mono"}>
                       {activeCompany.dailyLaborExpense > 0 ? `-${activeCompany.dailyLaborExpense.toFixed(2)}` : '0.00'} BTC/day
                     </strong>
                   </div>
                   <div className="flex justify-between items-center pt-1 border-t border-slate-200/40">
-                    <span className="font-bold text-slate-800">Base Profit / day:</span>
-                    <strong className={`font-bold font-mono ${activeCompany.baseNetProfit > 0 ? 'text-emerald-500' : activeCompany.baseNetProfit < 0 ? 'text-red-500' : 'text-blue-500'}`}>
-                      {activeCompany.baseNetProfit >= 0 ? '+' : ''}{activeCompany.baseNetProfit.toFixed(2)} BTC/day
-                    </strong>
-                  </div>
-                  <div className="flex justify-between items-center text-slate-600">
-                    <span>Base PP (Daily):</span>
-                    <strong className="text-slate-900 font-mono">
-                      {activeCompany.companyBaseDailyPp.toFixed(1)} PP/day
-                    </strong>
-                  </div>
-                  <div className="flex justify-between items-center text-slate-600">
-                    <span>Produced PP (Bonuses):</span>
-                    <strong className="text-blue-900 font-mono">
-                      {activeCompany.companyProducedDailyPp.toFixed(1)} PP/day
-                    </strong>
-                  </div>
-                  <div className="flex justify-between items-center text-slate-600">
-                    <span>PP Ratio:</span>
-                    <strong className="text-slate-900 font-mono">
-                      {activeCompany.ppRatioPct.toFixed(1)}%
-                    </strong>
-                  </div>
-                  <div className="flex justify-between items-center text-slate-600">
-                    <span>Price / Base PP:</span>
-                    <strong className="text-slate-900 font-mono">
-                      {activeCompany.pricePerBasePp.toFixed(3)} BTC/PP
-                    </strong>
+                    <span className="font-bold text-slate-800">Daily Net Profit:</span>
+                    <div className="text-right">
+                      <strong className={`font-bold font-mono ${activeCompany.baseNetProfit > 0 ? 'text-emerald-500' : activeCompany.baseNetProfit < 0 ? 'text-red-500' : 'text-blue-500'}`}>
+                        {activeCompany.baseNetProfit >= 0 ? '+' : ''}{activeCompany.baseNetProfit.toFixed(2)} BTC/day
+                      </strong>
+                      <span className="text-[10px] text-slate-400 block font-normal">
+                        {activeCompany.baseNetMarginPct ? `${activeCompany.baseNetMarginPct.toFixed(1)}% margin` : ''}
+                      </span>
+                    </div>
                   </div>
                   {(activeCompany.totalCostAvoided || 0) > 0 && (
                     <div className="flex justify-between items-center pt-1 border-t border-slate-200/40 text-emerald-700 font-bold">
