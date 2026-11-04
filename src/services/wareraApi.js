@@ -458,10 +458,17 @@ export class WarEraService {
 
         // Status & Morale
         happiness: typeof e.happinessBreakdown?.value === 'number' ? e.happinessBreakdown.value : (typeof e.happiness === 'number' ? e.happiness : 50),
+        happinessBreakdown: e.happinessBreakdown || null,
         productionBonus: typeof e.productionBonus?.total === 'number' ? e.productionBonus.total : (typeof e.productionBonus === 'number' ? e.productionBonus : 0),
+        productionBonusData: e.productionBonus || null,
+        breakdown: e.breakdown || null,
         tool: e.toolItem || null,
+        toolItem: e.toolItem || null,
         toolStatus: e.toolStatus || null,
         specializations: e.specializations || {},
+        eventModifiers: e.eventModifiers || [],
+        trainingHistory: e.trainingHistory || [],
+        nationality: e.nationality || null,
 
         // Context
         companyId: companyContext.id || e.company || null,

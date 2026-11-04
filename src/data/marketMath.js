@@ -427,62 +427,40 @@ export function calculateOwnerPersonalLabor(userSkills = {}) {
 }
 
 // Game-engine calibrated baseline net revenue rates per PP for WarEra commodities (v0.27+)
+// Authoritative rates verified against live in-game Estimated Profit breakdown
 export const BASELINE_PP_RATES = {
-  steel: 0.08001,
-  cocain: 0.07708,
-  pill: 0.07708,
-  ammo: 0.07581,
-  coca: 0.10989,
-  mysteriousPlant: 0.10989,
-  petroleum: 0.09969,
-  lead: 0.10319,
-  cookedFish: 0.09921,
-  iron: 0.1135,
-  heavyAmmo: 0.07684,
-  fish: 0.1100,
-  oil: 0.0936,
-  lightAmmo: 0.10286,
-  bread: 0.09485,
-  grain: 0.07641,
-  limestone: 0.09424,
-  concrete: 0.08832,
-  wood: 0.10330,
-  paper: 0.10748,
-  steak: 0.09402,
-  livestock: 0.07679,
-  scraps: 0.22868
+  steel: 0.0800,
+  cocain: 0.0771,
+  pill: 0.0771,
+  ammo: 0.0758,
+  coca: 0.1099,
+  mysteriousPlant: 0.1099,
+  petroleum: 0.0997,
+  lead: 0.1032,
+  cookedFish: 0.0992,
+  iron: 0.1116,
+  heavyAmmo: 0.0748,
+  fish: 0.1034,
+  oil: 0.1057,
+  lightAmmo: 0.1029,
+  bread: 0.0948,
+  grain: 0.0764,
+  limestone: 0.0942,
+  concrete: 0.0883,
+  wood: 0.1033,
+  paper: 0.1075,
+  steak: 0.0940,
+  livestock: 0.0768,
+  scraps: 0.2287
 };
 
 /**
- * Calculates the dynamic net value per PP for any commodity in the game.
- * For raw goods: spotPrice / recipe.pp
- * For manufactured goods: (spotPrice - rawMaterialCosts) / recipe.pp
+ * Authoritative in-game rate per PP for WarEra commodities (v0.27+).
+ * Used by the in-game Estimated Profit engine.
+ * Constant & stable to prevent minute-by-minute fluctuations caused by orderbook spreads.
  */
-export function getItemValuePerPp(itemCode, prices = {}) {
+export function getItemValuePerPp(itemCode) {
   const normCode = (itemCode === 'pill' ? 'cocain' : (itemCode === 'mysteriousPlant' ? 'coca' : itemCode));
-  const recipe = RECIPES.find(r => r.id === normCode || r.id === itemCode);
-  const spotPrice = prices[normCode] || prices[itemCode];
-
-  // If live prices are available and recipe has inputs:
-  if (recipe && recipe.inputs && recipe.inputs.length > 0 && typeof spotPrice === 'number' && spotPrice > 0) {
-    const rawCost = recipe.inputs.reduce((sum, inp) => {
-      const inpPrice = prices[inp.id] || (BASELINE_PP_RATES[inp.id] ? BASELINE_PP_RATES[inp.id] * (RECIPES.find(r => r.id === inp.id)?.pp || 1) : 0.10);
-      return sum + (inp.qty * inpPrice);
-    }, 0);
-    const netAddedValue = spotPrice - rawCost;
-    const pp = recipe.pp || 1;
-    const marginPerPp = netAddedValue / pp;
-    if (marginPerPp > 0.02) {
-      return marginPerPp;
-    }
-  }
-
-  // If raw material with spotPrice
-  if (recipe && (!recipe.inputs || recipe.inputs.length === 0) && typeof spotPrice === 'number' && spotPrice > 0) {
-    return spotPrice / (recipe.pp || 1);
-  }
-
-  // Fallback to calibrated in-game baseline rate
   return BASELINE_PP_RATES[normCode] || BASELINE_PP_RATES[itemCode] || 0.09566;
 }
 
@@ -495,8 +473,8 @@ export function calculateCompanyBaseEconomics(comp, prices = {}, insourceOverrid
   const totalBonusPct = typeof comp.totalBonusPct === 'number' ? comp.totalBonusPct : 0;
   const bonusMultiplier = 1 + (totalBonusPct / 100);
 
-  // In-game dynamic commodity rate per PP (derived directly from commodity recipe economics & spot pricing)
-  const ratePerPp = getItemValuePerPp(comp.itemCode, prices);
+  // In-game dynamic commodity rate per PP (authoritative game-engine baseline)
+  const ratePerPp = getItemValuePerPp(comp.itemCode);
   const rawList = comp.employees || comp.workers || comp.workersList || comp.employeesList || [];
 
   const employeesList = rawList.map((w, idx) => {

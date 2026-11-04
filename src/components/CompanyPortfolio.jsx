@@ -35,6 +35,7 @@ import {
 import { RECIPES, ENGINE_UPGRADE_TIERS, STORAGE_UPGRADE_TIERS, getBreakRoomCapacity } from '../data/gameData';
 import { api } from '../services/wareraApi';
 import { calculatePortfolioOverview, mapCompanyFromDossier } from '../data/marketMath';
+import { getTraitInfo } from '../data/employeeTraits';
 import ItemIcon from './ItemIcon';
 import StockExchangeListing from './StockExchangeListing';
 import EmployeeAuditModal from './EmployeeAuditModal';
@@ -825,18 +826,45 @@ export default function CompanyPortfolio({
                           </div>
                         )}
 
-                        <div className="space-y-0.5 min-w-0">
+                        <div className="space-y-0.5 min-w-0 flex-1">
                           <div className="flex items-center space-x-1.5 flex-wrap">
-                            <span className="font-extrabold text-slate-900 text-xs font-sans truncate">@{currentWorker.username}</span>
-                            <span className="px-1.5 py-0.5 text-[9px] font-bold bg-blue-100 text-blue-900 uppercase font-mono">
-                              Worker
+                            <span className="font-extrabold text-slate-900 text-xs font-sans truncate">
+                              {currentWorker.name || currentWorker.username}
                             </span>
-                            <span className="px-1 py-0.5 text-[9px] font-mono font-bold bg-slate-200 text-slate-700">
-                              Lv.{currentWorker.level || 1}
+                            {currentWorker.age && (
+                              <span className="text-[10px] font-mono text-slate-500">
+                                {currentWorker.gender === 'female' ? '♀' : '♂'} {currentWorker.age}
+                              </span>
+                            )}
+                            <span className={`px-1.5 py-0.5 text-[10px] font-black font-mono ${
+                              (typeof currentWorker.dailyProfit === 'number' ? currentWorker.dailyProfit : ((currentWorker.dailyProductionValue || 0) - (currentWorker.dailyWage || 0))) >= 0
+                                ? 'bg-emerald-100 text-emerald-800'
+                                : 'bg-red-100 text-red-800'
+                            }`}>
+                              {(typeof currentWorker.dailyProfit === 'number' ? currentWorker.dailyProfit : ((currentWorker.dailyProductionValue || 0) - (currentWorker.dailyWage || 0))) >= 0 ? '+' : ''}
+                              {(typeof currentWorker.dailyProfit === 'number' ? currentWorker.dailyProfit : ((currentWorker.dailyProductionValue || 0) - (currentWorker.dailyWage || 0))).toFixed(2)} BTC/d
                             </span>
                           </div>
-                          <div className="text-[11px] font-mono text-slate-500 truncate">
-                            Net Worth: <strong className="text-slate-900 font-bold">{(currentWorker.netWorth || (currentWorker.level ? currentWorker.level * 250 : 500)).toLocaleString(undefined, { maximumFractionDigits: 0 })}</strong>
+
+                          {/* Quick in-game stat indicators: Pickaxe, Luck, Happiness, Bonus, Potential */}
+                          <div className="flex items-center gap-1.5 pt-1 text-[11px] font-mono font-bold flex-wrap">
+                            <span className="bg-slate-200/80 text-slate-800 px-1.5 py-0.5 flex items-center gap-1" title="Production Stat (Total)">
+                              ⛏️ {currentWorker.breakdown?.production?.total ?? ((currentWorker.baseProduction || 0) + (currentWorker.trainedProduction || 0))}
+                            </span>
+                            <span className="bg-emerald-100 text-emerald-900 px-1.5 py-0.5 flex items-center gap-1" title="Luck Stat">
+                              🍀 {currentWorker.breakdown?.luck?.total ?? (currentWorker.luck || 0)}
+                            </span>
+                            <span className="bg-amber-100 text-amber-900 px-1.5 py-0.5 flex items-center gap-1" title="Happiness Value">
+                              😊 {currentWorker.happinessBreakdown?.value ?? (currentWorker.happiness || 50)}%
+                            </span>
+                            <span className="bg-blue-100 text-blue-900 px-1.5 py-0.5 flex items-center gap-1" title="Production Bonus">
+                              ⚡ +{currentWorker.productionBonus ?? currentWorker.productionBonusData?.total ?? 0}%
+                            </span>
+                            {(currentWorker.potential !== null && currentWorker.potential !== undefined) && (
+                              <span className="bg-purple-100 text-purple-900 px-1.5 py-0.5 flex items-center gap-1" title="Training Growth Potential">
+                                💬 {currentWorker.potential}
+                              </span>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -850,65 +878,91 @@ export default function CompanyPortfolio({
                       </button>
                     </div>
 
-                    {/* Worker Breakdown */}
-                    <div className="space-y-1.5 font-mono text-[11px] text-slate-600 flex-1 flex flex-col justify-around">
-                       <div className="flex justify-between items-center">
-                        <span>Base Production:</span>
-                        <strong className="text-slate-900">
-                          {typeof currentWorker.baseProduction === 'number' ? currentWorker.baseProduction.toFixed(1) : '—'}
-                        </strong>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span>Trained Production:</span>
-                        <strong className="text-emerald-700">
-                          +{typeof currentWorker.trainedProduction === 'number' ? currentWorker.trainedProduction.toFixed(1) : '—'}
-                        </strong>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span>Total Production:</span>
-                        <strong className="text-blue-900">
-                          {typeof currentWorker.totalProduction === 'number' ? currentWorker.totalProduction.toFixed(1) : '—'}
-                        </strong>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span>Happiness:</span>
-                        <strong className="text-slate-900">
-                          {typeof currentWorker.happiness === 'number' ? `${currentWorker.happiness}/100` : '—'}
-                        </strong>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span>Daily Salary:</span>
-                        <strong className={currentWorker.salary ? 'text-red-500' : 'text-slate-400'}>
-                          {typeof currentWorker.salary === 'number' ? `-${currentWorker.dailySalary?.toFixed(2)} BTC/d` : '—'}
-                        </strong>
-                      </div>
-                      {currentWorker.traits && currentWorker.traits.length > 0 && (
-                        <div className="flex justify-between items-start">
-                          <span>Traits:</span>
-                          <strong className="text-purple-700 text-right">
-                            {currentWorker.traits.join(', ')}
-                          </strong>
+                    {/* Traits & Tool Badges */}
+                    <div className="space-y-2 font-mono text-[11px] text-slate-600 flex-1 flex flex-col justify-around pt-1">
+                      {/* Traits list with coworker links */}
+                      {Array.isArray(currentWorker.traits) && currentWorker.traits.length > 0 && (
+                        <div>
+                          <span className="text-[10px] text-slate-400 uppercase font-sans font-bold block mb-1">Employee Traits:</span>
+                          <div className="flex flex-wrap gap-1.5">
+                            {currentWorker.traits.map((t, idx) => {
+                              const info = getTraitInfo(t.code || t);
+                              return (
+                                <span 
+                                  key={idx} 
+                                  className={`px-2 py-0.5 border text-[10px] font-bold flex items-center gap-1 ${
+                                    info.isCoworkerLinked 
+                                      ? 'bg-amber-50 text-amber-900 border-amber-300' 
+                                      : 'bg-slate-100 text-slate-800 border-slate-300'
+                                  }`}
+                                  title={`${info.name}: ${info.description} ${info.isCoworkerLinked ? '• Links to Coworkers' : ''}`}
+                                >
+                                  <span>{info.icon}</span>
+                                  <span>{info.name}</span>
+                                  {info.isCoworkerLinked && <span className="text-[8px] opacity-75 font-sans">(Team)</span>}
+                                </span>
+                              );
+                            })}
+                          </div>
                         </div>
                       )}
-   </div>
 
-                      <button
-                        type="button"
-                        onClick={() => setInspectedWorker({
-                          ...currentWorker,
-                          companyName: activeCompany.name,
-                          companyItemCode: activeCompany.itemCode,
-                          companyTotalBonusPct: activeCompany.totalBonusPct,
-                          recipe: activeCompany.recipe,
-                          spotPrice: activeCompany.spotPrice,
-                          baseRawCostPerUnit: activeCompany.baseRawCostPerUnit
-                        })}
-                        className="w-full mt-2 py-1.5 px-3 bg-slate-900 hover:bg-slate-800 text-white text-[11px] font-mono font-bold transition cursor-pointer flex items-center justify-center space-x-1"
-                      >
-                        <span>Audit Skills & Salary Math</span>
-                        <span>↗</span>
-                      </button>
+                      {/* Tool Hardware if equipped */}
+                      {(currentWorker.toolItem || currentWorker.tool || currentWorker._raw?.toolItem) && (
+                        <div className="bg-sky-50/70 border border-sky-200 p-2 text-[10px] text-sky-900 flex items-center justify-between">
+                          <div className="flex items-center gap-1.5 font-bold">
+                            <span>🔧</span>
+                            <span>{(currentWorker.toolItem?.code || currentWorker.tool?.code || currentWorker._raw?.toolItem?.code || 'Tool')}</span>
+                            <span className="text-emerald-700 font-mono">
+                              +{currentWorker.toolItem?.skills?.production ?? currentWorker.toolStatus?.bonusPercent ?? 0}% Prod
+                            </span>
+                          </div>
+                          <span className="font-mono text-slate-500">
+                            State: {(currentWorker.toolItem?.state || currentWorker.tool?.state || 100).toFixed(0)}/100
+                          </span>
+                        </div>
+                      )}
+
+                      {/* Financial breakdown */}
+                      <div className="space-y-1 pt-1 border-t border-slate-200/80">
+                        <div className="flex justify-between items-center text-slate-700">
+                          <span>Daily Output Rate:</span>
+                          <strong className="text-blue-900 font-mono">
+                            {(currentWorker.dailyOutputPp || (currentWorker.hourlyOutputPp ? currentWorker.hourlyOutputPp * 24 : 0)).toFixed(1)} PP/day
+                          </strong>
+                        </div>
+                        <div className="flex justify-between items-center text-slate-700">
+                          <span>Daily Production Value:</span>
+                          <strong className="text-emerald-700 font-mono">
+                            +{(currentWorker.dailyProductionValue || 0).toFixed(2)} BTC/d
+                          </strong>
+                        </div>
+                        <div className="flex justify-between items-center text-slate-700">
+                          <span>Daily Contracted Wage:</span>
+                          <strong className="text-red-500 font-mono">
+                            -{(currentWorker.dailyWage || currentWorker.dailySalary || 0).toFixed(2)} BTC/d
+                          </strong>
+                        </div>
+                      </div>
                     </div>
+
+                    <button
+                      type="button"
+                      onClick={() => setInspectedWorker({
+                        ...currentWorker,
+                        companyName: activeCompany.name,
+                        companyItemCode: activeCompany.itemCode,
+                        companyTotalBonusPct: activeCompany.totalBonusPct,
+                        recipe: activeCompany.recipe,
+                        spotPrice: activeCompany.spotPrice,
+                        baseRawCostPerUnit: activeCompany.baseRawCostPerUnit
+                      })}
+                      className="w-full mt-2 py-1.5 px-3 bg-slate-900 hover:bg-slate-800 text-white text-[11px] font-mono font-bold transition cursor-pointer flex items-center justify-center space-x-1"
+                    >
+                      <span>Audit Skills, Morale & Traits Math</span>
+                      <span>↗</span>
+                    </button>
+                  </div>
                 ) : (
                   <div className="bg-slate-50/70 p-4 flex flex-col justify-center items-center text-center flex-1 space-y-1.5">
                     <Users className="w-6 h-6 text-slate-300 stroke-[1.5]" />

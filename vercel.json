@@ -2,6 +2,18 @@
   "version": 2,
   "rewrites": [
     {
+      "source": "/api/warera/(.*)",
+      "destination": "/api/warera.js"
+    },
+    {
+      "source": "/api/warera",
+      "destination": "/api/warera.js"
+    },
+    {
+      "source": "/api/(.*)",
+      "destination": "/api/warera.js"
+    },
+    {
       "source": "/((?!api/).*)",
       "destination": "/index.html"
     }

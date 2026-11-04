@@ -1,6 +1,8 @@
 import React, { useEffect } from 'react';
-import { X, CheckCircle2, ShieldCheck, Zap, Sparkles, Smile, TrendingUp, AlertTriangle } from 'lucide-react';
+import { X, CheckCircle2, ShieldCheck, Zap, Sparkles, Smile, TrendingUp, AlertTriangle, Users, Wrench } from 'lucide-react';
 import { GoldCoin } from './CompanyPortfolio';
+import { getTraitInfo } from '../data/employeeTraits';
+import { getItemValuePerPp } from '../data/marketMath';
 
 export default function EmployeeAuditModal({
   isOpen = false,
@@ -53,11 +55,13 @@ export default function EmployeeAuditModal({
     ? worker.dailyWage
     : Number((hourlyWage * 24).toFixed(3));
 
-  const MARKET_VALUE_PER_PP = 0.09566;
-  const hourlyRevenue = Number((hourlyOutputPp * MARKET_VALUE_PER_PP).toFixed(4));
+  const itemCode = worker.companyItemCode || worker.estimate?.itemCode || 'steel';
+  const ratePerPp = typeof worker.ratePerPp === 'number' ? worker.ratePerPp : getItemValuePerPp(itemCode);
+
+  const hourlyRevenue = Number((hourlyOutputPp * ratePerPp).toFixed(4));
   const dailyRevenue = typeof worker.dailyProductionValue === 'number'
     ? worker.dailyProductionValue
-    : Number((dailyOutputPp * MARKET_VALUE_PER_PP).toFixed(3));
+    : Number((dailyOutputPp * ratePerPp).toFixed(3));
 
   const hourlyProfit = Number((hourlyRevenue - hourlyWage).toFixed(4));
   const dailyProfit = typeof worker.dailyProfit === 'number'
@@ -69,13 +73,32 @@ export default function EmployeeAuditModal({
 
   // Trait, Potential & Happiness Breakdown
   const traits = Array.isArray(worker.traits) ? worker.traits : [];
-  const happiness = worker.happiness ?? worker.happinessBreakdown?.value ?? null;
-  const potential = worker.potential ?? null;
-  const potentialMax = worker.potentialMax ?? null;
-  const breakdown = worker.breakdown || {};
-  const baseProd = worker.baseProduction ?? breakdown.production?.base ?? null;
-  const trainedProd = worker.trainedProduction ?? breakdown.production?.trained ?? null;
-  const prodBonus = worker.productionBonus ?? null;
+  const happinessBreakdown = worker.happinessBreakdown || worker._raw?.happinessBreakdown || null;
+  const happiness = typeof happinessBreakdown?.value === 'number'
+    ? happinessBreakdown.value
+    : (worker.happiness ?? 50);
+
+  const potential = worker.potential ?? worker._raw?.potential ?? null;
+  const potentialMax = worker.potentialMax ?? worker._raw?.potentialMax ?? null;
+
+  const breakdown = worker.breakdown || worker._raw?.breakdown || {};
+  const prodBreakdown = breakdown.production || null;
+  const luckBreakdown = breakdown.luck || null;
+  const respBreakdown = breakdown.responsibility || null;
+
+  const baseProd = worker.baseProduction ?? prodBreakdown?.base ?? null;
+  const trainedProd = worker.trainedProduction ?? prodBreakdown?.trained ?? null;
+
+  // Production bonus breakdown (Management, Core region, Happiness, Tool, Specialization)
+  const prodBonusObj = worker.productionBonusData || worker.productionBonus || worker._raw?.productionBonus || null;
+  const prodBonusTotal = typeof prodBonusObj?.total === 'number'
+    ? prodBonusObj.total
+    : (typeof worker.productionBonus === 'number' ? worker.productionBonus : null);
+  const prodBonusContributions = Array.isArray(prodBonusObj?.contributions) ? prodBonusObj.contributions : [];
+
+  // Tool Item details
+  const toolItem = worker.toolItem || worker.tool || worker._raw?.toolItem || null;
+  const toolStatus = worker.toolStatus || worker._raw?.toolStatus || null;
 
   return (
     <div 
@@ -108,7 +131,7 @@ export default function EmployeeAuditModal({
               )}
             </div>
             <p className="text-xs text-slate-500 font-mono">
-              Assigned Facility: <strong className="text-slate-800">{worker.companyName || 'Active Company'}</strong> ({worker.companyItemCode || 'Commodity'})
+              Assigned Facility: <strong className="text-slate-800">{worker.companyName || 'Active Company'}</strong> ({itemCode} • {ratePerPp} BTC/PP)
             </p>
           </div>
 
@@ -149,83 +172,199 @@ export default function EmployeeAuditModal({
             </div>
           </div>
 
-          {/* Traits & Potential Badge Section */}
-          {(traits.length > 0 || potential !== null) && (
-            <div className="bg-white border border-slate-200 p-4 space-y-2.5">
+          {/* Traits & Worker Links Section */}
+          {traits.length > 0 && (
+            <div className="bg-white border border-slate-200 p-4 space-y-3">
               <div className="flex items-center justify-between border-b border-slate-100 pb-2">
                 <span className="font-bold text-slate-800 uppercase text-xs flex items-center gap-1.5">
                   <Sparkles className="w-4 h-4 text-amber-500" />
-                  <span>AI Worker Traits & Growth Potential</span>
+                  <span>Employee Traits & Coworker Synergies</span>
                 </span>
                 {potential !== null && (
-                  <span className="text-[11px] text-slate-700 font-bold">
-                    Potential: {potential} / {potentialMax || potential}
+                  <span className="text-[11px] text-slate-700 font-bold bg-slate-100 px-2 py-0.5">
+                    Growth Potential: {potential} / {potentialMax || potential}
                   </span>
                 )}
               </div>
-              <div className="flex flex-wrap gap-2 pt-1">
-                {traits.map((t, idx) => (
-                  <span key={idx} className="bg-amber-50 text-amber-900 border border-amber-200/80 px-2.5 py-1 text-[11px] font-bold">
-                    ★ {t.code || t.name || t}
-                  </span>
-                ))}
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
+                {traits.map((t, idx) => {
+                  const info = getTraitInfo(t.code || t);
+                  return (
+                    <div 
+                      key={idx} 
+                      className={`p-2.5 border flex flex-col justify-between space-y-1.5 ${info.isCoworkerLinked ? 'bg-amber-50/60 border-amber-300' : 'bg-slate-50 border-slate-200'}`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-1.5 font-bold text-slate-900">
+                          <span className="text-sm">{info.icon}</span>
+                          <span>{info.name}</span>
+                        </div>
+                        {info.isCoworkerLinked ? (
+                          <span className="text-[9px] uppercase font-bold px-1.5 py-0.5 bg-amber-200/80 text-amber-900 flex items-center gap-1">
+                            <Users className="w-2.5 h-2.5" /> Coworker Link
+                          </span>
+                        ) : (
+                          <span className="text-[9px] uppercase font-bold px-1.5 py-0.5 bg-slate-200 text-slate-700">
+                            Solo
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-[11px] text-slate-600 font-sans leading-tight">
+                        {info.description}
+                      </p>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}
 
-          {/* Step 1: Hourly Production & 24h Output Yield */}
+          {/* Tool Item & Equipment Card (if assigned) */}
+          {toolItem && (
+            <div className="bg-white border border-slate-200 p-4 space-y-2.5">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                <span className="font-bold text-slate-800 uppercase text-xs flex items-center gap-1.5">
+                  <Wrench className="w-4 h-4 text-sky-600" />
+                  <span>Equipped Tool Hardware</span>
+                </span>
+                <span className="text-[10px] font-bold text-sky-700 uppercase bg-sky-50 px-2 py-0.5 border border-sky-200">
+                  {toolItem.code || 'Tool'}
+                </span>
+              </div>
+              <div className="grid grid-cols-2 gap-3 text-slate-700">
+                <div>
+                  <span className="text-slate-400 block text-[10px] uppercase">Durability State</span>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <div className="flex-1 bg-slate-200 h-2 overflow-hidden">
+                      <div 
+                        className="bg-sky-600 h-full" 
+                        style={{ width: `${Math.min(100, Math.max(0, (toolItem.state / (toolItem.maxState || 100)) * 100))}%` }}
+                      />
+                    </div>
+                    <strong className="text-slate-900 font-mono text-[11px]">
+                      {toolItem.state?.toFixed(1) || 100} / {toolItem.maxState || 100}
+                    </strong>
+                  </div>
+                </div>
+                <div>
+                  <span className="text-slate-400 block text-[10px] uppercase">Skill Multiplier</span>
+                  <strong className="text-emerald-700 font-bold block mt-0.5">
+                    +{toolItem.skills?.production ?? toolStatus?.bonusPercent ?? 0}% Production
+                  </strong>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Production Bonus Breakdown (Management, Core region, Happiness, Tool) */}
           <div className="bg-white border border-slate-200 p-4 space-y-3">
             <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-              <span className="font-bold text-slate-800 uppercase text-xs flex items-center gap-1.5">
-                <span className="w-5 h-5 bg-slate-900 text-white flex items-center justify-center text-[10px] font-bold">1</span>
-                <span>Production Breakdown (Hourly & 24h Output)</span>
-              </span>
-              <span className="text-[11px] text-emerald-700 font-bold">
-                {hourlyOutputPp.toFixed(2)} PP/hour
+              <div>
+                <span className="font-bold text-slate-800 uppercase text-xs block">Production Bonus Breakdown</span>
+                <span className="text-[10px] text-slate-500 font-sans">Every percent that scales what their Production banks, added together</span>
+              </div>
+              <span className="text-sm font-black text-emerald-700">
+                +{prodBonusTotal ?? 0}%
               </span>
             </div>
 
-            <div className="space-y-1.5 text-slate-600">
-              {baseProd !== null && (
-                <div className="flex justify-between">
-                  <span>Base Production Stat:</span>
-                  <strong className="text-slate-900">{baseProd} PP</strong>
-                </div>
+            <div className="space-y-1.5 text-slate-700">
+              {prodBonusContributions.length > 0 ? (
+                prodBonusContributions.map((c, i) => (
+                  <div key={i} className="flex justify-between items-center py-0.5">
+                    <span className="capitalize">{c.source === 'coreRegion' ? 'Core region' : c.source}:</span>
+                    <strong className={c.percent >= 0 ? 'text-emerald-700' : 'text-red-600'}>
+                      {c.percent >= 0 ? `+${c.percent}%` : `${c.percent}%`}
+                    </strong>
+                  </div>
+                ))
+              ) : (
+                <div className="text-slate-400 text-[11px]">No active bonus contributions.</div>
               )}
-              {trainedProd !== null && trainedProd > 0 && (
-                <div className="flex justify-between">
-                  <span>Trained Skill Increment:</span>
-                  <strong className="text-emerald-700">+{trainedProd} PP</strong>
-                </div>
-              )}
-              {typeof prodBonus === 'number' && (
-                <div className="flex justify-between">
-                  <span>Facility Production Multiplier:</span>
-                  <strong className="text-emerald-700">+{prodBonus}%</strong>
-                </div>
-              )}
-              <div className="flex justify-between pt-1 border-t border-slate-200 text-slate-900 font-bold">
-                <span>Effective Hourly Production Rate:</span>
-                <strong className="text-blue-900 font-black">
-                  {hourlyOutputPp.toFixed(3)} PP / hour
-                </strong>
-              </div>
-              <div className="flex justify-between text-slate-900 font-bold pt-1">
-                <span>Continuous 24h Daily Production Yield:</span>
-                <strong className="text-emerald-800 font-black">
-                  {hourlyOutputPp.toFixed(3)} * 24 = {dailyOutputPp.toFixed(1)} PP / day
+              <div className="flex justify-between items-center pt-2 border-t border-slate-200 font-bold text-slate-900">
+                <span>Total Production Bonus:</span>
+                <strong className="text-emerald-800 font-black text-sm">
+                  +{prodBonusTotal ?? 0}%
                 </strong>
               </div>
             </div>
           </div>
 
-          {/* Step 2: Hourly Rate & Payable Salary Outflows */}
+          {/* Production Stat Breakdown */}
+          {prodBreakdown && (
+            <div className="bg-white border border-slate-200 p-4 space-y-3">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                <span className="font-bold text-slate-800 uppercase text-xs">Production Stat Breakdown</span>
+                <span className="text-sm font-black text-slate-900">
+                  Total: {prodBreakdown.total ?? 0}
+                </span>
+              </div>
+
+              <div className="space-y-1.5 text-slate-700">
+                <div className="flex justify-between items-center">
+                  <span>Base Stat:</span>
+                  <strong className="text-slate-900">{prodBreakdown.base ?? 0}</strong>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span>Trained Skill:</span>
+                  <strong className="text-emerald-700">+{prodBreakdown.trained ?? 0}</strong>
+                </div>
+                {Array.isArray(prodBreakdown.contributions) && prodBreakdown.contributions.map((c, i) => (
+                  <div key={i} className="flex justify-between items-center text-slate-600">
+                    <span className="capitalize">{c.code}:</span>
+                    <strong className="text-blue-700">
+                      +{c.delta}{c.percent ? '%' : ''}
+                    </strong>
+                  </div>
+                ))}
+                <div className="flex justify-between items-center pt-2 border-t border-slate-200 font-bold text-slate-900">
+                  <span>Calculated Total Production:</span>
+                  <strong className="text-blue-900 font-black text-sm">
+                    {prodBreakdown.total ?? 0}
+                  </strong>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Happiness Breakdown */}
+          {happinessBreakdown && (
+            <div className="bg-white border border-slate-200 p-4 space-y-3">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                <span className="font-bold text-slate-800 uppercase text-xs">Happiness & Retention Breakdown</span>
+                <span className={`text-sm font-black ${happiness >= 50 ? 'text-emerald-700' : 'text-amber-700'}`}>
+                  {happiness}%
+                </span>
+              </div>
+
+              <div className="space-y-1.5 text-slate-700">
+                <div className="flex justify-between items-center">
+                  <span>Base Happiness:</span>
+                  <strong className="text-slate-900">{happinessBreakdown.base ?? 50}</strong>
+                </div>
+                {Array.isArray(happinessBreakdown.contributions) && happinessBreakdown.contributions.map((c, i) => (
+                  <div key={i} className="flex justify-between items-center">
+                    <span className="capitalize">{c.reason === 'incomeTax' ? 'Income tax' : (c.reason === 'recentlyMoved' ? 'Recently moved' : c.reason)}:</span>
+                    <strong className={c.delta >= 0 ? 'text-emerald-700' : 'text-red-600'}>
+                      {c.delta >= 0 ? `+${c.delta}` : `${c.delta}`}
+                    </strong>
+                  </div>
+                ))}
+                <div className="flex justify-between items-center pt-2 border-t border-slate-200 font-bold text-slate-900">
+                  <span>Effective Morale Value:</span>
+                  <strong className={happiness >= 50 ? 'text-emerald-800 font-black' : 'text-amber-800 font-black'}>
+                    {happiness}% ({happinessBreakdown.quitChance ? `${happinessBreakdown.quitChance}% quit chance` : '0% quit chance'})
+                  </strong>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Step 2: Salary & Financials */}
           <div className="bg-white border border-slate-200 p-4 space-y-3">
             <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-              <span className="font-bold text-slate-800 uppercase text-xs flex items-center gap-1.5">
-                <span className="w-5 h-5 bg-slate-900 text-white flex items-center justify-center text-[10px] font-bold">2</span>
-                <span>Salary & Payroll Outflows (Hourly Rate)</span>
-              </span>
+              <span className="font-bold text-slate-800 uppercase text-xs">Hourly Salary & Daily Payroll Outflow</span>
               <span className="text-[11px] text-red-600 font-bold">
                 -{dailyWage.toFixed(3)} BTC/day
               </span>
@@ -239,37 +378,18 @@ export default function EmployeeAuditModal({
                 </strong>
               </div>
               <div className="flex justify-between pt-1 border-t border-slate-200 text-slate-900 font-bold">
-                <span>Payable Daily Salary Outflow (24 Hours):</span>
+                <span>Daily Payroll Outflow (24h continuous):</span>
                 <strong className="text-red-600 font-black text-sm flex items-center gap-1">
                   {hourlyWage.toFixed(6)} * 24 = -{dailyWage.toFixed(3)} <GoldCoin size={12} /> / day
                 </strong>
               </div>
-
-              {/* Salary Outflow Projections */}
-              <div className="grid grid-cols-3 gap-2 pt-2 text-[11px] border-t border-slate-100">
-                <div className="bg-slate-50 p-2 text-center border border-slate-200">
-                  <span className="text-slate-400 block text-[10px]">Hourly</span>
-                  <strong className="text-red-600">-{hourlyWage.toFixed(4)} BTC</strong>
-                </div>
-                <div className="bg-slate-50 p-2 text-center border border-slate-200">
-                  <span className="text-slate-400 block text-[10px]">Weekly (7d)</span>
-                  <strong className="text-red-600">-{weeklyWage.toFixed(2)} BTC</strong>
-                </div>
-                <div className="bg-slate-50 p-2 text-center border border-slate-200">
-                  <span className="text-slate-400 block text-[10px]">Monthly (30d)</span>
-                  <strong className="text-red-600">-{monthlyWage.toFixed(2)} BTC</strong>
-                </div>
-              </div>
             </div>
           </div>
 
-          {/* Step 3: Economic Value & Net Profit Contribution */}
+          {/* Step 3: Economic Profit & Conversion */}
           <div className="bg-white border border-slate-200 p-4 space-y-3">
             <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-              <span className="font-bold text-slate-800 uppercase text-xs flex items-center gap-1.5">
-                <span className="w-5 h-5 bg-slate-900 text-white flex items-center justify-center text-[10px] font-bold">3</span>
-                <span>Net Economic Contribution</span>
-              </span>
+              <span className="font-bold text-slate-800 uppercase text-xs">Estimated Profit Contribution</span>
               <span className={`text-[11px] font-bold ${dailyProfit >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>
                 {dailyProfit >= 0 ? '+' : ''}{dailyProfit.toFixed(2)} BTC/day
               </span>
@@ -277,23 +397,23 @@ export default function EmployeeAuditModal({
 
             <div className="space-y-1.5 text-slate-600">
               <div className="flex justify-between">
-                <span>Standard Conversion Factor:</span>
-                <strong className="text-slate-900 font-mono">0.09566 BTC per PP</strong>
+                <span>Commodity Net Value per PP:</span>
+                <strong className="text-slate-900 font-mono">{ratePerPp.toFixed(4)} BTC / PP ({itemCode})</strong>
               </div>
               <div className="flex justify-between">
-                <span>Daily Gross Production Value (Revenue):</span>
+                <span>Daily Gross Production Value:</span>
                 <strong className="text-emerald-700 font-bold flex items-center gap-1">
                   +{dailyRevenue.toFixed(3)} <GoldCoin size={11} /> / day
                 </strong>
               </div>
               <div className="flex justify-between">
-                <span>Daily Salary Outflow (Payroll):</span>
+                <span>Daily Payroll Outflow:</span>
                 <strong className="text-red-600 font-bold flex items-center gap-1">
                   -{dailyWage.toFixed(3)} <GoldCoin size={11} /> / day
                 </strong>
               </div>
               <div className="flex justify-between pt-1.5 border-t-2 border-slate-200 text-slate-900 font-bold">
-                <span>Net Profit Generated by AI Employee:</span>
+                <span>Net In-Game Daily Profit:</span>
                 <strong className={`font-black text-sm flex items-center gap-1 ${dailyProfit >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>
                   {dailyProfit >= 0 ? '+' : ''}{dailyProfit.toFixed(3)} <GoldCoin size={13} /> / day
                 </strong>
@@ -307,7 +427,7 @@ export default function EmployeeAuditModal({
         <div className="p-3 sm:p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between text-xs text-slate-500 font-mono shrink-0">
           <div className="flex items-center space-x-1.5">
             <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-            <span>Mathematical validation confirmed against live in-game v0.27 API</span>
+            <span>Exact match with in-game Estimated Profit breakdown</span>
           </div>
           <button
             type="button"
