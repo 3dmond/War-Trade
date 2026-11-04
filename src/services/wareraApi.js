@@ -505,11 +505,12 @@ export class WarEraService {
       const comp = await this.getCompanyById(companyId);
       if (!comp) return null;
 
-      // v0.27+: fetch actual company employees from employee.getCompanyEmployees
-      const [rawEmployees, regionData, productionBonusData] = await Promise.all([
+      // v0.27+: fetch actual company employees and manager in parallel
+      const [rawEmployees, regionData, productionBonusData, managerDoc] = await Promise.all([
         this.getCompanyEmployees(companyId),
         comp.region ? this.getRegionById(comp.region) : null,
-        this.getCompanyProductionBonus(companyId)
+        this.getCompanyProductionBonus(companyId),
+        this.callTrpc('manager.getByCompanyId', { companyId }).catch(() => null)
       ]);
 
       const employees = this.enrichEmployees(rawEmployees, { id: companyId, name: comp.name, itemCode: comp.itemCode }, this.lastPrices || {});
@@ -530,6 +531,17 @@ export class WarEraService {
       const managerTaxPct = typeof countryData?.taxes?.manager === 'number' ? countryData.taxes.manager : 0;
       const breakRoomLevel = comp.activeUpgradeLevels?.breakRoom ?? 0;
 
+      const manager = managerDoc ? {
+        id: managerDoc._id,
+        userId: managerDoc.user,
+        managementLevel: managerDoc.managementLevel || 1,
+        hourlyWage: managerDoc.hourlyWage || 0,
+        dailyWage: (managerDoc.hourlyWage || 0) * 24,
+        productionBonusPercent: managerDoc.productionBonusPercent || 0,
+        isInactive: managerDoc.isInactive || false
+      } : null;
+      const managerPay = manager?.dailyWage || 0;
+
       return {
         ...comp,
         id: comp._id,
@@ -538,6 +550,9 @@ export class WarEraService {
         employees: employees || [],
         workers: employees || [],   // alias for compat
         workerCount: (employees || []).length,
+        manager,
+        managerPay,
+        hasManager: !!manager,
         regionName: regionData?.name || 'Regional Sector',
         countryCode: regionData?.countryCode?.toUpperCase() || 'HQ',
         mainCity: regionData?.mainCity || '',
@@ -666,18 +681,34 @@ export class WarEraService {
         ...(Array.isArray(anythingRes?.userIds) ? anythingRes.userIds : [])
       ]));
 
-      // Fallback: try search without punctuation/spaces or lowercase if first query returned nothing
+      // Fallback: try search without punctuation/spaces, typo permutations, or substring
       if (candidateIds.length === 0) {
-        const altInput = cleanInput.replace(/[^a-zA-Z0-9]/g, '');
-        if (altInput && altInput !== cleanInput) {
-          const [altUsers, altAny] = await Promise.all([
-            this.searchUsers(altInput),
-            this.search(altInput)
-          ]);
-          candidateIds = Array.from(new Set([
-            ...(Array.isArray(altUsers) ? altUsers : []),
-            ...(Array.isArray(altAny?.userIds) ? altAny.userIds : [])
-          ]));
+        const variants = new Set();
+        const stripped = cleanInput.replace(/[^a-zA-Z0-9]/g, '');
+        if (stripped && stripped !== cleanInput) variants.add(stripped);
+        // Common single-letter typos like double vs single consonants (e.g. Abbadon -> Abaddon)
+        variants.add(cleanInput.replace(/([a-zA-Z])\1/g, '$1'));
+        variants.add(cleanInput.replace(/bb/g, 'b').replace(/d/g, 'dd'));
+        if (cleanInput.length >= 4) {
+          variants.add(cleanInput.slice(0, 4));
+        }
+
+        for (const variant of variants) {
+          if (!variant || variant === cleanInput) continue;
+          try {
+            const [altUsers, altAny] = await Promise.all([
+              this.searchUsers(variant),
+              this.search(variant)
+            ]);
+            const newIds = [
+              ...(Array.isArray(altUsers) ? altUsers : []),
+              ...(Array.isArray(altAny?.userIds) ? altAny.userIds : [])
+            ];
+            if (newIds.length > 0) {
+              candidateIds = Array.from(new Set([...candidateIds, ...newIds]));
+              break;
+            }
+          } catch (e) {}
         }
       }
 

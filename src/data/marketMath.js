@@ -516,6 +516,13 @@ export function calculateCompanyBaseEconomics(comp, prices = {}, insourceOverrid
   const workersDailyRevenue = employeesList.reduce((sum, e) => sum + e.dailyProductionValue, 0);
   const workersDailyProfit = employeesList.reduce((sum, e) => sum + e.dailyProfit, 0);
 
+  // Manager economics (v0.27+ paid manager role)
+  const managerDailyPay = typeof comp.manager?.dailyWage === 'number'
+    ? comp.manager.dailyWage
+    : (typeof comp.managerPay === 'number' ? comp.managerPay : 0);
+  const hasManager = !!comp.manager || managerDailyPay > 0;
+  const managerCount = hasManager ? 1 : 0;
+
   // Automated engine metrics
   const engineBasePph = comp.engineTier?.ppPerHour || (comp.engineLevel || 1);
   const engineBaseDailyPp = engineBasePph * 24;
@@ -527,11 +534,11 @@ export function calculateCompanyBaseEconomics(comp, prices = {}, insourceOverrid
   // Base Production in units per day
   const baseUnits = recipe.pp > 0 ? (companyProducedDailyPp / recipe.pp) : 0;
   const grossRevenue = workersDailyRevenue;
-  const dailyLaborExpense = workersDailyWages;
+  const dailyLaborExpense = workersDailyWages + managerDailyPay;
   const dailyRawExpenseTotal = 0;
 
-  // Base Net Profit directly reflects live in-game employee generation (Production Value - Payroll)
-  const baseNetProfit = workersDailyProfit;
+  // Base Net Profit directly reflects live in-game employee generation minus worker wages and manager pay
+  const baseNetProfit = grossRevenue - dailyLaborExpense;
   const baseLaborCostPerUnit = baseUnits > 0 ? (dailyLaborExpense / baseUnits) : 0;
   const baseRawCostPerUnit = 0;
   const baseNetProfitPerUnit = baseUnits > 0 ? (baseNetProfit / baseUnits) : 0;
@@ -552,6 +559,10 @@ export function calculateCompanyBaseEconomics(comp, prices = {}, insourceOverrid
     workersDailyWages,
     workersDailyRevenue,
     workersDailyProfit,
+    manager: comp.manager || null,
+    managerPay: managerDailyPay,
+    hasManager,
+    managerCount,
     workersList: employeesList,
     employees: employeesList,
     workers: employeesList,
@@ -602,9 +613,12 @@ export function calculatePortfolioOverview({
   const totalCompanyProducedPp = totalCompanyBasePp;
   const totalBaseProductionUnits = baseCalculated.reduce((sum, c) => sum + (c.baseUnits || 0), 0);
   const totalBaseGrossRevenue = baseCalculated.reduce((sum, c) => sum + (c.grossRevenue || 0), 0);
-  const totalBaseLaborExpense = baseCalculated.reduce((sum, c) => sum + (c.dailyLaborExpense || 0), 0);
+  const totalWorkerWages = baseCalculated.reduce((sum, c) => sum + (c.workersDailyWages || 0), 0);
+  const totalManagerCost = baseCalculated.reduce((sum, c) => sum + (c.managerPay || 0), 0);
+  const totalBaseLaborExpense = totalWorkerWages + totalManagerCost;
   const totalBaseNetProfit = totalBaseGrossRevenue - totalBaseLaborExpense;
   const totalEmployees = baseCalculated.reduce((sum, c) => sum + ((c.employees || c.workers || []).length), 0);
+  const totalManagers = baseCalculated.reduce((sum, c) => sum + (c.managerCount || 0), 0);
 
   return {
     ownerLabor: {
@@ -630,9 +644,12 @@ export function calculatePortfolioOverview({
       totalFinishedBaseUnits: baseCalculated.filter(c => !c.isRaw).reduce((sum, c) => sum + c.baseUnits, 0),
       totalBaseGrossRevenue,
       totalBaseRawExpense: 0,
+      totalWorkerWages,
+      totalManagerCost,
       totalBaseLaborExpense,
       totalBaseNetProfit,
       totalEmployees,
+      totalManagers,
       hasBothRawAndFinished: false
     }
   };
@@ -750,6 +767,9 @@ export function mapCompanyFromDossier(c, i = 0, user = null) {
     countryData: c.countryData || null,
     employees,
     workers: employees,
+    manager: c.manager || null,
+    managerPay: typeof c.managerPay === 'number' ? c.managerPay : (c.manager?.hourlyWage ? c.manager.hourlyWage * 24 : 0),
+    hasManager: !!c.manager || !!c.hasManager,
     isSelfWorking: false,
     isRealGameCompany: !!c._id
   };

@@ -149,6 +149,34 @@ export default function MetricBreakdownModal({
     return list;
   }, [companies, prices]);
 
+  // Flat list of all hired managers
+  const allManagers = useMemo(() => {
+    const list = [];
+    companies.forEach(comp => {
+      if (comp.manager || comp.hasManager || (typeof comp.managerPay === 'number' && comp.managerPay > 0)) {
+        const m = comp.manager || {};
+        const hourlyWage = typeof m.hourlyWage === 'number'
+          ? m.hourlyWage
+          : (typeof comp.managerPay === 'number' && comp.managerPay > 0 ? comp.managerPay / 24 : 0);
+        const dailyWage = typeof m.dailyWage === 'number'
+          ? m.dailyWage
+          : (typeof comp.managerPay === 'number' ? comp.managerPay : (hourlyWage * 24));
+        list.push({
+          id: m.id || `mgr-${comp.id || comp._id}`,
+          companyId: comp.id || comp._id,
+          companyName: comp.name || 'Company',
+          itemCode: comp.itemCode,
+          managementLevel: m.managementLevel || 1,
+          productionBonusPercent: m.productionBonusPercent || 0,
+          hourlyWage,
+          dailyWage,
+          isInactive: !!m.isInactive
+        });
+      }
+    });
+    return list;
+  }, [companies]);
+
   // Steel and Concrete Capital Influence Math
   const constructionMetrics = useMemo(() => {
     const steelPrice = prices.steel || 1.725;
@@ -848,8 +876,8 @@ export default function MetricBreakdownModal({
                   </div>
                 </div>
                 <div className="text-left sm:text-right text-xs font-mono text-slate-600">
-                  <div>Hired AI Workforce: <span className="font-bold text-slate-900">{allWorkers.length} employees</span></div>
-                  <div>Compensation: <span className="font-bold text-slate-900">Contracted Hourly Salary</span></div>
+                  <div>Hired Workforce: <span className="font-bold text-slate-900">{allWorkers.length} workers</span> • Managers: <span className="font-bold text-amber-800">{allManagers.length} hired</span></div>
+                  <div>Worker Wages: <span className="font-bold text-red-600">-{marketOverview.totalWorkerWages.toFixed(2)} BTC</span> • Manager Pay: <span className="font-bold text-red-600">-{marketOverview.totalManagerCost.toFixed(2)} BTC</span></div>
                   <div className="text-[10px] text-slate-400">Continuous 24-hour shift schedule</div>
                 </div>
               </div>
@@ -1071,7 +1099,7 @@ export default function MetricBreakdownModal({
                           {allWorkers.reduce((s, w) => s + (w.dailyOutputPp || 0), 0).toFixed(1)} PP
                         </td>
                         <td className="py-3 px-3 text-right text-red-500 text-sm">
-                          -{marketOverview.totalBaseLaborExpense.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} BTC
+                          -{marketOverview.totalWorkerWages.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} BTC
                         </td>
                         <td className="py-3 px-3 text-right text-emerald-600 text-sm">
                           +{allWorkers.reduce((s, w) => s + (w.dailyProductionValue || 0), 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} BTC
@@ -1086,6 +1114,66 @@ export default function MetricBreakdownModal({
                   </table>
                 </div>
               </div>
+
+              {/* Hired Managers Payroll Table */}
+              {allManagers.length > 0 && (
+                <div className="bg-white border border-slate-200 overflow-hidden">
+                  <div className="px-4 py-2.5 bg-amber-50/70 border-b border-amber-200 flex items-center justify-between">
+                    <span className="text-xs font-bold font-mono text-amber-900 uppercase">
+                      Hired Company Managers ({allManagers.length} Managers)
+                    </span>
+                    <span className="text-[11px] font-mono text-amber-700">
+                      Total Manager Payroll: -{marketOverview.totalManagerCost.toFixed(2)} BTC/day
+                    </span>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse text-xs">
+                      <thead>
+                        <tr className="border-b border-slate-200 bg-slate-50 font-mono text-[11px] text-slate-600">
+                          <th className="py-2.5 px-4 font-bold">Company</th>
+                          <th className="py-2.5 px-3 font-bold">Manager Role</th>
+                          <th className="py-2.5 px-3 font-bold text-center">Prod Bonus</th>
+                          <th className="py-2.5 px-3 font-bold text-right">Hourly Wage</th>
+                          <th className="py-2.5 px-4 font-bold text-right">Daily Cost (24h)</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 font-mono">
+                        {allManagers.map(m => (
+                          <tr key={m.id} className="hover:bg-slate-50">
+                            <td className="py-2.5 px-4 font-bold text-slate-900 font-sans">
+                              {m.companyName}
+                            </td>
+                            <td className="py-2.5 px-3">
+                              <span className="px-2 py-0.5 bg-amber-100 text-amber-900 font-bold text-[10px]">
+                                Manager Lv.{m.managementLevel}
+                              </span>
+                            </td>
+                            <td className="py-2.5 px-3 text-center font-bold text-emerald-700">
+                              +{m.productionBonusPercent}%
+                            </td>
+                            <td className="py-2.5 px-3 text-right font-bold text-red-600">
+                              -{m.hourlyWage.toFixed(4)} BTC/h
+                            </td>
+                            <td className="py-2.5 px-4 text-right font-bold text-red-600">
+                              -{m.dailyWage.toFixed(2)} BTC/d
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                      <tfoot>
+                        <tr className="bg-slate-100 border-t-2 border-slate-300 font-bold font-mono">
+                          <td colSpan={4} className="py-2.5 px-4 text-slate-800">
+                            Total Manager Outflow:
+                          </td>
+                          <td className="py-2.5 px-4 text-right text-red-600 text-sm">
+                            -{marketOverview.totalManagerCost.toFixed(2)} BTC
+                          </td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -1478,8 +1566,13 @@ export default function MetricBreakdownModal({
                             </td>
                             <td className="py-2.5 px-3 text-center">
                               <span className={`px-2 py-0.5 text-[10px] font-mono font-bold ${count > 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-500'}`}>
-                                {count} workers
+                                {count} emps
                               </span>
+                              {c.hasManager && (
+                                <span className="px-1.5 py-0.5 bg-amber-100 text-amber-800 font-bold text-[9px] block mt-1" title={`Manager Lv.${c.manager?.managementLevel || 1}`}>
+                                  Mgr Lv.{c.manager?.managementLevel || 1}
+                                </span>
+                              )}
                             </td>
                             <td className="py-2.5 px-3 font-sans">
                               {count > 0 ? (

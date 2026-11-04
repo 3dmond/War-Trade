@@ -69,13 +69,24 @@ export default function StockExchangeListing({
 
     // Direct ground-truth aggregations across active companies
     const sumCompanyGrossRevenue = companies.reduce((sum, c) => sum + (c.dailyGrossRevenue ?? c.grossRevenue ?? 0), 0);
-    const sumCompanyLaborExpense = companies.reduce((sum, c) => sum + (c.dailyLaborExpense ?? 0), 0);
+    const sumCompanyWorkerExpense = companies.reduce((sum, c) => sum + (c.workersDailyWages ?? c.dailyLaborExpense ?? 0), 0);
+    const sumCompanyManagerExpense = companies.reduce((sum, c) => sum + (c.managerPay ?? 0), 0);
+    const sumCompanyLaborExpense = sumCompanyWorkerExpense + sumCompanyManagerExpense;
     const sumCompanyRawExpense = companies.reduce((sum, c) => sum + (c.dailyRawExpenseTotal ?? 0), 0);
-    const sumCompanyNetProfit = companies.reduce((sum, c) => sum + (c.dailyNetProfit ?? c.baseNetProfit ?? 0), 0);
+    const sumCompanyNetProfit = sumCompanyGrossRevenue - sumCompanyLaborExpense - sumCompanyRawExpense;
     const sumCompanyDailyUnits = companies.reduce((sum, c) => sum + (c.baseUnits ?? 0), 0);
     const sumCompanyProducedPp = companies.reduce((sum, c) => sum + (c.companyProducedDailyPp ?? 0), 0);
     const sumCompanyBasePp = companies.reduce((sum, c) => sum + (c.companyBaseDailyPp ?? c.companyProducedDailyPp ?? 0), 0);
     const sumCompanyWorkers = companies.reduce((sum, c) => sum + (c.enrichedWorkers?.length || c.employees?.length || c.workers?.length || 0), 0);
+    const sumCompanyManagers = companies.reduce((sum, c) => sum + (c.hasManager ? 1 : 0), 0);
+
+    const totalWorkerWages = (typeof portfolioTotals?.totalWorkerWages === 'number')
+      ? portfolioTotals.totalWorkerWages
+      : sumCompanyWorkerExpense;
+
+    const totalManagerCost = (typeof portfolioTotals?.totalManagerCost === 'number')
+      ? portfolioTotals.totalManagerCost
+      : sumCompanyManagerExpense;
 
     const totalBaseGrossRevenue = (typeof portfolioTotals?.totalBaseGrossRevenue === 'number' && portfolioTotals.totalBaseGrossRevenue > 0)
       ? portfolioTotals.totalBaseGrossRevenue
@@ -83,7 +94,7 @@ export default function StockExchangeListing({
 
     const totalBaseLaborExpense = (typeof portfolioTotals?.totalBaseLaborExpense === 'number' && portfolioTotals.totalBaseLaborExpense > 0)
       ? portfolioTotals.totalBaseLaborExpense
-      : sumCompanyLaborExpense;
+      : (totalWorkerWages + totalManagerCost);
 
     const totalBaseRawExpense = typeof portfolioTotals?.totalBaseRawExpense === 'number'
       ? portfolioTotals.totalBaseRawExpense
@@ -91,7 +102,7 @@ export default function StockExchangeListing({
 
     const baseDailyProfit = (typeof portfolioTotals?.totalBaseNetProfit === 'number' && Math.abs(portfolioTotals.totalBaseNetProfit) > 0)
       ? portfolioTotals.totalBaseNetProfit
-      : sumCompanyNetProfit;
+      : (totalBaseGrossRevenue - totalBaseLaborExpense - totalBaseRawExpense);
 
     const totalBaseDailyUnits = (typeof portfolioTotals?.totalBaseProductionUnits === 'number' && portfolioTotals.totalBaseProductionUnits > 0)
       ? portfolioTotals.totalBaseProductionUnits
@@ -119,6 +130,10 @@ export default function StockExchangeListing({
       ? portfolioTotals.totalEmployees
       : sumCompanyWorkers;
 
+    const totalManagers = (typeof portfolioTotals?.totalManagers === 'number')
+      ? portfolioTotals.totalManagers
+      : sumCompanyManagers;
+
     return {
       totalValuation,
       baseDailyProfit,
@@ -135,6 +150,9 @@ export default function StockExchangeListing({
       totalInclusiveBasePp,
       total24hGrowthCoins,
       total24hGrowthPct,
+      totalWorkerWages,
+      totalManagerCost,
+      totalManagers,
       totalWorkers,
       hasBothRawAndFinished: typeof portfolioTotals?.hasBothRawAndFinished === 'boolean'
         ? portfolioTotals.hasBothRawAndFinished
@@ -609,8 +627,8 @@ export default function StockExchangeListing({
             <span className="text-xs font-normal text-slate-400 ml-1">/day</span>
           </div>
           <div className="text-[11px] text-slate-500 font-sans flex items-center justify-between">
-            <span>Hired workforce wages</span>
-            <span className="text-slate-400 text-[10px] font-mono">{marketOverview.totalWorkers} workers</span>
+            <span>Emps: -{marketOverview.totalWorkerWages.toFixed(1)}</span>
+            <span className="text-slate-400 text-[10px] font-mono">Mgrs: -{marketOverview.totalManagerCost.toFixed(1)}</span>
           </div>
         </div>
 
@@ -699,10 +717,10 @@ export default function StockExchangeListing({
             </span>
           </div>
           <div className="text-xl sm:text-2xl font-black font-mono text-slate-900">
-            {marketOverview.totalWorkers} <span className="text-xs font-normal text-slate-400">/ {maxHiringSlots} slots</span>
+            {marketOverview.totalWorkers} <span className="text-xs font-normal text-slate-400">/ {maxHiringSlots} emps</span>
           </div>
           <div className="text-[11px] text-slate-500 font-sans flex items-center justify-between">
-            <span>Mgmt Lv.{managementLevel}</span>
+            <span>+{marketOverview.totalManagers || 0} Managers</span>
             <span className="text-emerald-700 font-bold font-mono">{Math.max(0, maxHiringSlots - marketOverview.totalWorkers)} open</span>
           </div>
         </div>
@@ -774,7 +792,7 @@ export default function StockExchangeListing({
                 <th className="py-3 px-3 text-right">PP Ratio (%)</th>
                 <th className="py-3 px-3 text-right">Price / Base PP</th>
                 <th className="py-3 px-3 text-center min-w-[110px]">Storage</th>
-                <th className="py-3 px-3 text-center">Staff</th>
+                <th className="py-3 px-3 text-center min-w-[110px]">Staff & Roles</th>
                 <th className="py-3 px-3 text-center w-20">Action</th>
               </tr>
             </thead>
@@ -888,7 +906,9 @@ export default function StockExchangeListing({
                           {(c.dailyLaborExpense || 0) > 0 ? `-${c.dailyLaborExpense.toFixed(2)}` : '0.00'}
                         </div>
                         <span className="text-[10px] text-slate-400 block font-normal">
-                          {c.workers?.length ? `${c.workers.length} hired` : '0 hired'}
+                          {c.hasManager && c.managerPay > 0
+                            ? `Emps: -${(c.workersDailyWages || 0).toFixed(2)} | Mgr: -${c.managerPay.toFixed(2)}`
+                            : (c.workers?.length ? `${c.workers.length} hired emps` : '0 hired')}
                         </span>
                       </td>
 
@@ -957,18 +977,30 @@ export default function StockExchangeListing({
                         </div>
                       </td>
 
-                      {/* Staff Count */}
+                      {/* Staff & Roles (Employees + Managers) */}
                       <td className="py-3.5 px-3 text-center whitespace-nowrap">
-                        {(c.workers?.length || 0) > 0 ? (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-slate-100 text-slate-800 font-bold text-[11px]">
-                            <Users className="w-3 h-3 text-slate-600" />
-                            <span>{c.workers.length}</span>
-                          </span>
-                        ) : (
-                          <span className="text-[11px] text-slate-400 font-sans">
-                            Automated
-                          </span>
-                        )}
+                        <div className="inline-flex flex-col items-center gap-1">
+                          <div className="flex items-center gap-1.5">
+                            {(c.workers?.length || 0) > 0 ? (
+                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-slate-100 text-slate-800 font-bold text-[11px]" title={`${c.workers.length} Hired Employees`}>
+                                <Users className="w-3 h-3 text-slate-600" />
+                                <span>{c.workers.length}</span>
+                              </span>
+                            ) : (
+                              <span className="text-[11px] text-slate-400 font-sans">0 emps</span>
+                            )}
+                            {c.hasManager ? (
+                              <span 
+                                className="px-1.5 py-0.5 bg-amber-100 text-amber-800 font-bold text-[10px]" 
+                                title={`Hired Manager Lv.${c.manager?.managementLevel || 1} (+${c.manager?.productionBonusPercent || 0}% prod bonus, -${(c.managerPay || 0).toFixed(2)} BTC/d)`}
+                              >
+                                Mgr Lv.{c.manager?.managementLevel || 1}
+                              </span>
+                            ) : (
+                              <span className="text-[10px] text-slate-400">No mgr</span>
+                            )}
+                          </div>
+                        </div>
                       </td>
 
                       {/* Action Button */}
