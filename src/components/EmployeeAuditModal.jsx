@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
-import { X, CheckCircle2, ChevronRight, Calculator, ShieldCheck } from 'lucide-react';
-import ItemIcon from './ItemIcon';
+import { X, CheckCircle2, ShieldCheck, Zap, Sparkles, Smile, TrendingUp, AlertTriangle } from 'lucide-react';
+import { GoldCoin } from './CompanyPortfolio';
 
 export default function EmployeeAuditModal({
   isOpen = false,
@@ -32,92 +32,50 @@ export default function EmployeeAuditModal({
 
   if (!isOpen || !worker) return null;
 
-  // Safe Math Deconstructions
-  const energyLvl = typeof worker.energySkill === 'number' ? worker.energySkill : 0;
-  const stamina = worker.energyStamina || worker.energyPointsTotal || (30 + energyLvl * 10);
-  const dailySessions = typeof worker.dailySessions === 'number' && worker.dailySessions > 0
-    ? worker.dailySessions
-    : (typeof worker.workSessionsPerDay === 'number' && worker.workSessionsPerDay > 0
-        ? worker.workSessionsPerDay
-        : Number((stamina * 0.24).toFixed(2)));
+  // v0.27+ AI Worker Production & Hourly Wage Metrics
+  const hourlyOutputPp = typeof worker.hourlyOutputPp === 'number'
+    ? worker.hourlyOutputPp
+    : (typeof worker.estimate?.production === 'number' ? worker.estimate.production : (worker.dailyOutputPp ? worker.dailyOutputPp / 24 : 0));
 
-  const hourlyRegenPts = Number((stamina * 0.10).toFixed(2));
-  const full24hRegenPts = Number((stamina * 2.4).toFixed(2));
+  const hourlyWage = typeof worker.hourlyWage === 'number'
+    ? worker.hourlyWage
+    : (typeof worker.wage === 'number'
+        ? worker.wage
+        : (typeof worker.salary === 'number'
+            ? worker.salary
+            : (typeof worker.estimate?.wage === 'number' ? worker.estimate.wage : 0)));
 
-  const prodLvl = typeof worker.productionSkill === 'number' ? worker.productionSkill : 0;
-  const basePp = worker.basePp || worker.productionPointsBase || (prodLvl > 10 ? prodLvl : (10 + prodLvl * 3));
-  const compBonus = worker.companyTotalBonusPct || 0;
-  const loyalty = typeof worker.fidelity === 'number' ? worker.fidelity : (worker.loyaltyBonus || 0);
-  const devPct = typeof worker.devPct === 'number' ? worker.devPct : 4.88;
-  const incomeTaxPct = typeof worker.incomeTaxPct === 'number' ? worker.incomeTaxPct : 9.0;
+  const dailyOutputPp = typeof worker.dailyOutputPp === 'number'
+    ? worker.dailyOutputPp
+    : Number((hourlyOutputPp * 24).toFixed(2));
 
-  // 1. Worker Labor PP per session (what contracted wage is paid on)
-  const laborPpPerHit = typeof worker.laborPpPerHit === 'number'
-    ? worker.laborPpPerHit
-    : basePp;
-
-  // 2. Company Production PP per session (full factory yield delivered to facility)
-  const totalEffectiveBonusPct = compBonus + loyalty;
-  const producedPpPerHit = typeof worker.producedPpPerHit === 'number'
-    ? worker.producedPpPerHit
-    : Number((basePp * (1 + (totalEffectiveBonusPct / 100))).toFixed(2));
-
-  const dailyProducedPp = typeof worker.producedDailyPp === 'number' && worker.producedDailyPp > 0
-    ? worker.producedDailyPp
-    : (typeof worker.dailyPp === 'number' && worker.dailyPp > 0
-        ? worker.dailyPp
-        : Number((dailySessions * producedPpPerHit).toFixed(1)));
-
-  const dailyLaborPp = typeof worker.dailyLaborPp === 'number'
-    ? worker.dailyLaborPp
-    : Number((dailySessions * laborPpPerHit).toFixed(1));
-
-  const dailyBasePp = worker.dailyBasePp || (dailySessions * basePp);
-  const bonusPpDelta = Math.max(0, dailyProducedPp - dailyBasePp);
-
-  // 3. Contracted Wage Rate, Tax & Payroll Outflows
-  const wageRate = typeof worker.wageRate === 'number'
-    ? worker.wageRate
-    : (typeof worker.wagePerPp === 'number' ? worker.wagePerPp : (worker.wage || 0.158));
-
-  const netWageRate = typeof worker.netWageRate === 'number'
-    ? worker.netWageRate
-    : Number((wageRate * (1 - (incomeTaxPct / 100))).toFixed(3));
-
-  const grossWagePerHit = typeof worker.grossWagePerHit === 'number'
-    ? worker.grossWagePerHit
-    : Number((laborPpPerHit * wageRate).toFixed(3));
-
-  const taxPerHit = typeof worker.taxPerHit === 'number'
-    ? worker.taxPerHit
-    : Number((grossWagePerHit * (incomeTaxPct / 100)).toFixed(3));
-
-  const netWagePerHit = typeof worker.netWagePerHit === 'number'
-    ? worker.netWagePerHit
-    : Number((grossWagePerHit - taxPerHit).toFixed(3));
-
-  const dailyWage = typeof worker.dailyWage === 'number' && worker.dailyWage > 0
+  const dailyWage = typeof worker.dailyWage === 'number'
     ? worker.dailyWage
-    : Number((dailySessions * grossWagePerHit).toFixed(2));
+    : Number((hourlyWage * 24).toFixed(3));
 
-  const dailyTax = typeof worker.dailyTax === 'number'
-    ? worker.dailyTax
-    : Number((dailySessions * taxPerHit).toFixed(2));
+  const MARKET_VALUE_PER_PP = 0.09566;
+  const hourlyRevenue = Number((hourlyOutputPp * MARKET_VALUE_PER_PP).toFixed(4));
+  const dailyRevenue = typeof worker.dailyProductionValue === 'number'
+    ? worker.dailyProductionValue
+    : Number((dailyOutputPp * MARKET_VALUE_PER_PP).toFixed(3));
 
-  const netDailyWage = typeof worker.netDailyWage === 'number'
-    ? worker.netDailyWage
-    : Number((dailySessions * netWagePerHit).toFixed(2));
+  const hourlyProfit = Number((hourlyRevenue - hourlyWage).toFixed(4));
+  const dailyProfit = typeof worker.dailyProfit === 'number'
+    ? worker.dailyProfit
+    : Number((dailyRevenue - dailyWage).toFixed(3));
 
-  const hourlyWage = dailyWage / 24;
-  const weeklyWage = dailyWage * 7;
-  const monthlyWage = dailyWage * 30;
+  const weeklyWage = Number((dailyWage * 7).toFixed(2));
+  const monthlyWage = Number((dailyWage * 30).toFixed(2));
 
-  const recipe = worker.recipe || { pp: 1, name: worker.companyItemCode || 'Product' };
-  const spotPrice = worker.spotPrice || 1.0;
-  const unitsProduced = recipe.pp > 0 ? (dailyProducedPp / recipe.pp) : 0;
-  const grossValue = unitsProduced * spotPrice;
-  const rawExpense = worker.rawExpense !== undefined ? worker.rawExpense : (unitsProduced * (worker.baseRawCostPerUnit || 0));
-  const netContribution = grossValue - rawExpense - dailyWage;
+  // Trait, Potential & Happiness Breakdown
+  const traits = Array.isArray(worker.traits) ? worker.traits : [];
+  const happiness = worker.happiness ?? worker.happinessBreakdown?.value ?? null;
+  const potential = worker.potential ?? null;
+  const potentialMax = worker.potentialMax ?? null;
+  const breakdown = worker.breakdown || {};
+  const baseProd = worker.baseProduction ?? breakdown.production?.base ?? null;
+  const trainedProd = worker.trainedProduction ?? breakdown.production?.trained ?? null;
+  const prodBonus = worker.productionBonus ?? null;
 
   return (
     <div 
@@ -128,22 +86,29 @@ export default function EmployeeAuditModal({
         className="bg-white border border-slate-300 w-full max-w-2xl max-h-[92vh] flex flex-col shadow-2xl relative animate-in zoom-in-95 duration-150 overflow-hidden font-sans my-auto"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header - White & Slate */}
+        {/* Header */}
         <div className="p-4 sm:p-5 border-b border-slate-200 flex items-center justify-between bg-white shrink-0">
-          <div className="space-y-0.5">
-            <div className="flex items-center space-x-2">
+          <div className="space-y-1">
+            <div className="flex items-center space-x-2 flex-wrap gap-y-1">
               <span className="text-base sm:text-lg font-black text-slate-900">
-                @{worker.username}
+                {worker.name || worker.username || 'AI Employee'}
               </span>
-              <span className="text-[10px] font-mono uppercase bg-slate-100 text-slate-700 px-2 py-0.5 font-bold">
-                Level {worker.level || 1}
-              </span>
+              {worker.age && (
+                <span className="text-[10px] font-mono uppercase bg-slate-100 text-slate-700 px-2 py-0.5 font-bold">
+                  Age {worker.age} {worker.gender ? `(${worker.gender})` : ''}
+                </span>
+              )}
               <span className="text-[10px] font-mono uppercase bg-emerald-50 text-emerald-800 px-2 py-0.5 font-bold border border-emerald-200">
-                Active Employee
+                Hired AI Worker (v0.27+)
               </span>
+              {happiness !== null && (
+                <span className={`text-[10px] font-mono font-bold px-2 py-0.5 border ${happiness >= 50 ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-amber-50 text-amber-700 border-amber-200'}`}>
+                  😊 {happiness}% Happiness
+                </span>
+              )}
             </div>
             <p className="text-xs text-slate-500 font-mono">
-              Assigned Facility: <strong className="text-slate-800">{worker.companyName}</strong> ({worker.companyItemCode})
+              Assigned Facility: <strong className="text-slate-800">{worker.companyName || 'Active Company'}</strong> ({worker.companyItemCode || 'Commodity'})
             </p>
           </div>
 
@@ -163,225 +128,174 @@ export default function EmployeeAuditModal({
           {/* Quick Result KPI Bar */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 bg-slate-50 p-3 border border-slate-200">
             <div>
-              <span className="text-[10px] text-slate-400 uppercase block">Daily Work Sessions</span>
-              <strong className="text-slate-900 text-sm font-black">{dailySessions.toFixed(1)} /day</strong>
+              <span className="text-[10px] text-slate-400 uppercase block">Hourly Salary</span>
+              <strong className="text-red-600 text-sm font-black flex items-center gap-1">
+                -{hourlyWage.toFixed(4)} <GoldCoin size={12} />
+              </strong>
             </div>
             <div>
-              <span className="text-[10px] text-slate-400 uppercase block">Yield / Session</span>
-              <strong className="text-emerald-800 text-sm font-black">{producedPpPerHit.toFixed(1)} PP</strong>
+              <span className="text-[10px] text-slate-400 uppercase block">Hourly Yield</span>
+              <strong className="text-blue-900 text-sm font-black">{hourlyOutputPp.toFixed(2)} PP/h</strong>
             </div>
             <div>
-              <span className="text-[10px] text-slate-400 uppercase block">Daily PP Produced</span>
-              <strong className="text-blue-900 text-sm font-black">{dailyProducedPp.toFixed(1)} PP</strong>
+              <span className="text-[10px] text-slate-400 uppercase block">Daily Output</span>
+              <strong className="text-emerald-800 text-sm font-black">{dailyOutputPp.toFixed(1)} PP/day</strong>
             </div>
             <div>
-              <span className="text-[10px] text-slate-400 uppercase block">Payable Salary / Day</span>
-              <strong className="text-red-500 text-sm font-black">-{dailyWage.toFixed(2)} BTC</strong>
+              <span className="text-[10px] text-slate-400 uppercase block">Daily Net Profit</span>
+              <strong className={`text-sm font-black flex items-center gap-1 ${dailyProfit >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>
+                {dailyProfit >= 0 ? '+' : ''}{dailyProfit.toFixed(2)} <GoldCoin size={12} />
+              </strong>
             </div>
           </div>
 
-          {/* Step 1: Energy & Daily Sessions */}
+          {/* Traits & Potential Badge Section */}
+          {(traits.length > 0 || potential !== null) && (
+            <div className="bg-white border border-slate-200 p-4 space-y-2.5">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                <span className="font-bold text-slate-800 uppercase text-xs flex items-center gap-1.5">
+                  <Sparkles className="w-4 h-4 text-amber-500" />
+                  <span>AI Worker Traits & Growth Potential</span>
+                </span>
+                {potential !== null && (
+                  <span className="text-[11px] text-slate-700 font-bold">
+                    Potential: {potential} / {potentialMax || potential}
+                  </span>
+                )}
+              </div>
+              <div className="flex flex-wrap gap-2 pt-1">
+                {traits.map((t, idx) => (
+                  <span key={idx} className="bg-amber-50 text-amber-900 border border-amber-200/80 px-2.5 py-1 text-[11px] font-bold">
+                    ★ {t.code || t.name || t}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Step 1: Hourly Production & 24h Output Yield */}
           <div className="bg-white border border-slate-200 p-4 space-y-3">
             <div className="flex items-center justify-between border-b border-slate-100 pb-2">
               <span className="font-bold text-slate-800 uppercase text-xs flex items-center gap-1.5">
                 <span className="w-5 h-5 bg-slate-900 text-white flex items-center justify-center text-[10px] font-bold">1</span>
-                <span>Energy Stamina & 24h Work Sessions</span>
+                <span>Production Breakdown (Hourly & 24h Output)</span>
               </span>
-              <span className="text-[11px] text-slate-500 font-bold">
-                {dailySessions.toFixed(1)} sessions/day
+              <span className="text-[11px] text-emerald-700 font-bold">
+                {hourlyOutputPp.toFixed(2)} PP/hour
               </span>
             </div>
 
             <div className="space-y-1.5 text-slate-600">
-              <div className="flex justify-between">
-                <span>Energy Skill Level:</span>
-                <strong className="text-slate-900">Level {energyLvl}</strong>
-              </div>
-              <div className="flex justify-between">
-                <span>Max Energy Pool (Stamina):</span>
-                <strong className="text-slate-900">{stamina} energy points</strong>
-              </div>
-              <div className="text-[11px] text-slate-400 bg-slate-50 p-2 border border-slate-100">
-                Formula: Base 30 + (10 * Energy Level {energyLvl}) = <strong>{stamina} pts</strong>
-              </div>
-              <div className="flex justify-between pt-1">
-                <span>Natural Regeneration Rate:</span>
-                <strong className="text-slate-900">10% / hour ({hourlyRegenPts} pts/h)</strong>
-              </div>
-              <div className="flex justify-between">
-                <span>24-Hour Stamina Capacity:</span>
-                <strong className="text-slate-900">240% of pool ({full24hRegenPts} pts / 24h)</strong>
-              </div>
-              <div className="flex justify-between">
-                <span>Energy Cost Per Work Session:</span>
-                <strong className="text-slate-900">10 energy points</strong>
-              </div>
+              {baseProd !== null && (
+                <div className="flex justify-between">
+                  <span>Base Production Stat:</span>
+                  <strong className="text-slate-900">{baseProd} PP</strong>
+                </div>
+              )}
+              {trainedProd !== null && trainedProd > 0 && (
+                <div className="flex justify-between">
+                  <span>Trained Skill Increment:</span>
+                  <strong className="text-emerald-700">+{trainedProd} PP</strong>
+                </div>
+              )}
+              {typeof prodBonus === 'number' && (
+                <div className="flex justify-between">
+                  <span>Facility Production Multiplier:</span>
+                  <strong className="text-emerald-700">+{prodBonus}%</strong>
+                </div>
+              )}
               <div className="flex justify-between pt-1 border-t border-slate-200 text-slate-900 font-bold">
-                <span>Natural Daily Work Sessions:</span>
+                <span>Effective Hourly Production Rate:</span>
                 <strong className="text-blue-900 font-black">
-                  ({stamina} * 0.24) = {dailySessions.toFixed(2)} sessions/day
+                  {hourlyOutputPp.toFixed(3)} PP / hour
+                </strong>
+              </div>
+              <div className="flex justify-between text-slate-900 font-bold pt-1">
+                <span>Continuous 24h Daily Production Yield:</span>
+                <strong className="text-emerald-800 font-black">
+                  {hourlyOutputPp.toFixed(3)} * 24 = {dailyOutputPp.toFixed(1)} PP / day
                 </strong>
               </div>
             </div>
           </div>
 
-          {/* Step 2: Production Skill, Regional Efficiency & Bonuses */}
+          {/* Step 2: Hourly Rate & Payable Salary Outflows */}
           <div className="bg-white border border-slate-200 p-4 space-y-3">
             <div className="flex items-center justify-between border-b border-slate-100 pb-2">
               <span className="font-bold text-slate-800 uppercase text-xs flex items-center gap-1.5">
                 <span className="w-5 h-5 bg-slate-900 text-white flex items-center justify-center text-[10px] font-bold">2</span>
-                <span>Labor PP vs Factory Yield</span>
+                <span>Salary & Payroll Outflows (Hourly Rate)</span>
               </span>
-              <span className="text-[11px] text-emerald-700 font-bold">
-                {producedPpPerHit.toFixed(2)} PP yield / session
+              <span className="text-[11px] text-red-600 font-bold">
+                -{dailyWage.toFixed(3)} BTC/day
               </span>
             </div>
 
             <div className="space-y-1.5 text-slate-600">
               <div className="flex justify-between">
-                <span>Production Skill Level:</span>
-                <strong className="text-slate-900">Level {prodLvl} ({basePp} PP base)</strong>
-              </div>
-              <div className="flex justify-between">
-                <span>Worker Fidelity (Loyalty):</span>
-                <strong className={loyalty > 0 ? "text-emerald-500 font-bold" : "text-blue-500 font-bold"}>
-                  {loyalty > 0 ? `+${loyalty}%` : '0%'}
+                <span>Contracted Hourly Salary:</span>
+                <strong className="text-slate-900 font-bold flex items-center gap-1">
+                  {hourlyWage.toFixed(6)} <GoldCoin size={11} /> / hour
                 </strong>
-              </div>
-              <div className="flex justify-between">
-                <span>Regional Development:</span>
-                <strong className="text-slate-700 font-bold">+{devPct.toFixed(2)}%</strong>
               </div>
               <div className="flex justify-between pt-1 border-t border-slate-200 text-slate-900 font-bold">
-                <span>Worker Contract Labor Base:</span>
-                <strong className="text-blue-900 font-black">
-                  {laborPpPerHit.toFixed(2)} PP / session
+                <span>Payable Daily Salary Outflow (24 Hours):</span>
+                <strong className="text-red-600 font-black text-sm flex items-center gap-1">
+                  {hourlyWage.toFixed(6)} * 24 = -{dailyWage.toFixed(3)} <GoldCoin size={12} /> / day
                 </strong>
               </div>
-              <div className="text-[11px] text-slate-400 bg-slate-50 p-2 border border-slate-100">
-                Formula: {basePp} base PP (contracted basis for salary pay)
-              </div>
-              <div className="flex justify-between pt-1">
-                <span>Facility Deposit & Production Bonus:</span>
-                <strong className="text-emerald-500 font-bold">+{compBonus.toFixed(1)}%</strong>
-              </div>
-              <div className="flex justify-between pt-1 border-t border-slate-200 text-slate-900 font-bold">
-                <span>Total Factory Production Yield:</span>
-                <strong className="text-emerald-800 font-black">
-                  {producedPpPerHit.toFixed(2)} PP / session
-                </strong>
-              </div>
-              <div className="text-[11px] text-slate-400 bg-slate-50 p-2 border border-slate-100">
-                Note: In WarEra, facility deposit bonuses (+{compBonus.toFixed(1)}%) and worker loyalty (+{loyalty}%) enhance commodity output to company storage, while employee wages are paid strictly on base labor PP.
+
+              {/* Salary Outflow Projections */}
+              <div className="grid grid-cols-3 gap-2 pt-2 text-[11px] border-t border-slate-100">
+                <div className="bg-slate-50 p-2 text-center border border-slate-200">
+                  <span className="text-slate-400 block text-[10px]">Hourly</span>
+                  <strong className="text-red-600">-{hourlyWage.toFixed(4)} BTC</strong>
+                </div>
+                <div className="bg-slate-50 p-2 text-center border border-slate-200">
+                  <span className="text-slate-400 block text-[10px]">Weekly (7d)</span>
+                  <strong className="text-red-600">-{weeklyWage.toFixed(2)} BTC</strong>
+                </div>
+                <div className="bg-slate-50 p-2 text-center border border-slate-200">
+                  <span className="text-slate-400 block text-[10px]">Monthly (30d)</span>
+                  <strong className="text-red-600">-{monthlyWage.toFixed(2)} BTC</strong>
+                </div>
               </div>
             </div>
           </div>
 
-          {/* Step 3: Contract Wage, Regional Tax & Payroll Outflow */}
+          {/* Step 3: Economic Value & Net Profit Contribution */}
           <div className="bg-white border border-slate-200 p-4 space-y-3">
             <div className="flex items-center justify-between border-b border-slate-100 pb-2">
               <span className="font-bold text-slate-800 uppercase text-xs flex items-center gap-1.5">
                 <span className="w-5 h-5 bg-slate-900 text-white flex items-center justify-center text-[10px] font-bold">3</span>
-                <span>Wages, Regional Tax & Payroll Outflow</span>
+                <span>Net Economic Contribution</span>
               </span>
-              <span className="text-[11px] text-amber-800 font-bold">
-                -{dailyWage.toFixed(2)} BTC/day
-              </span>
-            </div>
-
-            <div className="space-y-1.5 text-slate-600">
-              <div className="flex justify-between">
-                <span>Contracted Wage Rate:</span>
-                <strong className="text-slate-900 font-bold">
-                  {wageRate.toFixed(3)} <span className="text-slate-500 font-normal">({netWageRate.toFixed(3)})</span> BTC / PP
-                </strong>
-              </div>
-              <div className="flex justify-between">
-                <span>Gross Wage Outflow Per Hit:</span>
-                <strong className="text-slate-900">{laborPpPerHit.toFixed(2)} PP * {wageRate.toFixed(3)} BTC = {grossWagePerHit.toFixed(3)} BTC</strong>
-              </div>
-              <div className="flex justify-between">
-                <span>Regional Income Tax ({incomeTaxPct}%):</span>
-                <strong className="text-red-500">-{taxPerHit.toFixed(3)} BTC / hit</strong>
-              </div>
-              <div className="flex justify-between">
-                <span>Worker Net Take-Home Per Hit:</span>
-                <strong className={`font-bold ${netWagePerHit > 0 ? 'text-emerald-500' : netWagePerHit < 0 ? 'text-red-500' : 'text-blue-500'}`}>+{netWagePerHit.toFixed(3)} BTC / hit</strong>
-              </div>
-              <div className="text-[11px] text-slate-400 bg-slate-50 p-2 border border-slate-100">
-                In-game work confirmation: ⛏ {producedPpPerHit.toFixed(2)} PP | 🪙 {netWagePerHit.toFixed(3)} net | 🐙 -{taxPerHit.toFixed(3)} tax | ⚡ 10-19 energy
-              </div>
-
-              <div className="flex justify-between pt-2 border-t border-slate-200 text-slate-900 font-bold">
-                <span>Payable Company Payroll / Day:</span>
-                <strong className="text-red-500 font-black text-sm">
-                  {dailySessions.toFixed(1)} sessions * {grossWagePerHit.toFixed(3)} BTC = -{dailyWage.toFixed(2)} BTC/day
-                </strong>
-              </div>
-              <div className="flex justify-between text-[11px] text-slate-500">
-                <span>Worker 24h Net Take-Home:</span>
-                <strong className={`${netDailyWage > 0 ? 'text-emerald-500' : netDailyWage < 0 ? 'text-red-500' : 'text-blue-500'}`}>+{netDailyWage.toFixed(2)} BTC/day</strong>
-              </div>
-
-              {/* Wage Outflow Projections */}
-              <div className="grid grid-cols-3 gap-2 pt-2 text-[11px] border-t border-slate-100">
-                <div className="bg-slate-50 p-2 text-center border border-slate-200">
-                  <span className="text-slate-400 block text-[10px]">Hourly</span>
-                  <strong className="text-red-500">-{hourlyWage.toFixed(2)} BTC</strong>
-                </div>
-                <div className="bg-slate-50 p-2 text-center border border-slate-200">
-                  <span className="text-slate-400 block text-[10px]">Weekly (7d)</span>
-                  <strong className="text-red-500">-{weeklyWage.toFixed(2)} BTC</strong>
-                </div>
-                <div className="bg-slate-50 p-2 text-center border border-slate-200">
-                  <span className="text-slate-400 block text-[10px]">Monthly (30d)</span>
-                  <strong className="text-red-500">-{monthlyWage.toFixed(2)} BTC</strong>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Step 4: Facility Return & Net Profit Contribution */}
-          <div className="bg-white border border-slate-200 p-4 space-y-3">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-              <span className="font-bold text-slate-800 uppercase text-xs flex items-center gap-1.5">
-                <span className="w-5 h-5 bg-slate-900 text-white flex items-center justify-center text-[10px] font-bold">4</span>
-                <span>Economic Contribution to {worker.companyName}</span>
-              </span>
-              <span className={`text-[11px] font-bold ${netContribution > 0 ? 'text-emerald-500' : netContribution < 0 ? 'text-red-500' : 'text-blue-500'}`}>
-                {netContribution >= 0 ? '+' : ''}{netContribution.toFixed(2)} BTC/day
+              <span className={`text-[11px] font-bold ${dailyProfit >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>
+                {dailyProfit >= 0 ? '+' : ''}{dailyProfit.toFixed(2)} BTC/day
               </span>
             </div>
 
             <div className="space-y-1.5 text-slate-600">
               <div className="flex justify-between">
-                <span>Facility Item Produced:</span>
-                <strong className="text-slate-900 capitalize">{recipe.name || worker.companyItemCode} ({spotPrice.toFixed(3)} BTC spot)</strong>
+                <span>Standard Conversion Factor:</span>
+                <strong className="text-slate-900 font-mono">0.09566 BTC per PP</strong>
               </div>
               <div className="flex justify-between">
-                <span>Recipe Labor Required:</span>
-                <strong className="text-slate-900">{recipe.pp} PP / unit</strong>
+                <span>Daily Gross Production Value (Revenue):</span>
+                <strong className="text-emerald-700 font-bold flex items-center gap-1">
+                  +{dailyRevenue.toFixed(3)} <GoldCoin size={11} /> / day
+                </strong>
               </div>
               <div className="flex justify-between">
-                <span>Units Enabled Daily:</span>
-                <strong className="text-slate-900 font-bold">{unitsProduced.toFixed(2)} units / day</strong>
-              </div>
-              <div className="flex justify-between pt-1 border-t border-slate-200">
-                <span>Gross Market Value Created:</span>
-                <strong className="text-emerald-500">+{grossValue.toFixed(2)} BTC/day</strong>
-              </div>
-              <div className="flex justify-between">
-                <span>Raw Materials Consumed:</span>
-                <strong className={`${rawExpense > 0 ? 'text-red-500' : 'text-blue-500'}`}>-{rawExpense.toFixed(2)} BTC/day</strong>
-              </div>
-              <div className="flex justify-between">
-                <span>Salary Paid:</span>
-                <strong className={`${dailyWage > 0 ? 'text-red-500' : 'text-blue-500'}`}>-{dailyWage.toFixed(2)} BTC/day</strong>
+                <span>Daily Salary Outflow (Payroll):</span>
+                <strong className="text-red-600 font-bold flex items-center gap-1">
+                  -{dailyWage.toFixed(3)} <GoldCoin size={11} /> / day
+                </strong>
               </div>
               <div className="flex justify-between pt-1.5 border-t-2 border-slate-200 text-slate-900 font-bold">
-                <span>Net Profit Generated by Worker:</span>
-                <strong className={`font-black text-sm ${netContribution > 0 ? 'text-emerald-500' : netContribution < 0 ? 'text-red-500' : 'text-blue-500'}`}>
-                  {netContribution >= 0 ? '+' : ''}{netContribution.toFixed(2)} BTC/day
+                <span>Net Profit Generated by AI Employee:</span>
+                <strong className={`font-black text-sm flex items-center gap-1 ${dailyProfit >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>
+                  {dailyProfit >= 0 ? '+' : ''}{dailyProfit.toFixed(3)} <GoldCoin size={13} /> / day
                 </strong>
               </div>
             </div>
@@ -393,7 +307,7 @@ export default function EmployeeAuditModal({
         <div className="p-3 sm:p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between text-xs text-slate-500 font-mono shrink-0">
           <div className="flex items-center space-x-1.5">
             <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-            <span>Mathematical validation confirmed against live in-game skills</span>
+            <span>Mathematical validation confirmed against live in-game v0.27 API</span>
           </div>
           <button
             type="button"

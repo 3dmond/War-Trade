@@ -74,114 +74,71 @@ export default function MetricBreakdownModal({
         : (typeof comp.productionBonus === 'number'
             ? comp.productionBonus
             : (typeof comp.productionBonusData?.total === 'number' ? comp.productionBonusData.total : 0));
-      const workers = comp.workersList || comp.workers || [];
-      workers.forEach(w => {
-        const energyLvl = typeof w.energySkill === 'number' ? w.energySkill : (typeof w.energySkillLevel === 'number' ? w.energySkillLevel : 0);
-        const stamina = w.energyStamina || w.energyPointsTotal || (30 + energyLvl * 10);
-        const dailySessions = typeof w.dailySessions === 'number' && w.dailySessions > 0
-          ? w.dailySessions
-          : (typeof w.workSessionsPerDay === 'number' && w.workSessionsPerDay > 0
-              ? w.workSessionsPerDay
-              : Number((stamina * 0.24).toFixed(2)));
-        const prodLvl = typeof w.productionSkill === 'number' ? w.productionSkill : (typeof w.productionSkillLevel === 'number' ? w.productionSkillLevel : 0);
-        const basePp = w.basePp || w.productionPointsBase || (prodLvl > 10 ? prodLvl : (10 + prodLvl * 3));
-        const loyalty = typeof w.fidelity === 'number' ? w.fidelity : (typeof w.loyaltyBonus === 'number' ? w.loyaltyBonus : 0);
-        const devPct = typeof w.devPct === 'number' ? w.devPct : (typeof comp.regionData?.development === 'number' ? comp.regionData.development : 4.88);
-        const incomeTaxPct = typeof w.incomeTaxPct === 'number' ? w.incomeTaxPct : (typeof comp.incomeTaxPct === 'number' ? comp.incomeTaxPct : (comp.countryTaxes?.income ?? 9.0));
+      const workers = comp.workersList || comp.workers || comp.employees || [];
+      workers.forEach((w, wIdx) => {
+        const hourlyOutputPp = typeof w.hourlyOutputPp === 'number'
+          ? w.hourlyOutputPp
+          : (typeof w.estimate?.production === 'number' ? w.estimate.production : (w.dailyOutputPp ? w.dailyOutputPp / 24 : 0));
 
-        // 1. Worker Labor PP per session (what contracted wage is paid on)
-        const laborPpPerHit = typeof w.laborPpPerHit === 'number'
-          ? w.laborPpPerHit
-          : basePp;
+        const hourlyWage = typeof w.hourlyWage === 'number'
+          ? w.hourlyWage
+          : (typeof w.wage === 'number'
+              ? w.wage
+              : (typeof w.salary === 'number'
+                  ? w.salary
+                  : (typeof w.estimate?.wage === 'number' ? w.estimate.wage : 0)));
 
-        // 2. Company Production PP per session (full factory yield delivered to company inventory)
-        const totalEffectiveBonusPct = compBonus + loyalty;
-        const producedPpPerHit = typeof w.producedPpPerHit === 'number'
-          ? w.producedPpPerHit
-          : Number((basePp * (1 + (totalEffectiveBonusPct / 100))).toFixed(2));
+        const dailyProducedPp = typeof w.dailyOutputPp === 'number'
+          ? w.dailyOutputPp
+          : Number((hourlyOutputPp * 24).toFixed(2));
 
-        const dailyBasePp = typeof w.baseDailyPp === 'number' ? w.baseDailyPp : (dailySessions * basePp);
-        const dailyLaborPp = typeof w.dailyLaborPp === 'number' ? w.dailyLaborPp : Number((dailySessions * laborPpPerHit).toFixed(1));
-        const dailyProducedPp = typeof w.producedDailyPp === 'number' && w.producedDailyPp > 0
-          ? w.producedDailyPp
-          : (typeof w.dailyPp === 'number' && w.dailyPp > 0 ? w.dailyPp : Number((dailySessions * producedPpPerHit).toFixed(1)));
-
-        // 3. Contracted Wage Rate & Regional Income Tax
-        const wageRate = typeof w.wageRate === 'number'
-          ? w.wageRate
-          : (typeof w.wagePerPp === 'number' ? w.wagePerPp : (typeof w.wage === 'number' ? w.wage : 0.158));
-        const netWageRate = typeof w.netWageRate === 'number'
-          ? w.netWageRate
-          : Number((wageRate * (1 - (incomeTaxPct / 100))).toFixed(3));
-
-        // Per-hit and daily payroll outflows
-        const grossWagePerHit = typeof w.grossWagePerHit === 'number'
-          ? w.grossWagePerHit
-          : Number((laborPpPerHit * wageRate).toFixed(3));
-        const taxPerHit = typeof w.taxPerHit === 'number'
-          ? w.taxPerHit
-          : Number((grossWagePerHit * (incomeTaxPct / 100)).toFixed(3));
-        const netWagePerHit = typeof w.netWagePerHit === 'number'
-          ? w.netWagePerHit
-          : Number((grossWagePerHit - taxPerHit).toFixed(3));
-
-        const dailyWage = typeof w.dailyWage === 'number' && w.dailyWage > 0
+        const dailyWage = typeof w.dailyWage === 'number'
           ? w.dailyWage
-          : Number((dailySessions * grossWagePerHit).toFixed(2));
-        const dailyTax = typeof w.dailyTax === 'number'
-          ? w.dailyTax
-          : Number((dailySessions * taxPerHit).toFixed(2));
-        const netDailyWage = typeof w.netDailyWage === 'number'
-          ? w.netDailyWage
-          : Number((dailySessions * netWagePerHit).toFixed(2));
+          : Number((hourlyWage * 24).toFixed(3));
+
+        const MARKET_VALUE_PER_PP = 0.09566;
+        const dailyProductionValue = typeof w.dailyProductionValue === 'number'
+          ? w.dailyProductionValue
+          : Number((dailyProducedPp * MARKET_VALUE_PER_PP).toFixed(3));
+
+        const dailyProfit = typeof w.dailyProfit === 'number'
+          ? w.dailyProfit
+          : Number((dailyProductionValue - dailyWage).toFixed(3));
 
         const recipe = comp.recipe || { pp: 1, name: comp.itemCode || 'Product' };
         const spotPrice = comp.spotPrice || prices[comp.itemCode] || 1.0;
         const unitsProduced = recipe.pp > 0 ? (dailyProducedPp / recipe.pp) : 0;
-        const grossValue = unitsProduced * spotPrice;
-        const rawExpense = (comp.isRaw || comp.recipe?.type === 'raw') ? 0 : (unitsProduced * (comp.baseRawCostPerUnit || 0));
-        const netContribution = grossValue - rawExpense - dailyWage;
+        const grossValue = dailyProductionValue;
+        const rawExpense = 0;
+        const netContribution = dailyProfit;
 
         list.push({
           ...w,
+          id: w.id || w._id || `emp-${comp.id || comp._id}-${wIdx}`,
+          name: w.name || w.username || `AI Employee #${wIdx + 1}`,
+          username: w.username || w.name || `AI Employee #${wIdx + 1}`,
           companyId: comp.id || comp._id,
           companyName: comp.name,
           companyItemCode: comp.itemCode,
           companyTotalBonusPct: compBonus,
           recipe,
           spotPrice,
-          baseRawCostPerUnit: comp.baseRawCostPerUnit || 0,
-          energySkill: energyLvl,
-          energyStamina: stamina,
-          energyPointsTotal: stamina,
-          dailySessions,
-          workSessionsPerDay: dailySessions,
-          productionSkill: prodLvl,
-          basePp,
-          productionPointsBase: basePp,
-          fidelity: loyalty,
-          loyaltyBonus: loyalty,
-          devPct,
-          incomeTaxPct,
-          laborPpPerHit,
-          producedPpPerHit,
-          effectivePpPerHit: producedPpPerHit,
-          ppPerHit: producedPpPerHit,
-          dailyBasePp,
-          dailyLaborPp,
+          baseRawCostPerUnit: 0,
+          hourlyOutputPp,
+          hourlyWage,
+          wage: hourlyWage,
+          salary: hourlyWage,
+          wageRate: hourlyWage,
+          netWageRate: hourlyWage,
+          dailyOutputPp: dailyProducedPp,
           producedDailyPp: dailyProducedPp,
           dailyPp: dailyProducedPp,
-          wageRate,
-          wagePerPp: wageRate,
-          wage: wageRate,
-          netWageRate,
-          grossWagePerHit,
-          taxPerHit,
-          netWagePerHit,
           dailyWage,
           grossDailyWage: dailyWage,
-          netDailyWage,
-          dailyTax,
+          netDailyWage: dailyWage,
+          dailyTax: 0,
+          dailyProductionValue,
+          dailyProfit,
           unitsProduced,
           grossValue,
           rawExpense,
@@ -877,7 +834,7 @@ export default function MetricBreakdownModal({
             </div>
           )}
 
-          {/* 4. BASE SALARIES PAID BREAKDOWN (Clean Table, No Giant Avatars, Exactly Like Enterprise PP) */}
+          {/* 4. BASE SALARIES PAID BREAKDOWN (v0.27+ AI Worker Hourly Salaries) */}
           {activeMetric === 'salaries' && (
             <div className="space-y-4">
               <div className="bg-white p-4 border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -886,24 +843,24 @@ export default function MetricBreakdownModal({
                     Total Base Salaries Paid
                   </div>
                   <div className="text-2xl sm:text-3xl font-black font-mono text-red-500">
-                    -{marketOverview.totalBaseLaborExpense.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
+                    -{marketOverview.totalBaseLaborExpense.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     <span className="text-xs font-normal text-slate-500 ml-1.5">BTC/day</span>
                   </div>
                 </div>
                 <div className="text-left sm:text-right text-xs font-mono text-slate-600">
-                  <div>Hired Employees: <span className="font-bold text-slate-900">{allWorkers.length} employees</span></div>
-                  <div>Standard: <span className="font-bold text-slate-900">Wage per PP produced</span></div>
-                  <div className="text-[10px] text-slate-400">24h natural stamina capacity (10% hourly regen)</div>
+                  <div>Hired AI Workforce: <span className="font-bold text-slate-900">{allWorkers.length} employees</span></div>
+                  <div>Compensation: <span className="font-bold text-slate-900">Contracted Hourly Salary</span></div>
+                  <div className="text-[10px] text-slate-400">Continuous 24-hour shift schedule</div>
                 </div>
               </div>
 
               <div className="bg-white border border-slate-200 overflow-hidden">
                 <div className="px-4 py-2.5 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
                   <span className="text-xs font-bold font-mono text-slate-700 uppercase">
-                    Employee Wage & Production Details ({allWorkers.length} Workers)
+                    AI Employee Wage & Production Details ({allWorkers.length} Workers)
                   </span>
                   <span className="text-[11px] font-mono text-slate-500">
-                    Payable Salary = Daily PP Produced * Contract Wage Rate • Click any employee to inspect math breakdown
+                    Daily Salary = Hourly Rate * 24 Hours • Click any employee to inspect breakdown
                   </span>
                 </div>
                 <div className="overflow-x-auto">
@@ -912,55 +869,25 @@ export default function MetricBreakdownModal({
                       <tr className="border-b border-slate-200 bg-slate-50 font-mono text-[11px] text-slate-600">
                         <th className="py-2.5 px-4 font-bold">Employee</th>
                         <th className="py-2.5 px-3 font-bold">Company</th>
-                        <th className="py-2.5 px-3 font-bold">Energy & Stamina</th>
-                        <th className="py-2.5 px-3 font-bold text-center">Daily Sessions</th>
-                        <th className="py-2.5 px-3 font-bold">PP Skill & Base</th>
-                        <th className="py-2.5 px-3 font-bold text-center">Fidelity</th>
-                        <th className="py-2.5 px-3 font-bold text-right">Wage Rate (Net)</th>
-                        <th className="py-2.5 px-3 font-bold text-right">Daily PP Produced</th>
-                        <th className="py-2.5 px-4 font-bold text-right">Payable Salary / Day</th>
+                        <th className="py-2.5 px-3 font-bold text-right">Hourly Yield</th>
+                        <th className="py-2.5 px-3 font-bold text-right">Hourly Salary</th>
+                        <th className="py-2.5 px-3 font-bold text-right">Daily PP (24h)</th>
+                        <th className="py-2.5 px-3 font-bold text-right">Payable Salary / Day</th>
+                        <th className="py-2.5 px-3 font-bold text-right">Daily Revenue</th>
+                        <th className="py-2.5 px-4 font-bold text-right">Net Profit / Day</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 font-mono">
                       {allWorkers.map((w, idx) => {
                         const workerKey = w.id || `worker-${idx}`;
                         const isExpanded = expandedWorkerId === workerKey;
-                        const energyLvl = w.energySkill ?? 0;
-                        const stamina = w.energyStamina || w.energyPointsTotal || (30 + energyLvl * 10);
-                        const sessions = typeof w.dailySessions === 'number' && w.dailySessions > 0
-                          ? w.dailySessions
-                          : (typeof w.workSessionsPerDay === 'number' && w.workSessionsPerDay > 0
-                              ? w.workSessionsPerDay
-                              : Number((stamina * 0.24).toFixed(2)));
-                        const prodLvl = w.productionSkill ?? 0;
-                        const basePp = w.basePp || w.productionPointsBase || (prodLvl > 10 ? prodLvl : (10 + prodLvl * 3));
-                        const loyalty = typeof w.fidelity === 'number' ? w.fidelity : (w.loyaltyBonus || 0);
+                        const hourlyYield = w.hourlyOutputPp || 0;
+                        const hourlyWage = w.hourlyWage || 0;
+                        const dailyPp = w.dailyOutputPp || (hourlyYield * 24);
+                        const dailyWage = w.dailyWage || (hourlyWage * 24);
+                        const dailyRev = w.dailyProductionValue || (dailyPp * 0.09566);
+                        const dailyNet = w.dailyProfit !== undefined ? w.dailyProfit : (dailyRev - dailyWage);
                         const compBonus = w.companyTotalBonusPct || 0;
-                        const devPct = typeof w.devPct === 'number' ? w.devPct : 4.88;
-                        const incomeTaxPct = typeof w.incomeTaxPct === 'number' ? w.incomeTaxPct : 9.0;
-
-                        const laborPpPerHit = typeof w.laborPpPerHit === 'number' ? w.laborPpPerHit : basePp;
-                        const producedPpPerHit = typeof w.producedPpPerHit === 'number' ? w.producedPpPerHit : Number((basePp * (1 + ((compBonus + loyalty) / 100))).toFixed(2));
-
-                        const dailyPp = typeof w.producedDailyPp === 'number' && w.producedDailyPp > 0
-                          ? w.producedDailyPp
-                          : (typeof w.dailyPp === 'number' && w.dailyPp > 0
-                              ? w.dailyPp
-                              : Number((sessions * producedPpPerHit).toFixed(1)));
-
-                        const wageRate = typeof w.wageRate === 'number' ? w.wageRate : (typeof w.wagePerPp === 'number' ? w.wagePerPp : (w.wage || 0.158));
-                        const netWageRate = typeof w.netWageRate === 'number' ? w.netWageRate : Number((wageRate * (1 - (incomeTaxPct / 100))).toFixed(3));
-
-                        const grossWagePerHit = typeof w.grossWagePerHit === 'number' ? w.grossWagePerHit : Number((laborPpPerHit * wageRate).toFixed(3));
-                        const taxPerHit = typeof w.taxPerHit === 'number' ? w.taxPerHit : Number((grossWagePerHit * (incomeTaxPct / 100)).toFixed(3));
-                        const netWagePerHit = typeof w.netWagePerHit === 'number' ? w.netWagePerHit : Number((grossWagePerHit - taxPerHit).toFixed(3));
-
-                        const dailyWage = typeof w.dailyWage === 'number' && w.dailyWage > 0
-                          ? w.dailyWage
-                          : Number((sessions * grossWagePerHit).toFixed(2));
-                        const netDailyWage = typeof w.netDailyWage === 'number'
-                          ? w.netDailyWage
-                          : Number((sessions * netWagePerHit).toFixed(2));
 
                         return (
                           <React.Fragment key={workerKey}>
@@ -974,7 +901,7 @@ export default function MetricBreakdownModal({
                                   <span className={`text-[10px] text-slate-400 font-mono transition-transform duration-150 inline-block ${isExpanded ? 'rotate-90 text-amber-700' : ''}`}>
                                     ▶
                                   </span>
-                                  <span className="hover:text-blue-700 hover:underline">{w.username}</span>
+                                  <span className="hover:text-blue-700 hover:underline">{w.name || w.username}</span>
                                 </div>
                               </td>
                               <td className="py-2.5 px-3 font-medium text-slate-700">
@@ -985,57 +912,51 @@ export default function MetricBreakdownModal({
                                   </div>
                                 )}
                               </td>
-                              <td className="py-2.5 px-3 text-slate-700">
-                                Lv.{energyLvl} <span className="text-slate-400">({stamina} pts)</span>
+                              <td className="py-2.5 px-3 text-right font-bold text-blue-900">
+                                {hourlyYield.toFixed(2)} PP/h
                               </td>
-                              <td className="py-2.5 px-3 text-center font-bold text-slate-800" title="10% hourly regen over 24h = 0.24 * stamina">
-                                {sessions.toFixed(1)} /day
-                              </td>
-                              <td className="py-2.5 px-3 text-slate-700">
-                                Lv.{prodLvl} <span className="text-slate-400">({basePp} PP/hit)</span>
-                              </td>
-                              <td className="py-2.5 px-3 text-center">
-                                {loyalty > 0 ? (
-                                  <span className="text-emerald-500 font-bold">+{loyalty}%</span>
-                                ) : (
-                                  <span className="text-blue-500 font-bold">0%</span>
-                                )}
-                              </td>
-                              <td className="py-2.5 px-3 text-right font-bold text-slate-700">
-                                <div>{wageRate.toFixed(3)} BTC</div>
-                                <div className="text-[10px] text-slate-400 font-normal">({netWageRate.toFixed(3)} net)</div>
+                              <td className="py-2.5 px-3 text-right font-bold text-red-600">
+                                -{hourlyWage.toFixed(4)} BTC/h
                               </td>
                               <td className="py-2.5 px-3 text-right font-black text-slate-900">
-                                <div>{dailyPp.toFixed(1)} PP</div>
-                                <div className="text-[10px] text-slate-400 font-normal">{producedPpPerHit.toFixed(1)} PP/hit</div>
+                                {dailyPp.toFixed(1)} PP
                               </td>
-                              <td className="py-2.5 px-4 text-right font-black text-red-500">
-                                <div>-{dailyWage.toFixed(2)} BTC</div>
-                                <div className={`text-[10px] font-normal font-mono ${netDailyWage > 0 ? 'text-emerald-500' : netDailyWage < 0 ? 'text-red-500' : 'text-blue-500'}`}>Net: +{netDailyWage.toFixed(2)} BTC</div>
+                              <td className="py-2.5 px-3 text-right font-black text-red-500">
+                                -{dailyWage.toFixed(2)} BTC
+                              </td>
+                              <td className="py-2.5 px-3 text-right font-bold text-emerald-600">
+                                +{dailyRev.toFixed(2)} BTC
+                              </td>
+                              <td className="py-2.5 px-4 text-right font-black">
+                                <span className={dailyNet >= 0 ? 'text-emerald-700' : 'text-red-600'}>
+                                  {dailyNet >= 0 ? '+' : ''}{dailyNet.toFixed(2)} BTC
+                                </span>
                               </td>
                             </tr>
 
                             {/* Inline Expandable Math Audit Card */}
                             {isExpanded && (
                               <tr className="bg-slate-50/90 border-b-2 border-amber-200">
-                                <td colSpan={9} className="p-3.5 sm:p-5">
+                                <td colSpan={8} className="p-3.5 sm:p-5">
                                   <div className="bg-white border border-slate-200 p-4 sm:p-5 space-y-4 shadow-sm">
                                     {/* Header */}
                                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
                                       <div>
                                         <div className="flex items-center space-x-2 flex-wrap">
                                           <span className="text-base font-extrabold text-slate-900 font-sans">
-                                            @{w.username}
+                                            {w.name || w.username}
                                           </span>
-                                          <span className="text-[10px] font-mono uppercase bg-slate-100 text-slate-700 px-1.5 py-0.5 font-bold">
-                                            Worker Lv.{w.level || 1}
-                                          </span>
+                                          {w.age && (
+                                            <span className="text-[10px] font-mono uppercase bg-slate-100 text-slate-700 px-1.5 py-0.5 font-bold">
+                                              Age {w.age} {w.gender ? `(${w.gender})` : ''}
+                                            </span>
+                                          )}
                                           <span className="text-[10px] font-mono uppercase bg-blue-50 text-blue-800 px-1.5 py-0.5 font-bold border border-blue-200">
                                             {w.companyName} ({w.companyItemCode})
                                           </span>
                                         </div>
                                         <p className="text-xs text-slate-500 font-sans mt-0.5">
-                                          Mathematical Step-by-Step Production & Salary Verification
+                                          Continuous 24-Hour AI Employee Economics & Live Accounting
                                         </p>
                                       </div>
                                       <div className="flex items-center space-x-2">
@@ -1065,145 +986,71 @@ export default function MetricBreakdownModal({
 
                                     {/* 3 Main Math Pillars */}
                                     <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                                      {/* Pillar 1: Energy & Sessions */}
+                                      {/* Pillar 1: Hourly Production & 24h Output */}
                                       <div className="bg-slate-50 p-3.5 border border-slate-200/80 space-y-2 font-mono text-xs">
                                         <div className="text-[11px] font-bold text-slate-700 uppercase flex items-center justify-between">
-                                          <span>1. Daily Sessions</span>
-                                          <span className="text-slate-400 font-normal">24h Capacity</span>
+                                          <span>1. Hourly & 24h Yield</span>
+                                          <span className="text-slate-400 font-normal">Continuous</span>
                                         </div>
                                         <div className="space-y-1 text-slate-600">
                                           <div className="flex justify-between">
-                                            <span>Energy Skill:</span>
-                                            <strong className="text-slate-900">Level {energyLvl}</strong>
+                                            <span>Hourly Production:</span>
+                                            <strong className="text-blue-900 font-bold">{hourlyYield.toFixed(3)} PP/h</strong>
                                           </div>
                                           <div className="flex justify-between">
-                                            <span>Stamina Pool:</span>
-                                            <strong className="text-slate-900">{stamina} pts</strong>
-                                          </div>
-                                          <div className="text-[10px] text-slate-400">
-                                            Formula: 30 + (10 * Lv.{energyLvl}) = {stamina}
-                                          </div>
-                                          <div className="flex justify-between pt-1 border-t border-slate-200">
-                                            <span>24h Regen (10%/h):</span>
-                                            <strong className="text-slate-900">240% ({Number((stamina * 2.4).toFixed(1))} pts)</strong>
-                                          </div>
-                                          <div className="flex justify-between">
-                                            <span>Energy Cost / Hit:</span>
-                                            <strong className="text-slate-900">10 energy pts</strong>
-                                          </div>
-                                          <div className="flex justify-between pt-1 border-t border-slate-200 text-slate-900 font-bold">
-                                            <span>Daily Sessions:</span>
-                                            <strong className="text-blue-900 font-black">{sessions.toFixed(1)} sessions/d</strong>
-                                          </div>
-                                          <div className="text-[10px] text-blue-700/80">
-                                            Math: ({stamina} * 0.24) = {sessions.toFixed(2)} hits/d
-                                          </div>
-                                        </div>
-                                      </div>
-
-                                      {/* Pillar 2: PP Skill, Regional Efficiency & Bonuses */}
-                                      <div className="bg-slate-50 p-3.5 border border-slate-200/80 space-y-2 font-mono text-xs">
-                                        <div className="text-[11px] font-bold text-slate-700 uppercase flex items-center justify-between">
-                                          <span>2. Labor PP vs Yield</span>
-                                          <span className="text-slate-400 font-normal">Per Session</span>
-                                        </div>
-                                        <div className="space-y-1 text-slate-600">
-                                          <div className="flex justify-between">
-                                            <span>Base Session PP:</span>
-                                            <strong className="text-slate-900">{basePp} PP</strong>
-                                          </div>
-                                          <div className="flex justify-between">
-                                            <span>Worker Loyalty:</span>
-                                            <strong className={loyalty > 0 ? "text-emerald-700 font-bold" : "text-slate-400"}>
-                                              {loyalty > 0 ? `+${loyalty}%` : '0%'}
-                                            </strong>
-                                          </div>
-                                          <div className="flex justify-between">
-                                            <span>Regional Development:</span>
-                                            <strong className="text-slate-600 font-bold">+{devPct.toFixed(2)}%</strong>
-                                          </div>
-                                          <div className="flex justify-between pt-1 border-t border-slate-200 text-slate-900 font-bold">
-                                            <span>Contract Labor Base:</span>
-                                            <strong className="text-blue-900 font-black">
-                                              {laborPpPerHit.toFixed(2)} PP / hit
-                                            </strong>
-                                          </div>
-                                          <div className="flex justify-between">
-                                            <span>Facility Deposit Bonus:</span>
+                                            <span>Facility Multiplier:</span>
                                             <strong className="text-emerald-700 font-bold">+{compBonus.toFixed(1)}%</strong>
                                           </div>
                                           <div className="flex justify-between pt-1 border-t border-slate-200 text-slate-900 font-bold">
-                                            <span>Factory Yield / Hit:</span>
-                                            <strong className="text-emerald-800 font-black">
-                                              {producedPpPerHit.toFixed(2)} PP / hit
-                                            </strong>
+                                            <span>Continuous 24h Yield:</span>
+                                            <strong className="text-emerald-800 font-black">{dailyPp.toFixed(1)} PP/day</strong>
                                           </div>
                                         </div>
                                       </div>
 
-                                      {/* Pillar 3: Wages & Regional Income Tax */}
+                                      {/* Pillar 2: Hourly Rate & 24h Outflow */}
                                       <div className="bg-slate-50 p-3.5 border border-slate-200/80 space-y-2 font-mono text-xs">
                                         <div className="text-[11px] font-bold text-slate-700 uppercase flex items-center justify-between">
-                                          <span>3. Wages & Taxes</span>
-                                          <span className="text-slate-400 font-normal">Payroll Outflow</span>
+                                          <span>2. Salary & Payroll</span>
+                                          <span className="text-slate-400 font-normal">Hourly Rate</span>
                                         </div>
                                         <div className="space-y-1 text-slate-600">
                                           <div className="flex justify-between">
-                                            <span>Contracted Wage:</span>
-                                            <strong className="text-slate-900">{wageRate.toFixed(3)} ({netWageRate.toFixed(3)}) BTC</strong>
-                                          </div>
-                                          <div className="flex justify-between">
-                                            <span>Gross Wage / Hit:</span>
-                                            <strong className="text-slate-900">{grossWagePerHit.toFixed(3)} BTC</strong>
-                                          </div>
-                                          <div className="flex justify-between">
-                                            <span>Income Tax ({incomeTaxPct}%):</span>
-                                            <strong className="text-red-500">-{taxPerHit.toFixed(3)} BTC</strong>
-                                          </div>
-                                          <div className="flex justify-between">
-                                            <span>Worker Net / Hit:</span>
-                                            <strong className={`font-bold ${netWagePerHit > 0 ? 'text-emerald-500' : netWagePerHit < 0 ? 'text-red-500' : 'text-blue-500'}`}>+{netWagePerHit.toFixed(3)} BTC</strong>
+                                            <span>Contracted Hourly Rate:</span>
+                                            <strong className="text-red-600 font-bold">-{hourlyWage.toFixed(6)} BTC/h</strong>
                                           </div>
                                           <div className="flex justify-between pt-1 border-t border-slate-200 text-slate-900 font-bold">
-                                            <span>Company Payroll / Day:</span>
-                                            <strong className="text-red-500 font-black text-sm">-{dailyWage.toFixed(2)} BTC/d</strong>
+                                            <span>Payable Salary / Day (24h):</span>
+                                            <strong className="text-red-600 font-black text-sm">-{dailyWage.toFixed(3)} BTC/day</strong>
                                           </div>
                                           <div className="flex justify-between text-[11px] text-slate-500">
-                                            <span>Worker 24h Net:</span>
-                                            <strong className={`${netDailyWage > 0 ? 'text-emerald-500' : netDailyWage < 0 ? 'text-red-500' : 'text-blue-500'}`}>+{netDailyWage.toFixed(2)} BTC/d</strong>
+                                            <span>Weekly (7d):</span>
+                                            <strong className="text-red-600">-{(dailyWage * 7).toFixed(2)} BTC</strong>
                                           </div>
                                         </div>
                                       </div>
-                                    </div>
 
-                                    {/* Economic Contribution to Facility */}
-                                    <div className="bg-slate-50 p-3 border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 font-mono text-xs">
-                                      <div className="space-y-0.5">
-                                        <div className="text-[11px] font-bold uppercase text-slate-700">
-                                          Economic Value Generated for {w.companyName}
+                                      {/* Pillar 3: Economic Value & Net Profit */}
+                                      <div className="bg-slate-50 p-3.5 border border-slate-200/80 space-y-2 font-mono text-xs">
+                                        <div className="text-[11px] font-bold text-slate-700 uppercase flex items-center justify-between">
+                                          <span>3. Net Profit Generated</span>
+                                          <span className="text-slate-400 font-normal">Accounting</span>
                                         </div>
-                                        <div className="text-slate-500 text-[11px]">
-                                          Enables <strong>{w.unitsProduced?.toFixed(2) || '0.00'} units/day</strong> of {w.recipe?.name || w.companyItemCode} @ {w.spotPrice?.toFixed(3) || '0.000'} BTC spot
-                                        </div>
-                                      </div>
-                                      <div className="flex items-center gap-4 text-right flex-wrap">
-                                        <div>
-                                          <span className="text-[10px] text-slate-400 block uppercase">Gross Value</span>
-                                          <span className="font-bold text-emerald-500">+{w.grossValue?.toFixed(2) || '0.00'} BTC/d</span>
-                                        </div>
-                                        <div>
-                                          <span className="text-[10px] text-slate-400 block uppercase">Raw Outflow</span>
-                                          <span className={`font-bold ${(w.rawExpense || 0) > 0 ? 'text-red-500' : 'text-blue-500'}`}>-{(w.rawExpense || 0).toFixed(2)} BTC/d</span>
-                                        </div>
-                                        <div>
-                                          <span className="text-[10px] text-slate-400 block uppercase">Salary Outflow</span>
-                                          <span className={`font-bold ${dailyWage > 0 ? 'text-red-500' : 'text-blue-500'}`}>-{dailyWage.toFixed(2)} BTC/d</span>
-                                        </div>
-                                        <div className="pl-2 border-l border-slate-200">
-                                          <span className="text-[10px] text-slate-400 block uppercase">Net Contribution</span>
-                                          <span className={`font-black text-sm ${(w.netContribution || 0) > 0 ? 'text-emerald-500' : (w.netContribution || 0) < 0 ? 'text-red-500' : 'text-blue-500'}`}>
-                                            {(w.netContribution || 0) >= 0 ? '+' : ''}{(w.netContribution || 0).toFixed(2)} BTC/d
-                                          </span>
+                                        <div className="space-y-1 text-slate-600">
+                                          <div className="flex justify-between">
+                                            <span>Gross Revenue (0.09566 BTC/PP):</span>
+                                            <strong className="text-emerald-700 font-bold">+{dailyRev.toFixed(3)} BTC/d</strong>
+                                          </div>
+                                          <div className="flex justify-between">
+                                            <span>Salary Paid:</span>
+                                            <strong className="text-red-600 font-bold">-{dailyWage.toFixed(3)} BTC/d</strong>
+                                          </div>
+                                          <div className="flex justify-between pt-1 border-t border-slate-200 text-slate-900 font-bold">
+                                            <span>Net Profit Contribution:</span>
+                                            <strong className={`font-black text-sm ${dailyNet >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>
+                                              {dailyNet >= 0 ? '+' : ''}{dailyNet.toFixed(3)} BTC/d
+                                            </strong>
+                                          </div>
                                         </div>
                                       </div>
                                     </div>
@@ -1217,14 +1064,22 @@ export default function MetricBreakdownModal({
                     </tbody>
                     <tfoot>
                       <tr className="border-t-2 border-slate-300 bg-slate-50 font-mono font-black text-slate-900">
-                        <td className="py-3 px-4" colSpan={7}>
+                        <td className="py-3 px-4" colSpan={4}>
                           TOTAL BASE SALARIES PAID ({allWorkers.length} EMPLOYEES)
                         </td>
                         <td className="py-3 px-3 text-right text-slate-900">
-                          {allWorkers.reduce((s, w) => s + (w.producedDailyPp || w.dailyPp || 0), 0).toFixed(1)} PP
+                          {allWorkers.reduce((s, w) => s + (w.dailyOutputPp || 0), 0).toFixed(1)} PP
                         </td>
-                        <td className="py-3 px-4 text-right text-red-500 text-sm">
+                        <td className="py-3 px-3 text-right text-red-500 text-sm">
                           -{marketOverview.totalBaseLaborExpense.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} BTC
+                        </td>
+                        <td className="py-3 px-3 text-right text-emerald-600 text-sm">
+                          +{allWorkers.reduce((s, w) => s + (w.dailyProductionValue || 0), 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} BTC
+                        </td>
+                        <td className="py-3 px-4 text-right text-sm">
+                          <span className={marketOverview.baseDailyProfit >= 0 ? 'text-emerald-700' : 'text-red-600'}>
+                            {marketOverview.baseDailyProfit >= 0 ? '+' : ''}{marketOverview.baseDailyProfit.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} BTC
+                          </span>
                         </td>
                       </tr>
                     </tfoot>
@@ -1562,35 +1417,6 @@ export default function MetricBreakdownModal({
                       </tr>
                     </tfoot>
                   </table>
-                </div>
-              </div>
-
-              {/* 3. Owner Personal Labor Capacity */}
-              <div className="bg-white border border-slate-200 p-4">
-                <div className="text-xs font-bold font-mono text-slate-700 uppercase mb-2">
-                  3. Owner Personal Labor Capacity (General Portfolio)
-                </div>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs font-mono">
-                  <div className="bg-slate-50 p-2.5 border border-slate-200">
-                    <div className="text-slate-400 text-[10px]">Entrepreneurship Stamina</div>
-                    <div className="font-black text-slate-900">{ownerLabor.entreMax || 30} pts</div>
-                    <div className="text-[10px] text-slate-500">Lv.{ownerLabor.entreLevel || 0}</div>
-                  </div>
-                  <div className="bg-slate-50 p-2.5 border border-slate-200">
-                    <div className="text-slate-400 text-[10px]">Natural Daily Sessions</div>
-                    <div className="font-black text-slate-900">{(ownerLabor.dailySessions || 0).toFixed(1)} /day</div>
-                    <div className="text-[10px] text-slate-500">10% hourly regen</div>
-                  </div>
-                  <div className="bg-slate-50 p-2.5 border border-slate-200">
-                    <div className="text-slate-400 text-[10px]">Production Skill</div>
-                    <div className="font-black text-slate-900">{ownerLabor.ppPerSession || 10} PP/hit</div>
-                    <div className="text-[10px] text-slate-500">Lv.{ownerLabor.prodLevel || 0}</div>
-                  </div>
-                  <div className="bg-amber-50 p-2.5 border border-amber-200">
-                    <div className="text-amber-800 text-[10px]">Daily Self-Work PP</div>
-                    <div className="font-black text-amber-900 text-sm">{marketOverview.totalDailySelfWorkPp.toFixed(1)} PP</div>
-                    <div className="text-[10px] text-amber-700">Portfolio-wide capacity</div>
-                  </div>
                 </div>
               </div>
             </div>
