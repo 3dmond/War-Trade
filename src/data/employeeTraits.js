@@ -598,6 +598,26 @@ export const TRAIT_ALIASES = {
   'lucky_charm': 'luckyCharm'
 };
 
+// Negative traits set for sentiment classification
+export const NEGATIVE_TRAITS = new Set([
+  'xenophobe',
+  'bully',
+  'envious',
+  'nemesis',
+  'misandrist',
+  'misogynist',
+  'claustrophobe',
+  'creatureOfHabit',
+  'burnout',
+  'wornOut',
+  'homesick',
+  'taxShy',
+  'greedy',
+  'climber',
+  'flightRisk',
+  'jinx'
+]);
+
 /**
  * Normalizes any trait code from string or object to canonical definition.
  */
@@ -609,6 +629,8 @@ export function getTraitInfo(traitInput) {
       category: 'general',
       categoryLabel: 'General',
       isCoworkerLinked: false,
+      isNegative: false,
+      sentiment: 'neutral',
       icon: '★',
       badgeClass: 'bg-slate-100 text-slate-800 border-slate-300',
       description: 'Standard employee trait.'
@@ -617,15 +639,20 @@ export function getTraitInfo(traitInput) {
 
   const rawCode = typeof traitInput === 'string' ? traitInput : (traitInput.code || 'unknown');
   const canonicalCode = TRAIT_ALIASES[rawCode] || TRAIT_ALIASES[rawCode.toLowerCase()] || rawCode;
+  const isNegative = NEGATIVE_TRAITS.has(canonicalCode) || NEGATIVE_TRAITS.has(rawCode);
 
-  if (TRAIT_DEFINITIONS[canonicalCode]) {
-    return TRAIT_DEFINITIONS[canonicalCode];
+  let def = TRAIT_DEFINITIONS[canonicalCode];
+  if (!def) {
+    const camelCode = canonicalCode.replace(/[-_]([a-z])/g, (_, g) => g.toUpperCase());
+    def = TRAIT_DEFINITIONS[camelCode];
   }
 
-  // Convert snake/kebab to camelCase attempt
-  const camelCode = canonicalCode.replace(/[-_]([a-z])/g, (_, g) => g.toUpperCase());
-  if (TRAIT_DEFINITIONS[camelCode]) {
-    return TRAIT_DEFINITIONS[camelCode];
+  if (def) {
+    return {
+      ...def,
+      isNegative,
+      sentiment: isNegative ? 'negative' : 'positive'
+    };
   }
 
   // Fallback for uncatalogued or custom trait
@@ -641,8 +668,10 @@ export function getTraitInfo(traitInput) {
     category: 'general',
     categoryLabel: 'General',
     isCoworkerLinked: false,
-    icon: '★',
-    badgeClass: 'bg-slate-100 text-slate-800 border-slate-300',
+    isNegative,
+    sentiment: isNegative ? 'negative' : 'positive',
+    icon: isNegative ? '⚠️' : '★',
+    badgeClass: isNegative ? 'bg-rose-100 text-rose-900 border-rose-300' : 'bg-slate-100 text-slate-800 border-slate-300',
     description: `Special employee trait: ${prettyName}`
   };
 }
