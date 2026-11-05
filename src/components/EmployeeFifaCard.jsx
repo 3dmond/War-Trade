@@ -519,26 +519,47 @@ export default function EmployeeFifaCard({
         : (typeof company?.totalBonusPct === 'number' ? company.totalBonusPct : 0));
 
   const bonusBreakdownData = worker.productionBonusBreakdown || worker.productionBonusData || worker._raw?.productionBonusBreakdown || {};
-  const resolvedMgmtBonus = typeof bonusBreakdownData.management === 'number'
-    ? bonusBreakdownData.management
-    : (company?.manager?.managementLevel ? company.manager.managementLevel * 2 : (company?.managerBonusPct ?? 0));
-  const resolvedCoreBonus = typeof bonusBreakdownData.coreRegion === 'number'
-    ? bonusBreakdownData.coreRegion
-    : (company?.countryBonusPct ?? 5);
-  const resolvedHapBonus = typeof bonusBreakdownData.happiness === 'number'
-    ? bonusBreakdownData.happiness
-    : (typeof happiness === 'number' ? Math.round(happiness - 50) : 0);
-  const resolvedToolBonus = typeof bonusBreakdownData.tool === 'number'
-    ? bonusBreakdownData.tool
-    : (toolProdBonus || 0);
-  const resolvedSpecBonus = typeof bonusBreakdownData.specialization === 'number'
-    ? bonusBreakdownData.specialization
-    : (worker.specializationBonus ?? (worker.breakdown?.productionBonus?.specialization ?? 1));
+  const bonusContributions = Array.isArray(prodBonusObj?.contributions) 
+    ? prodBonusObj.contributions 
+    : (Array.isArray(bonusBreakdownData?.contributions) ? bonusBreakdownData.contributions : null);
+
+  const ownerMgmtContrib = bonusContributions?.find(c => c.source === 'management');
+  const facilityManagerContrib = bonusContributions?.find(c => c.source === 'manager');
+  const coreRegionContrib = bonusContributions?.find(c => c.source === 'coreRegion');
+  const happinessContrib = bonusContributions?.find(c => c.source === 'happiness');
+  const toolContrib = bonusContributions?.find(c => c.source === 'tool');
+  const specializationContrib = bonusContributions?.find(c => c.source === 'specialization');
+  const traitContribs = bonusContributions?.filter(c => !['management', 'manager', 'coreRegion', 'happiness', 'tool', 'specialization'].includes(c.source)) || [];
+
+  const resolvedOwnerMgmtBonus = ownerMgmtContrib 
+    ? ownerMgmtContrib.percent 
+    : (typeof bonusBreakdownData.management === 'number' ? bonusBreakdownData.management : 0);
+
+  const resolvedFacilityManagerBonus = facilityManagerContrib 
+    ? facilityManagerContrib.percent 
+    : (company?.manager?.productionBonusPercent || (company?.manager?.managementLevel ? company.manager.managementLevel * 2 : (company?.managerBonusPct ?? 0)));
+
+  const resolvedCoreBonus = coreRegionContrib
+    ? coreRegionContrib.percent
+    : (typeof bonusBreakdownData.coreRegion === 'number' ? bonusBreakdownData.coreRegion : (company?.countryBonusPct ?? 5));
+
+  const resolvedHapBonus = happinessContrib
+    ? happinessContrib.percent
+    : (typeof bonusBreakdownData.happiness === 'number' ? bonusBreakdownData.happiness : (typeof happiness === 'number' ? Math.round(happiness - 50) : 0));
+
+  const resolvedToolBonus = toolContrib
+    ? toolContrib.percent
+    : (typeof bonusBreakdownData.tool === 'number' ? bonusBreakdownData.tool : (toolProdBonus || 0));
+
+  const resolvedSpecBonus = specializationContrib
+    ? specializationContrib.percent
+    : (typeof bonusBreakdownData.specialization === 'number' ? bonusBreakdownData.specialization : (worker.specializationBonus ?? (worker.breakdown?.productionBonus?.specialization ?? 1)));
+
   const resolvedCalculatedTotal = typeof bonusBreakdownData.total === 'number'
     ? bonusBreakdownData.total
     : (typeof prodBonusTotal === 'number' && prodBonusTotal > 0
         ? prodBonusTotal
-        : (resolvedMgmtBonus + resolvedCoreBonus + resolvedHapBonus + resolvedToolBonus + resolvedSpecBonus));
+        : (resolvedOwnerMgmtBonus + resolvedFacilityManagerBonus + resolvedCoreBonus + resolvedHapBonus + resolvedToolBonus + resolvedSpecBonus));
 
   // 5. Responsibility Stat
   const baseResp = respBreakdown?.base ?? (worker.base?.responsibility ?? 0);
@@ -974,15 +995,42 @@ export default function EmployeeFifaCard({
                   </p>
 
                   <div className="space-y-1 pt-1 font-mono text-[11px] border-t border-[#875c12]/15">
-                    <div className="flex justify-between items-center">
-                      <span className="flex items-center gap-1.5">
-                        <span className="text-xs">👔</span>
-                        <span>Management</span>
-                      </span>
-                      <strong className={resolvedMgmtBonus >= 0 ? "text-emerald-950 font-black" : "text-rose-950 font-black"}>
-                        {resolvedMgmtBonus >= 0 ? `+${resolvedMgmtBonus}%` : `${resolvedMgmtBonus}%`}
-                      </strong>
-                    </div>
+                    {/* 1. Owner Management Bonus */}
+                    {resolvedOwnerMgmtBonus > 0 && (
+                      <div className="flex justify-between items-center">
+                        <span className="flex items-center gap-1.5">
+                          <span className="text-xs">👑</span>
+                          <span>Owner Management</span>
+                        </span>
+                        <strong className="text-emerald-950 font-black">
+                          +{resolvedOwnerMgmtBonus}%
+                        </strong>
+                      </div>
+                    )}
+
+                    {/* 2. Hired Facility Manager Bonus */}
+                    {resolvedFacilityManagerBonus > 0 && (
+                      <div className="flex justify-between items-center">
+                        <span className="flex items-center gap-1.5">
+                          <span className="text-xs">👔</span>
+                          <span>Facility Manager{company?.manager?.username ? ` (${company.manager.username})` : ''}</span>
+                        </span>
+                        <strong className="text-emerald-950 font-black">
+                          +{resolvedFacilityManagerBonus}%
+                        </strong>
+                      </div>
+                    )}
+
+                    {/* Fallback if neither was greater than 0 */}
+                    {resolvedOwnerMgmtBonus <= 0 && resolvedFacilityManagerBonus <= 0 && (
+                      <div className="flex justify-between items-center">
+                        <span className="flex items-center gap-1.5">
+                          <span className="text-xs">👔</span>
+                          <span>Management</span>
+                        </span>
+                        <strong className="text-emerald-950 font-black">+0%</strong>
+                      </div>
+                    )}
 
                     <div className="flex justify-between items-center">
                       <span className="flex items-center gap-1.5">
@@ -1023,6 +1071,18 @@ export default function EmployeeFifaCard({
                         {resolvedSpecBonus >= 0 ? `+${resolvedSpecBonus}%` : `${resolvedSpecBonus}%`}
                       </strong>
                     </div>
+
+                    {traitContribs.map(tc => (
+                      <div key={tc.source} className="flex justify-between items-center">
+                        <span className="flex items-center gap-1.5">
+                          <span className="text-xs">✨</span>
+                          <span className="capitalize">{tc.source}</span>
+                        </span>
+                        <strong className="text-emerald-950 font-black">
+                          +{tc.percent}%
+                        </strong>
+                      </div>
+                    ))}
 
                     <div className="pt-1.5 mt-1 border-t border-[#875c12]/25 flex justify-between items-center font-bold text-xs">
                       <span className="text-[#2a1a02] font-sans uppercase tracking-wider font-extrabold">Total</span>

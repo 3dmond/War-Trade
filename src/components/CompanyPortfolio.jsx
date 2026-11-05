@@ -528,6 +528,11 @@ export default function CompanyPortfolio({
   const user = dossier?.user;
   const userCompanies = dossier?.companies || [];
 
+  // Owner management skill and global enterprise production bonus
+  const ownerMgmtSkill = user?.skills?.management;
+  const ownerMgmtLevel = ownerMgmtSkill?.level ?? 0;
+  const ownerMgmtBonusPct = (ownerMgmtSkill?.value || (ownerMgmtLevel > 0 ? ownerMgmtLevel + 1 : 0)) * 2;
+
   // Active selected company ID - initialized to real company if present
   const [selectedCompanyId, setSelectedCompanyId] = useState(() => {
     return userCompanies?.[0]?._id || userCompanies?.[0]?.id || 'c1';
@@ -803,7 +808,7 @@ export default function CompanyPortfolio({
         storageExtraEngineHours = effectiveEnginePph > 0 ? (storageExtraCapacity / effectiveEnginePph) : 0;
       }
 
-      // v0.27+ employees: pass through with context enrichment
+      // v0.27+ employees: pass through with context enrichment (Line workers only, managers are executive row entries)
       const rawWorkerList = (comp.employeesList || comp.employees || []).map(w => ({
         ...w,
         companyId: comp.id,
@@ -814,45 +819,6 @@ export default function CompanyPortfolio({
       }));
 
       const enrichedWorkers = [...rawWorkerList];
-      if (comp.manager && !enrichedWorkers.some(w => w.id === comp.manager.id || w.userId === comp.manager.userId)) {
-        enrichedWorkers.push({
-          ...comp.manager,
-          id: comp.manager.id || `mgr-${comp.id}`,
-          name: comp.manager.username || comp.manager.name || 'Hired Facility Manager',
-          username: comp.manager.username || 'Manager',
-          isManager: true,
-          role: 'Manager',
-          gender: comp.manager.gender || 'male',
-          avatarUrl: comp.manager.avatarUrl || comp.ownerAvatarUrl || null,
-          countryCode: comp.manager.countryCode || comp.countryCode || 'HQ',
-          companyId: comp.id,
-          companyName: comp.name,
-          companyItemCode: comp.itemCode,
-          recipe,
-          spotPrice,
-          hourlyWage: comp.manager.hourlyWage || (comp.managerPay ? comp.managerPay / 24 : 0),
-          dailyWage: comp.manager.dailyWage || comp.managerPay || 0,
-          hourlyOutputPp: 0,
-          dailyOutputPp: 0,
-          dailyProductionValue: 0,
-          dailyProfit: -(comp.manager.dailyWage || comp.managerPay || 0),
-          happiness: 100,
-          potential: comp.manager.managementLevel || 1,
-          potentialMax: 10,
-          baseProduction: 0,
-          trainedProduction: 0,
-          productionBonus: comp.manager.productionBonusPercent || (comp.manager.managementLevel ? comp.manager.managementLevel * 2 : 0),
-          traits: [
-            { code: 'management', name: `Management Lv.${comp.manager.managementLevel || 1}`, description: `Scales all facility workers' production by continuous +${(comp.manager.managementLevel || 1) * 2}% bonus.` }
-          ],
-          breakdown: {
-            production: { base: 0, trained: 0, total: comp.manager.managementLevel || 1 },
-            luck: { base: 0, trained: 0, total: 0 },
-            responsibility: { base: comp.manager.managementLevel || 1, trained: 0, total: comp.manager.managementLevel || 1 }
-          }
-        });
-      }
-
       const hasEmployees = enrichedWorkers.length > 0;
 
       return {
@@ -1271,11 +1237,88 @@ export default function CompanyPortfolio({
               {/* Ambient Golden Top Radiance */}
               <div className="absolute top-0 inset-x-0 h-48 bg-[radial-gradient(ellipse_at_top,_rgba(245,158,11,0.14),_transparent_70%)] pointer-events-none" />
 
-              {/* Workforce Roster Header: Just the clean title */}
-              <div className="relative z-10 pb-2 border-b border-slate-800/80">
-                <h3 className="text-sm font-black text-slate-100 font-sans tracking-tight">
-                  Workforce Roster
-                </h3>
+              {/* Workforce Roster Header & Manager Row Entry */}
+              <div className="relative z-10 pb-3 border-b border-slate-800/80 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-black text-slate-100 font-sans tracking-tight flex items-center gap-2">
+                    <span>Workforce Roster</span>
+                    <span className="text-xs font-mono font-normal text-slate-400">
+                      ({activeCompany.enrichedWorkers.length}/{activeCompany.maxEmployees} line workers)
+                    </span>
+                  </h3>
+                  {ownerMgmtBonusPct > 0 && (
+                    <span className="text-[10px] font-mono font-bold text-amber-300 bg-amber-500/10 border border-amber-500/30 px-2 py-0.5 rounded shadow-xs" title="Applied across all companies in your portfolio">
+                      👑 Owner Mgmt Lv.{ownerMgmtLevel} (+{ownerMgmtBonusPct}%)
+                    </span>
+                  )}
+                </div>
+
+                {/* Hired Facility Manager Row Entry */}
+                {activeCompany.manager ? (
+                  <div className="flex items-center justify-between p-2.5 bg-gradient-to-r from-slate-900/95 via-slate-800/90 to-slate-900/95 border border-amber-500/40 rounded-xl shadow-lg backdrop-blur-xs">
+                    <div className="flex items-center space-x-3 min-w-0">
+                      {/* Avatar */}
+                      <div className="w-10 h-10 rounded-lg overflow-hidden border border-amber-400/60 relative shrink-0 bg-slate-950 shadow-inner">
+                        {activeCompany.manager.avatarUrl ? (
+                          <img 
+                            src={activeCompany.manager.avatarUrl} 
+                            alt={activeCompany.manager.username || 'Manager'} 
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center font-black text-amber-300 text-sm">
+                            {(activeCompany.manager.username || 'M').charAt(0).toUpperCase()}
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="min-w-0">
+                        <div className="flex items-center space-x-2">
+                          <span className="text-xs font-black text-slate-100 tracking-tight truncate">
+                            {activeCompany.manager.username || activeCompany.manager.name || 'Hired Facility Manager'}
+                          </span>
+                          {activeCompany.manager.level && (
+                            <span className="text-[10px] font-mono font-bold text-slate-400 shrink-0">
+                              Lv.{activeCompany.manager.level}
+                            </span>
+                          )}
+                          {activeCompany.manager.countryCode && (
+                            <span className="text-xs shrink-0" title={activeCompany.manager.countryName || activeCompany.manager.countryCode}>
+                              {getCountryFlag(activeCompany.manager.countryCode)}
+                            </span>
+                          )}
+                          <span className="px-1.5 py-0.5 bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[9px] font-mono font-black uppercase tracking-wider rounded shrink-0">
+                            FACILITY MANAGER
+                          </span>
+                        </div>
+                        <div className="text-[11px] text-slate-400 font-mono flex items-center gap-1.5 mt-0.5 flex-wrap">
+                          <span>Management Lv.{activeCompany.manager.managementLevel || 1}</span>
+                          <span>•</span>
+                          <span className="text-emerald-400 font-bold">
+                            +{activeCompany.manager.productionBonusPercent || (activeCompany.manager.managementLevel * 2)}% Facility Boost
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="text-right font-mono shrink-0 pl-3">
+                      <div className="text-xs font-black text-rose-400">
+                        -{(activeCompany.manager.hourlyWage || (activeCompany.managerPay ? activeCompany.managerPay / 24 : 0)).toFixed(3)} BTC/h
+                      </div>
+                      <div className="text-[10px] text-slate-400">
+                        -{(activeCompany.manager.dailyWage || activeCompany.managerPay || 0).toFixed(2)} BTC/day
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-between px-3 py-2 bg-slate-900/40 border border-dashed border-slate-800 rounded-xl text-slate-400 text-xs">
+                    <span className="flex items-center gap-1.5 text-[11px] font-sans">
+                      <User className="w-3.5 h-3.5 text-slate-500" />
+                      No Facility Manager Contracted
+                    </span>
+                    <span className="text-[10px] font-mono text-slate-500">0.00 BTC/day</span>
+                  </div>
+                )}
               </div>
 
               {/* FIFA TRADING CARD CONTAINER & OUTSIDE PRODUCTION BREAKDOWN */}

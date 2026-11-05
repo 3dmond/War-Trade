@@ -526,6 +526,16 @@ export class WarEraService {
         owner = await this.getUserLite(comp.user);
       }
 
+      // Resolve manager user profile details (username, avatar, country, level)
+      let managerUser = null;
+      let managerCountryData = null;
+      if (managerDoc?.user) {
+        managerUser = await this.getUserLite(managerDoc.user).catch(() => null);
+        if (managerUser?.country) {
+          managerCountryData = await this.getCountryById(managerUser.country).catch(() => null);
+        }
+      }
+
       const totalBonusPct = typeof productionBonusData?.total === 'number'
         ? productionBonusData.total
         : undefined;
@@ -540,10 +550,17 @@ export class WarEraService {
       const manager = managerDoc ? {
         id: managerDoc._id,
         userId: managerDoc.user,
-        managementLevel: managerDoc.managementLevel || 1,
+        username: managerUser?.username || 'Hired Manager',
+        name: managerUser?.username || 'Hired Manager',
+        avatarUrl: managerUser?.avatarUrl || null,
+        level: managerUser?.leveling?.level || null,
+        countryCode: managerCountryData?.code?.toUpperCase() || (typeof managerUser?.country === 'string' && managerUser.country.length === 2 ? managerUser.country.toUpperCase() : null),
+        countryName: managerCountryData?.name || null,
+        managementLevel: managerDoc.managementLevel || managerUser?.skills?.management?.level || 1,
+        managementValue: managerUser?.skills?.management?.value || (managerDoc.managementLevel ? managerDoc.managementLevel + 1 : 1),
         hourlyWage: managerDoc.hourlyWage || 0,
         dailyWage: (managerDoc.hourlyWage || 0) * 24,
-        productionBonusPercent: managerDoc.productionBonusPercent || 0,
+        productionBonusPercent: managerDoc.productionBonusPercent || (managerDoc.managementLevel ? managerDoc.managementLevel * 2 : 0),
         isInactive: managerDoc.isInactive || false
       } : null;
       const managerPay = manager?.dailyWage || 0;
