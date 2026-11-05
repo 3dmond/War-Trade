@@ -46,7 +46,7 @@ export const TRAIT_DEFINITIONS = {
     isCoworkerLinked: true,
     icon: '🎭',
     badgeClass: 'bg-amber-100 text-amber-900 border-amber-300',
-    description: 'Gives +10 to every coworker, but the employee loses 1 for themselves.'
+    description: 'Gives +10 Happiness to every coworker, but the employee loses 1 for themselves.'
   },
   mentor: {
     name: 'Mentor',
@@ -66,7 +66,7 @@ export const TRAIT_DEFINITIONS = {
     isCoworkerLinked: true,
     icon: '📋',
     badgeClass: 'bg-blue-100 text-blue-900 border-blue-300',
-    description: 'Gives +9 to every coworker.'
+    description: 'Gives +9 Happiness to every coworker.'
   },
   nationalist: {
     name: 'Nationalist',

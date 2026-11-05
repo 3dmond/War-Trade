@@ -38,7 +38,7 @@ import { calculatePortfolioOverview, mapCompanyFromDossier } from '../data/marke
 import { getTraitInfo } from '../data/employeeTraits';
 import ItemIcon from './ItemIcon';
 import StockExchangeListing from './StockExchangeListing';
-import EmployeeAuditModal from './EmployeeAuditModal';
+import EmployeeFifaCard, { EmployeeFifaCardMini, EmployeeProductionBreakdown } from './EmployeeFifaCard';
 
 // Reusable tactile Gold Coin icon
 export function GoldCoin({ size = 15, className = '' }) {
@@ -213,7 +213,175 @@ const DEFAULT_COMPANIES = [
     ethicBonusPct: 30.0,
     totalBonusPct: 40.0,
     estimatedValue: 1850,
-    employees: [],
+    employees: [
+      {
+        id: 'emp-demo-1',
+        name: 'Haoxuan Qi',
+        gender: 'male',
+        age: 28,
+        countryCode: 'EC',
+        nationality: 'EC',
+        baseProduction: 3,
+        trainedProduction: 4,
+        luck: 3,
+        responsibility: 2,
+        potential: 6,
+        potentialMax: 8,
+        happiness: 58,
+        hourlyWage: 0.0627,
+        dailyWage: 1.505,
+        hourlyOutputPp: 2.49,
+        dailyOutputPp: 59.76,
+        dailyProductionValue: 3.585,
+        dailyProfit: 2.08,
+        traits: [
+          { code: 'anchor' },
+          { code: 'luckyCharm' },
+          { code: 'cosmopolitan' }
+        ],
+        toolItem: {
+          code: 'hammer3',
+          skills: { production: 16 },
+          state: 91.6,
+          maxState: 100
+        },
+        toolStatus: {
+          rolledPercent: 16,
+          isUsable: true,
+          bonusPercent: 16
+        },
+        productionBonus: {
+          total: 43,
+          contributions: [
+            { source: 'management', percent: 16 },
+            { source: 'coreRegion', percent: 5 },
+            { source: 'happiness', percent: 2 },
+            { source: 'tool', percent: 16 },
+            { source: 'specialization', percent: 4 }
+          ]
+        },
+        breakdown: {
+          production: {
+            base: 3,
+            trained: 4,
+            contributions: [
+              { code: 'cosmopolitan', delta: 4 },
+              { code: 'tool', delta: 16, percent: true }
+            ],
+            total: 7
+          },
+          luck: {
+            base: 3,
+            trained: 0,
+            contributions: [{ code: 'luckyCharm', delta: 3 }],
+            total: 3
+          },
+          responsibility: {
+            base: 1,
+            trained: 1,
+            contributions: [],
+            total: 2
+          }
+        },
+        happinessBreakdown: {
+          base: 50,
+          contributions: [
+            { reason: 'responsibility', delta: 6 },
+            { reason: 'incomeTax', delta: -4 },
+            { reason: 'event', delta: 6 }
+          ],
+          value: 58,
+          quitChance: 0
+        }
+      },
+      {
+        id: 'emp-demo-2',
+        name: 'Beatriz Trejo Reyna',
+        gender: 'female',
+        age: 38,
+        countryCode: 'ES',
+        nationality: 'ES',
+        baseProduction: 4,
+        trainedProduction: 4,
+        luck: 4,
+        responsibility: 2,
+        potential: 4,
+        potentialMax: 4,
+        happiness: 52,
+        hourlyWage: 0.1516,
+        dailyWage: 3.64,
+        hourlyOutputPp: 2.86,
+        dailyOutputPp: 68.64,
+        dailyProductionValue: 4.118,
+        dailyProfit: 0.478,
+        traits: [
+          { code: 'diamondInTheRough' }
+        ],
+        toolItem: {
+          code: 'drill4',
+          skills: { production: 20 },
+          state: 84.0,
+          maxState: 100
+        },
+        toolStatus: {
+          rolledPercent: 20,
+          isUsable: true,
+          bonusPercent: 20
+        },
+        productionBonus: {
+          total: 47,
+          contributions: [
+            { source: 'management', percent: 16 },
+            { source: 'coreRegion', percent: 5 },
+            { source: 'tool', percent: 20 },
+            { source: 'specialization', percent: 6 }
+          ]
+        },
+        breakdown: {
+          production: {
+            base: 4,
+            trained: 4,
+            contributions: [
+              { code: 'tool', delta: 20, percent: true }
+            ],
+            total: 8
+          },
+          luck: {
+            base: 1,
+            trained: 0,
+            contributions: [{ code: 'luckyCharm', delta: 3 }],
+            total: 4
+          },
+          responsibility: {
+            base: 2,
+            trained: 0,
+            contributions: [],
+            total: 2
+          }
+        },
+        happinessBreakdown: {
+          base: 50,
+          contributions: [
+            { reason: 'responsibility', delta: 6 },
+            { reason: 'incomeTax', delta: -4 }
+          ],
+          value: 52,
+          quitChance: 0
+        }
+      }
+    ],
+    manager: {
+      id: 'mgr-demo-1',
+      userId: 'user-valentin',
+      username: 'Valentin (General Manager)',
+      avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=256&q=80',
+      managementLevel: 8,
+      hourlyWage: 0.05,
+      dailyWage: 1.20,
+      productionBonusPercent: 16,
+      countryCode: 'EC'
+    },
+    hasManager: true,
     workers: [],
     isSelfWorking: false
   },
@@ -234,7 +402,49 @@ const DEFAULT_COMPANIES = [
     ethicBonusPct: 30.0,
     totalBonusPct: 51.0,
     estimatedValue: 1150,
-    employees: [],
+    employees: [
+      {
+        id: 'emp-demo-3',
+        name: 'Mateo Silva',
+        gender: 'male',
+        age: 32,
+        countryCode: 'EC',
+        nationality: 'EC',
+        baseProduction: 5,
+        trainedProduction: 2,
+        luck: 2,
+        responsibility: 3,
+        potential: 5,
+        potentialMax: 7,
+        happiness: 65,
+        hourlyWage: 0.08,
+        dailyWage: 1.92,
+        hourlyOutputPp: 3.1,
+        dailyOutputPp: 74.4,
+        dailyProductionValue: 4.46,
+        dailyProfit: 2.54,
+        traits: [
+          { code: 'bandOfBrothers' },
+          { code: 'foreman' }
+        ],
+        toolItem: {
+          code: 'wrench2',
+          skills: { production: 12 },
+          state: 95.0,
+          maxState: 100
+        },
+        toolStatus: {
+          rolledPercent: 12,
+          isUsable: true,
+          bonusPercent: 12
+        },
+        breakdown: {
+          production: { base: 5, trained: 2, total: 7 },
+          luck: { base: 2, trained: 0, total: 2 },
+          responsibility: { base: 3, trained: 0, total: 3 }
+        }
+      }
+    ],
     workers: [],
     isSelfWorking: false
   },
@@ -256,7 +466,49 @@ const DEFAULT_COMPANIES = [
     ethicBonusPct: 0,
     totalBonusPct: 0,
     estimatedValue: 1528,
-    employees: [],
+    employees: [
+      {
+        id: 'emp-demo-4',
+        name: 'Elena Gomez',
+        gender: 'female',
+        age: 26,
+        countryCode: 'ES',
+        nationality: 'ES',
+        baseProduction: 6,
+        trainedProduction: 3,
+        luck: 3,
+        responsibility: 2,
+        potential: 4,
+        potentialMax: 6,
+        happiness: 70,
+        hourlyWage: 0.09,
+        dailyWage: 2.16,
+        hourlyOutputPp: 3.5,
+        dailyOutputPp: 84.0,
+        dailyProductionValue: 5.04,
+        dailyProfit: 2.88,
+        traits: [
+          { code: 'girlPower' },
+          { code: 'cosmopolitan' }
+        ],
+        toolItem: {
+          code: 'hammer2',
+          skills: { production: 10 },
+          state: 88.0,
+          maxState: 100
+        },
+        toolStatus: {
+          rolledPercent: 10,
+          isUsable: true,
+          bonusPercent: 10
+        },
+        breakdown: {
+          production: { base: 6, trained: 3, total: 9 },
+          luck: { base: 3, trained: 0, total: 3 },
+          responsibility: { base: 2, trained: 0, total: 2 }
+        }
+      }
+    ],
     workers: [],
     isSelfWorking: false
   },
@@ -289,8 +541,7 @@ export default function CompanyPortfolio({
 
   // Live 24h market price movements for accurate valuation growth
   const [priceChanges24h, setPriceChanges24h] = useState({});
-  // Inspected worker for modal audit breakdown
-  const [inspectedWorker, setInspectedWorker] = useState(null);
+
 
   useEffect(() => {
     let isMounted = true;
@@ -553,7 +804,7 @@ export default function CompanyPortfolio({
       }
 
       // v0.27+ employees: pass through with context enrichment
-      const enrichedWorkers = (comp.employeesList || comp.employees || []).map(w => ({
+      const rawWorkerList = (comp.employeesList || comp.employees || []).map(w => ({
         ...w,
         companyId: comp.id,
         companyName: comp.name,
@@ -561,6 +812,46 @@ export default function CompanyPortfolio({
         recipe,
         spotPrice,
       }));
+
+      const enrichedWorkers = [...rawWorkerList];
+      if (comp.manager && !enrichedWorkers.some(w => w.id === comp.manager.id || w.userId === comp.manager.userId)) {
+        enrichedWorkers.push({
+          ...comp.manager,
+          id: comp.manager.id || `mgr-${comp.id}`,
+          name: comp.manager.username || comp.manager.name || 'Hired Facility Manager',
+          username: comp.manager.username || 'Manager',
+          isManager: true,
+          role: 'Manager',
+          gender: comp.manager.gender || 'male',
+          avatarUrl: comp.manager.avatarUrl || comp.ownerAvatarUrl || null,
+          countryCode: comp.manager.countryCode || comp.countryCode || 'HQ',
+          companyId: comp.id,
+          companyName: comp.name,
+          companyItemCode: comp.itemCode,
+          recipe,
+          spotPrice,
+          hourlyWage: comp.manager.hourlyWage || (comp.managerPay ? comp.managerPay / 24 : 0),
+          dailyWage: comp.manager.dailyWage || comp.managerPay || 0,
+          hourlyOutputPp: 0,
+          dailyOutputPp: 0,
+          dailyProductionValue: 0,
+          dailyProfit: -(comp.manager.dailyWage || comp.managerPay || 0),
+          happiness: 100,
+          potential: comp.manager.managementLevel || 1,
+          potentialMax: 10,
+          baseProduction: 0,
+          trainedProduction: 0,
+          productionBonus: comp.manager.productionBonusPercent || (comp.manager.managementLevel ? comp.manager.managementLevel * 2 : 0),
+          traits: [
+            { code: 'management', name: `Management Lv.${comp.manager.managementLevel || 1}`, description: `Scales all facility workers' production by continuous +${(comp.manager.managementLevel || 1) * 2}% bonus.` }
+          ],
+          breakdown: {
+            production: { base: 0, trained: 0, total: comp.manager.managementLevel || 1 },
+            luck: { base: 0, trained: 0, total: 0 },
+            responsibility: { base: comp.manager.managementLevel || 1, trained: 0, total: comp.manager.managementLevel || 1 }
+          }
+        });
+      }
 
       const hasEmployees = enrichedWorkers.length > 0;
 
@@ -652,12 +943,41 @@ export default function CompanyPortfolio({
     };
   }, [activeCompany?.enrichedWorkers]);
 
+  // Whole-portfolio workers for cross-facility synergy searches
+  const allPortfolioWorkers = useMemo(() => {
+    const list = [];
+    (analyzedCompanies || []).forEach(c => {
+      (c.enrichedWorkers || c.employees || []).forEach(w => {
+        list.push({
+          ...w,
+          companyName: c.name,
+          companyId: c.id,
+          countryCode: w.countryCode || w.nationalityCode || (typeof w.nationality === 'string' && w.nationality.length === 2 ? w.nationality : null) || c.countryCode || 'HQ',
+        });
+      });
+    });
+    return list;
+  }, [analyzedCompanies]);
+
   // Safe active worker index for carousel
   const validWorkerIdx = Math.min(
     activeWorkerIdx,
     Math.max(0, (activeCompany?.enrichedWorkers?.length || 1) - 1)
   );
   const currentWorker = activeCompany?.enrichedWorkers?.[validWorkerIdx];
+  const totalRosterWorkers = activeCompany?.enrichedWorkers?.length || 0;
+  const nextRosterWorker = totalRosterWorkers > 1 
+    ? activeCompany.enrichedWorkers[(validWorkerIdx + 1) % totalRosterWorkers] 
+    : null;
+  const nextRosterWorkerIdx = totalRosterWorkers > 1 
+    ? (validWorkerIdx + 1) % totalRosterWorkers 
+    : null;
+  const prevRosterWorker = totalRosterWorkers > 2 
+    ? activeCompany.enrichedWorkers[(validWorkerIdx - 1 + totalRosterWorkers) % totalRosterWorkers] 
+    : null;
+  const prevRosterWorkerIdx = totalRosterWorkers > 2 
+    ? (validWorkerIdx - 1 + totalRosterWorkers) % totalRosterWorkers 
+    : null;
 
   // Handlers for company edits
   const handleUpdate = (id, key, val) => {
@@ -945,323 +1265,93 @@ export default function CompanyPortfolio({
 
             </div>
 
-            {/* RIGHT COLUMN: SLEEK FIFA-STYLE EMPLOYEE CARD & CAROUSEL */}
-            <div className="lg:col-span-7 bg-white p-5 space-y-4 flex flex-col justify-between">
+            {/* RIGHT COLUMN: SLEEK FIFA-STYLE EMPLOYEE SHOWCASE (CLASSY MODERN LUXURY STADIUM THEME) */}
+            <div className="lg:col-span-7 bg-gradient-to-b from-slate-900 via-[#0a0f1d] to-slate-950 border border-slate-800 rounded-2xl p-5 sm:p-6 space-y-5 flex flex-col justify-between text-white shadow-2xl relative overflow-hidden">
               
-              {/* Carousel Navigation Header */}
-              <div className="flex items-center justify-between pb-1">
-                <div className="flex items-center space-x-2">
-                  <Users className="w-4 h-4 text-slate-500" />
-                  <h3 className="text-sm font-extrabold text-slate-900 font-sans tracking-tight">
-                    Workforce Roster ({activeCompany.enrichedWorkers.length}/{activeCompany.maxEmployees ?? 0})
-                  </h3>
-                </div>
+              {/* Ambient Golden Top Radiance */}
+              <div className="absolute top-0 inset-x-0 h-48 bg-[radial-gradient(ellipse_at_top,_rgba(245,158,11,0.14),_transparent_70%)] pointer-events-none" />
 
-                {/* Visible Carousel Navigation */}
-                {activeCompany.enrichedWorkers.length > 1 && (
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setActiveWorkerIdx(prev => (prev > 0 ? prev - 1 : activeCompany.enrichedWorkers.length - 1))}
-                      className="px-2.5 py-1 bg-slate-900 hover:bg-slate-800 text-white rounded-md text-xs font-bold transition flex items-center gap-1 shadow-sm cursor-pointer"
-                      title="Previous Employee"
-                    >
-                      <ChevronLeft className="w-3.5 h-3.5" />
-                      <span>Prev</span>
-                    </button>
-
-                    {/* Pagination Indicator Dots */}
-                    <div className="flex items-center gap-1.5 px-1">
-                      {activeCompany.enrichedWorkers.map((_, dotIdx) => (
-                        <button
-                          key={dotIdx}
-                          type="button"
-                          onClick={() => setActiveWorkerIdx(dotIdx)}
-                          className={`h-2 rounded-full transition-all cursor-pointer ${
-                            dotIdx === validWorkerIdx 
-                              ? 'bg-amber-500 w-4 shadow-sm' 
-                              : 'bg-slate-300 hover:bg-slate-400 w-2'
-                          }`}
-                          title={`Go to employee ${dotIdx + 1}`}
-                        />
-                      ))}
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={() => setActiveWorkerIdx(prev => (prev < activeCompany.enrichedWorkers.length - 1 ? prev + 1 : 0))}
-                      className="px-2.5 py-1 bg-slate-900 hover:bg-slate-800 text-white rounded-md text-xs font-bold transition flex items-center gap-1 shadow-sm cursor-pointer"
-                      title="Next Employee"
-                    >
-                      <span>Next</span>
-                      <ChevronRight className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                )}
+              {/* Workforce Roster Header: Just the clean title */}
+              <div className="relative z-10 pb-2 border-b border-slate-800/80">
+                <h3 className="text-sm font-black text-slate-100 font-sans tracking-tight">
+                  Workforce Roster
+                </h3>
               </div>
 
-              {/* FIFA TRADING CARD CONTAINER (COMPACT, NOT TOO WIDE) */}
-              <div className="flex-1 flex flex-col justify-center">
-                {activeCompany.enrichedWorkers.length > 0 && currentWorker ? (() => {
-                  const theme = getItemClassificationTheme(activeCompany.itemCode);
-                  const countryCode = currentWorker.countryCode || currentWorker.nationalityCode || (typeof currentWorker.nationality === 'string' && currentWorker.nationality.length === 2 ? currentWorker.nationality : null) || activeCompany.countryCode || 'HQ';
-                  const flagEmoji = getCountryFlag(countryCode);
-                  const netDailyProfit = (typeof currentWorker.dailyProfit === 'number' ? currentWorker.dailyProfit : ((currentWorker.dailyProductionValue || 0) - (currentWorker.dailyWage || 0)));
-                  const workerDailyPp = (currentWorker.dailyOutputPp || (currentWorker.hourlyOutputPp ? currentWorker.hourlyOutputPp * 24 : 0));
-                  const workerHourlyPp = (currentWorker.hourlyOutputPp || (workerDailyPp / 24));
-                  
-                  const positiveTraits = (currentWorker.traits || []).filter(t => !getTraitInfo(t.code || t).isNegative);
-                  const negativeTraits = (currentWorker.traits || []).filter(t => getTraitInfo(t.code || t).isNegative);
-
-                  return (
-                    <div className="max-w-[390px] w-full mx-auto">
-                      <div className={`relative rounded-2xl p-4.5 bg-gradient-to-b ${theme.cardBg} border ${theme.cardBorder} text-white shadow-xl transition-all duration-300 overflow-hidden`}>
-                        {/* Shimmer / Holographic Card Glow Overlay */}
-                        <div className="absolute -top-24 -right-24 w-48 h-48 bg-white/5 rounded-full blur-2xl pointer-events-none" />
-                        <div className="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-transparent via-amber-400 to-transparent opacity-40" />
-
-                        {/* TOP HEADER: Rating, Nationality & Portrait */}
-                        <div className="flex items-start justify-between relative z-10 mb-2">
-                          {/* Left Rating Stack */}
-                          <div className="flex flex-col items-start">
-                            <div className="flex items-baseline gap-1">
-                              <span className={`text-2xl font-black font-mono tracking-tight ${netDailyProfit >= 0 ? 'text-amber-300' : 'text-rose-400'} drop-shadow`}>
-                                {netDailyProfit >= 0 ? '+' : ''}{netDailyProfit.toFixed(2)}
-                              </span>
-                              <span className="text-[10px] font-black text-amber-400/90 font-mono">BTC/d</span>
-                            </div>
-                            <span className="text-[9px] font-black tracking-widest uppercase text-slate-300">
-                              NET PROFIT
-                            </span>
-                            <div className="mt-1 flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-black/40 backdrop-blur-sm border border-white/10 text-[10px] font-mono font-bold">
-                              <span className="text-sm">{flagEmoji}</span>
-                              <span className="text-slate-200">{countryCode.toUpperCase()}</span>
-                            </div>
-                          </div>
-
-                          {/* Center / Right: Worker Portrait & Gender */}
-                          <div className="relative flex flex-col items-center">
-                            <div className={`w-20 h-20 rounded-2xl overflow-hidden p-0.5 bg-gradient-to-b ${theme.headerGrad} shadow-lg ring-2 ${theme.ringColor}`}>
-                              {currentWorker.avatarUrl ? (
-                                <img 
-                                  src={currentWorker.avatarUrl} 
-                                  alt={currentWorker.name || currentWorker.username} 
-                                  className="w-full h-full object-cover rounded-[14px]"
-                                  onError={(e) => { e.currentTarget.style.display = 'none'; }}
-                                />
-                              ) : (
-                                <WorkerSilhouette gender={currentWorker.gender || 'male'} className="w-full h-full bg-slate-900 rounded-[14px]" />
-                              )}
-                            </div>
-                            {/* Gender & Age Badge */}
-                            <div className="absolute -bottom-2 px-2 py-0.5 rounded-full bg-slate-950/90 border border-white/20 text-[10px] font-mono font-bold flex items-center gap-1 shadow">
-                              <span className={currentWorker.gender === 'female' ? 'text-pink-400' : 'text-blue-400'}>
-                                {currentWorker.gender === 'female' ? '♀' : '♂'}
-                              </span>
-                              <span className="text-slate-200">{currentWorker.age ? `${currentWorker.age}y` : 'AI'}</span>
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* WORKER NAME & COMPANY BADGE */}
-                        <div className="text-center mt-3 pt-1 relative z-10">
-                          <h4 className="text-base font-black uppercase tracking-wider text-white drop-shadow font-sans truncate">
-                            {currentWorker.name || currentWorker.username || 'AI Specialist'}
-                          </h4>
-                          <div className="flex items-center justify-center gap-1.5 text-[11px] text-slate-300 mt-0.5">
-                            <span className="opacity-75">Assigned to:</span>
-                            <span className="font-bold text-amber-200 underline decoration-amber-400/40 truncate max-w-[180px]">
-                              {activeCompany.name}
-                            </span>
-                            <span className="text-[10px] opacity-80">({activeCompany.itemCode})</span>
-                          </div>
-                        </div>
-
-                        {/* CORE SKILLS - FIFA 5-STAT GRID */}
-                        <div className="grid grid-cols-5 gap-1.5 my-3 relative z-10 text-center font-mono">
-                          <div className="bg-black/35 backdrop-blur-sm rounded-lg p-1.5 border border-white/10" title="Production Stat (Total)">
-                            <span className="text-[9px] uppercase tracking-wider text-slate-400 block font-sans">PROD</span>
-                            <span className="text-xs font-black text-amber-300">
-                              ⛏️ {currentWorker.breakdown?.production?.total ?? ((currentWorker.baseProduction || 0) + (currentWorker.trainedProduction || 0))}
-                            </span>
-                          </div>
-                          <div className="bg-black/35 backdrop-blur-sm rounded-lg p-1.5 border border-white/10" title="Luck Stat">
-                            <span className="text-[9px] uppercase tracking-wider text-slate-400 block font-sans">LUCK</span>
-                            <span className="text-xs font-black text-emerald-400">
-                              🍀 {currentWorker.breakdown?.luck?.total ?? (currentWorker.luck || 0)}
-                            </span>
-                          </div>
-                          <div className="bg-black/35 backdrop-blur-sm rounded-lg p-1.5 border border-white/10" title="Happiness Morale">
-                            <span className="text-[9px] uppercase tracking-wider text-slate-400 block font-sans">HAP</span>
-                            <span className="text-xs font-black text-yellow-300">
-                              😊 {currentWorker.happinessBreakdown?.value ?? (currentWorker.happiness || 50)}%
-                            </span>
-                          </div>
-                          <div className="bg-black/35 backdrop-blur-sm rounded-lg p-1.5 border border-white/10" title="Production Bonus">
-                            <span className="text-[9px] uppercase tracking-wider text-slate-400 block font-sans">BONUS</span>
-                            <span className="text-xs font-black text-blue-300">
-                              ⚡ +{currentWorker.productionBonus?.total ?? currentWorker.productionBonus ?? currentWorker.productionBonusData?.total ?? 0}%
-                            </span>
-                          </div>
-                          <div className="bg-black/35 backdrop-blur-sm rounded-lg p-1.5 border border-white/10" title="Responsibility / Growth Potential">
-                            <span className="text-[9px] uppercase tracking-wider text-slate-400 block font-sans">RESP</span>
-                            <span className="text-xs font-black text-purple-300">
-                              💬 {currentWorker.potential ?? currentWorker.breakdown?.responsibility?.total ?? 0}
-                            </span>
-                          </div>
-                        </div>
-
-                        {/* TRAITS (SEPARATED: POSITIVE & NEGATIVE) */}
-                        {Array.isArray(currentWorker.traits) && currentWorker.traits.length > 0 && (
-                          <div className="space-y-1.5 my-2.5 relative z-10">
-                            {/* Positive Traits */}
-                            {positiveTraits.length > 0 && (
-                              <div className="flex flex-wrap gap-1.5 justify-center">
-                                {positiveTraits.map((t, idx) => {
-                                  const info = getTraitInfo(t.code || t);
-                                  return (
-                                    <span
-                                      key={`pos-${idx}`}
-                                      className={`px-2 py-0.5 rounded-full text-[10px] font-bold flex items-center gap-1 shadow-sm backdrop-blur-sm border ${
-                                        info.isCoworkerLinked 
-                                          ? 'bg-amber-500/20 text-amber-200 border-amber-500/50' 
-                                          : 'bg-emerald-500/20 text-emerald-200 border-emerald-500/50'
-                                      }`}
-                                      title={`${info.name}: ${info.description} ${info.isCoworkerLinked ? '• Links to Coworkers' : ''}`}
-                                    >
-                                      <span>★</span>
-                                      <span>{info.name}</span>
-                                      {info.isCoworkerLinked && <span className="text-[8px] opacity-80">(Team)</span>}
-                                    </span>
-                                  );
-                                })}
-                              </div>
-                            )}
-
-                            {/* Negative Traits */}
-                            {negativeTraits.length > 0 && (
-                              <div className="flex flex-wrap gap-1.5 justify-center">
-                                {negativeTraits.map((t, idx) => {
-                                  const info = getTraitInfo(t.code || t);
-                                  return (
-                                    <span
-                                      key={`neg-${idx}`}
-                                      className="px-2 py-0.5 rounded-full text-[10px] font-bold flex items-center gap-1 shadow-sm backdrop-blur-sm bg-rose-500/25 text-rose-200 border border-rose-500/60"
-                                      title={`${info.name}: ${info.description}`}
-                                    >
-                                      <span>⚠️</span>
-                                      <span>{info.name}</span>
-                                    </span>
-                                  );
-                                })}
-                              </div>
-                            )}
-                          </div>
-                        )}
-
-                        {/* TOOL HARDWARE IF EQUIPPED */}
-                        {(currentWorker.toolItem || currentWorker.tool || currentWorker._raw?.toolItem) && (
-                          <div className="my-2 p-2 rounded-xl bg-black/40 backdrop-blur-sm border border-white/10 text-[10px] flex items-center justify-between font-mono relative z-10">
-                            <div className="flex items-center gap-1.5 font-bold text-sky-200">
-                              <span>🔧</span>
-                              <span>{(currentWorker.toolItem?.code || currentWorker.tool?.code || currentWorker._raw?.toolItem?.code || 'Tool')}</span>
-                              <span className="text-emerald-400">
-                                +{currentWorker.toolItem?.skills?.production ?? currentWorker.toolStatus?.bonusPercent ?? 0}% Prod
-                              </span>
-                            </div>
-                            <span className="text-slate-400">
-                              State: {(currentWorker.toolItem?.state || currentWorker.tool?.state || 100).toFixed(0)}/100
-                            </span>
-                          </div>
-                        )}
-
-                        {/* PRODUCTION & FINANCIALS BREAKDOWN (PROMINENT) */}
-                        <div className="mt-3 p-2.5 rounded-xl bg-black/50 backdrop-blur-md border border-white/10 space-y-1.5 font-mono text-xs relative z-10">
-                          <div className="flex justify-between items-center text-slate-300">
-                            <span className="font-sans text-[11px]">Daily Production Rate:</span>
-                            <strong className="text-amber-300 text-xs font-black">
-                              {workerDailyPp.toFixed(1)} PP/day
-                              <span className="text-[10px] text-slate-400 ml-1 font-normal font-sans">({workerHourlyPp.toFixed(2)}/h)</span>
-                            </strong>
-                          </div>
-                          <div className="flex justify-between items-center text-slate-300">
-                            <span className="font-sans text-[11px]">Gross Production Value:</span>
-                            <strong className="text-emerald-400 font-bold">
-                              +{(currentWorker.dailyProductionValue || 0).toFixed(2)} BTC/d
-                            </strong>
-                          </div>
-                          <div className="flex justify-between items-center text-slate-300">
-                            <span className="font-sans text-[11px]">Contracted Wage:</span>
-                            <strong className="text-rose-400 font-bold">
-                              -{(currentWorker.dailyWage || currentWorker.dailySalary || 0).toFixed(2)} BTC/d
-                            </strong>
-                          </div>
-                          <div className="flex justify-between items-center pt-1.5 border-t border-white/10 text-white font-bold">
-                            <span className="font-sans text-[11px]">Net Daily Profit:</span>
-                            <strong className={`font-mono text-xs ${netDailyProfit >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                              {netDailyProfit >= 0 ? '+' : ''}{netDailyProfit.toFixed(2)} BTC/d
-                            </strong>
-                          </div>
-                        </div>
-
-                        {/* AUDIT BUTTON */}
-                        <button
-                          type="button"
-                          onClick={() => setInspectedWorker({
-                            ...currentWorker,
-                            companyName: activeCompany.name,
-                            companyItemCode: activeCompany.itemCode,
-                            companyTotalBonusPct: activeCompany.totalBonusPct,
-                            recipe: activeCompany.recipe,
-                            spotPrice: activeCompany.spotPrice,
-                            baseRawCostPerUnit: activeCompany.baseRawCostPerUnit
-                          })}
-                          className="w-full mt-3 py-2 px-3 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-600 hover:from-amber-400 hover:to-yellow-500 text-slate-950 text-xs font-mono font-black transition shadow-md flex items-center justify-center gap-1.5 cursor-pointer relative z-10"
+              {/* FIFA TRADING CARD CONTAINER & OUTSIDE PRODUCTION BREAKDOWN */}
+              <div className="relative z-10 flex-1 flex flex-col justify-center space-y-5">
+                {activeCompany.enrichedWorkers.length > 0 && currentWorker ? (
+                  <>
+                    {/* Fanned 3D FIFA Card Deck View:
+                        Card 3 (Previous, Left, z-10) < Card 1 (Active, Center, z-30) > Card 2 (Next, Right, z-20)
+                        - 100% OPAQUE (NO translucent double-exposure ghosting)
+                        - Symmetrical Left & Right peeking positions
+                        - Deep physical drop shadows and scale stepping
+                    */}
+                    <div className="relative flex items-center justify-center py-4 min-h-[480px] isolate overflow-visible">
+                      
+                      {/* Left Peek Card (Previous Employee in roster, z-10) */}
+                      {totalRosterWorkers > 2 && prevRosterWorker && (
+                        <div 
+                          className="hidden lg:block absolute -left-2 xl:left-2 top-1/2 -translate-y-1/2 transition-all duration-300 transform scale-[0.88] brightness-[0.82] hover:brightness-100 hover:scale-[0.92] cursor-pointer pointer-events-auto opacity-100 drop-shadow-[0_15px_35px_rgba(0,0,0,0.8)]"
+                          style={{ zIndex: 10 }}
+                          onClick={() => setActiveWorkerIdx(prevRosterWorkerIdx)}
+                          title={`Click to view previous: #${prevRosterWorkerIdx + 1} ${prevRosterWorker.name || prevRosterWorker.username}`}
                         >
-                          <span>Audit Skills, Morale & Traits Math</span>
-                          <span>↗</span>
-                        </button>
+                          <EmployeeFifaCardMini 
+                            worker={prevRosterWorker}
+                            company={activeCompany}
+                          />
+                        </div>
+                      )}
+
+                      {/* Right Peek Card (Next Employee in roster, z-20) */}
+                      {totalRosterWorkers > 1 && nextRosterWorker && (
+                        <div 
+                          className="hidden md:block absolute -right-2 xl:right-2 top-1/2 -translate-y-1/2 transition-all duration-300 transform scale-[0.88] brightness-[0.82] hover:brightness-100 hover:scale-[0.92] cursor-pointer pointer-events-auto opacity-100 drop-shadow-[0_15px_35px_rgba(0,0,0,0.8)]"
+                          style={{ zIndex: 20 }}
+                          onClick={() => setActiveWorkerIdx(nextRosterWorkerIdx)}
+                          title={`Click to view next: #${nextRosterWorkerIdx + 1} ${nextRosterWorker.name || nextRosterWorker.username}`}
+                        >
+                          <EmployeeFifaCardMini 
+                            worker={nextRosterWorker}
+                            company={activeCompany}
+                          />
+                        </div>
+                      )}
+
+                      {/* Active Center Card (Top of the deck, z-30) */}
+                      <div 
+                        className="relative transition-all duration-300 transform scale-100 pointer-events-auto drop-shadow-[0_20px_50px_rgba(0,0,0,0.85)]" 
+                        style={{ zIndex: 30 }}
+                      >
+                        <EmployeeFifaCard 
+                          worker={currentWorker}
+                          company={activeCompany}
+                          portfolioWorkers={allPortfolioWorkers}
+                          portfolioCompanies={analyzedCompanies}
+                          onSelectCompany={(compId) => setSelectedCompanyId(compId)}
+                        />
                       </div>
+
                     </div>
-                  );
-                })() : (
-                  <div className="p-8 flex flex-col justify-center items-center text-center space-y-2 bg-slate-50 rounded-2xl">
-                    <Users className="w-8 h-8 text-slate-300 stroke-[1.5]" />
-                    <span className="text-xs font-bold text-slate-700 block">No Employees Assigned</span>
-                    <p className="text-xs text-slate-500 font-sans max-w-[260px] leading-relaxed">
+
+                    {/* 2. PRODUCTION BREAKDOWN (OUTSIDE THE CARD) */}
+                    <EmployeeProductionBreakdown 
+                      worker={currentWorker}
+                      company={activeCompany}
+                    />
+                  </>
+                ) : (
+                  <div className="p-8 flex flex-col justify-center items-center text-center space-y-2 bg-slate-900/60 border border-dashed border-slate-800 rounded-2xl">
+                    <Users className="w-8 h-8 text-slate-500 stroke-[1.5]" />
+                    <span className="text-xs font-bold text-slate-300 block">No Employees Assigned</span>
+                    <p className="text-xs text-slate-400 font-sans max-w-[260px] leading-relaxed">
                       Break Room Lv.{activeCompany.breakRoomLevel ?? 0} supports up to {activeCompany.maxEmployees ?? 0} worker{(activeCompany.maxEmployees ?? 0) === 1 ? '' : 's'}. Automated engine generates {(activeCompany.engineTier?.ppPerHour ? activeCompany.engineTier.ppPerHour * 24 : 24)} PP/day at 0 wage cost.
                     </p>
                   </div>
                 )}
               </div>
-
-              {/* COMBINED OVERVIEW: RENDER ONLY IF MULTIPLE WORKERS (> 1) */}
-              {activeCompany.enrichedWorkers.length > 1 && combinedWorkforceStats && (
-                <div className="p-3 rounded-xl bg-slate-50 text-xs font-mono text-slate-600 space-y-1.5">
-                  <div className="flex items-center justify-between pb-1 font-sans">
-                    <span className="text-[11px] font-bold text-slate-800 uppercase tracking-wide">
-                      Combined Workforce ({activeCompany.enrichedWorkers.length} Employees)
-                    </span>
-                    <span className="font-black text-xs text-emerald-700">
-                      Net: {combinedWorkforceStats.combinedDailyProfit >= 0 ? '+' : ''}{combinedWorkforceStats.combinedDailyProfit.toFixed(2)} BTC/d
-                    </span>
-                  </div>
-                  <div className="grid grid-cols-3 gap-2 text-center text-xs">
-                    <div className="p-1.5 bg-white rounded-lg shadow-sm">
-                      <span className="text-[10px] text-slate-400 block font-sans">Total Output</span>
-                      <strong className="text-slate-900 font-mono">{(activeCompany.companyProducedDailyPp || combinedWorkforceStats.totalOutputPp).toFixed(1)} PP/d</strong>
-                    </div>
-                    <div className="p-1.5 bg-white rounded-lg shadow-sm">
-                      <span className="text-[10px] text-slate-400 block font-sans">Daily Salaries</span>
-                      <strong className="text-rose-500 font-mono">-{combinedWorkforceStats.combinedDailySalary.toFixed(2)}/d</strong>
-                    </div>
-                    <div className="p-1.5 bg-white rounded-lg shadow-sm">
-                      <span className="text-[10px] text-slate-400 block font-sans">Combined Profit</span>
-                      <strong className="text-emerald-600 font-mono">+{combinedWorkforceStats.combinedDailyProfit.toFixed(2)}/d</strong>
-                    </div>
-                  </div>
-                </div>
-              )}
 
             </div>
 
@@ -1324,7 +1414,7 @@ export default function CompanyPortfolio({
               <div className="flex justify-between items-center text-slate-600 bg-slate-50 p-3 rounded-xl font-mono text-xs">
                 <span>Ready Yield in Storage:</span>
                 <strong className="text-slate-900 font-extrabold">
-                  {activeCompany.uncollectedUnits.toFixed(1)} units (+{activeCompany.uncollectedValueCoins.toFixed(2)} BTC)
+                  {activeCompany.uncollectedUnits.toFixed(1)} units
                 </strong>
               </div>
 
@@ -1393,17 +1483,6 @@ export default function CompanyPortfolio({
                       {activeCompany.baseUnits.toFixed(1)} units/day (+{activeCompany.baseNetProfit.toFixed(2)} BTC/day net)
                     </strong>
                   </div>
-
-                  {/* PLAIN-ENGLISH ECONOMIC SUMMARY CALLOUT */}
-                  <div className="p-3.5 rounded-xl bg-slate-900 text-slate-100 text-xs font-sans space-y-1">
-                    <div className="flex items-center gap-1.5 text-amber-300 font-bold">
-                      <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-                      <span>Executive Economics Summary</span>
-                    </div>
-                    <p className="text-[11px] text-slate-300 leading-relaxed">
-                      Every unit of <strong>{activeCompany.recipeName || activeCompany.itemCode}</strong> sells on the spot market for <strong>{activeCompany.spotPrice.toFixed(3)} BTC</strong>. After paying <strong>{activeCompany.baseLaborCostPerUnit.toFixed(3)} BTC</strong> in workforce wages{activeCompany.baseRawCostPerUnit > 0 ? ` and ${activeCompany.baseRawCostPerUnit.toFixed(3)} BTC in raw materials` : ''}, your company pockets <strong>+{activeCompany.baseNetProfitPerUnit.toFixed(3)} BTC pure profit</strong> per unit ({activeCompany.baseNetMarginPct ? activeCompany.baseNetMarginPct.toFixed(1) : 0}% net margin).
-                    </p>
-                  </div>
                 </div>
               </div>
 
@@ -1431,14 +1510,7 @@ export default function CompanyPortfolio({
 
 
 
-      {/* Dedicated Employee Mathematical Audit Modal */}
-      {inspectedWorker && (
-        <EmployeeAuditModal
-          isOpen={Boolean(inspectedWorker)}
-          onClose={() => setInspectedWorker(null)}
-          worker={inspectedWorker}
-        />
-      )}
+
 
     </div>
   );
