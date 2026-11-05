@@ -58,9 +58,12 @@ export class WarEraService {
     try {
       const res = await fetch(requestUrl, {
         method: 'GET',
+        cache: 'no-store',
         headers: {
           'Accept': 'application/json',
-          'x-api-key': this.token
+          'x-api-key': this.token,
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache'
         }
       });
 
@@ -70,9 +73,12 @@ export class WarEraService {
           await new Promise(r => setTimeout(r, 600));
           const retryRes = await fetch(requestUrl, {
             method: 'GET',
+            cache: 'no-store',
             headers: {
               'Accept': 'application/json',
-              'x-api-key': this.token
+              'x-api-key': this.token,
+              'Cache-Control': 'no-cache, no-store, must-revalidate',
+              'Pragma': 'no-cache'
             }
           });
           if (retryRes.ok) {
@@ -746,13 +752,19 @@ export class WarEraService {
       throw new Error(`User with ID ${userId} was not found on WarEra.`);
     }
 
-    // Resolve home region and current location
+    // Resolve user country (citizenship), home region and current location
     try {
-      const [homeRegionData, currentLocationData] = await Promise.all([
+      const [homeRegionData, currentLocationData, userCountryData] = await Promise.all([
         userProfile.region ? this.getRegionById(userProfile.region) : null,
-        userProfile.location ? this.getRegionById(userProfile.location) : null
+        userProfile.location ? this.getRegionById(userProfile.location) : null,
+        userProfile.country ? this.getCountryById(userProfile.country) : null
       ]);
 
+      if (userCountryData) {
+        userProfile.countryData = userCountryData;
+        userProfile.countryName = userCountryData.name;
+        userProfile.countryCode = userCountryData.code?.toUpperCase();
+      }
       if (homeRegionData) {
         userProfile.homeRegionData = homeRegionData;
         userProfile.homeRegionName = homeRegionData.name;
@@ -766,7 +778,7 @@ export class WarEraService {
         userProfile.currentCity = currentLocationData.mainCity;
       }
     } catch (e) {
-      console.warn('Failed to resolve user regions:', e.message);
+      console.warn('Failed to resolve user regions and country:', e.message);
     }
 
     // Fetch all user companies — workers embedded in company docs (v0.27+)

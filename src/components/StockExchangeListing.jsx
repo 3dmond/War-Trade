@@ -4,6 +4,7 @@ import {
   ChevronRight, 
   CheckCircle2,
   Users,
+  User,
   Clock,
   ArrowRight,
   TrendingUp,
@@ -15,12 +16,15 @@ import {
   Building2,
   Cpu,
   Coins,
+  MapPin,
   X
 } from 'lucide-react';
 import ItemIcon from './ItemIcon';
 import MetricBreakdownModal from './MetricBreakdownModal';
 import { api } from '../services/wareraApi';
 import { RECIPES } from '../data/gameData';
+import { getCountryFlag } from './CompanyPortfolio';
+import { getCountryName } from '../data/traitSynergyEngine';
 
 const PIPELINE_META = {
   iron: { name: 'Metallurgy Pipeline', rawName: 'Iron', endName: 'Steel', endCode: 'steel' },
@@ -34,6 +38,97 @@ const PIPELINE_META = {
   mysteriousPlant: { name: 'Pharmaceutical Pipeline', rawName: 'Mysterious Plant', endName: 'Combat Pill', endCode: 'pill' },
   wood: { name: 'Forestry & Paper Pipeline', rawName: 'Wood', endName: 'Paper', endCode: 'paper' },
 };
+
+/**
+ * User / Portfolio Owner FIFA Trading Card Component
+ * Order: Image -> Name -> Level -> Country -> Current Location -> Total Net Worth.
+ * Contrast: Bright vivid neon green/red for past 1h change.
+ */
+function UserFifaCard({
+  avatar,
+  name,
+  level,
+  countryFlag,
+  countryName,
+  currentLocation,
+  netWorth,
+  hourlyStats
+}) {
+  return (
+    <div 
+      className="rounded-2xl p-4 border-2 border-[#fced9a] ring-1 ring-[#875c12]/40 select-none transition-all duration-300 hover:brightness-105 flex flex-col justify-between opacity-100 shadow-[0_12px_30px_rgba(0,0,0,0.12)] hover:shadow-[0_16px_36px_rgba(0,0,0,0.16)] shrink-0"
+      style={{
+        background: 'linear-gradient(160deg, #f7e7a3 0%, #ecd077 18%, #dbb048 42%, #c9992c 68%, #b3801a 88%, #9c6c10 100%)',
+        width: '260px',
+        minHeight: '340px'
+      }}
+    >
+      {/* 1. Image (Clean, unobstructed) */}
+      <div className="w-24 h-28 mx-auto rounded-xl overflow-hidden p-0.5 border border-[#8a6316]/60 shadow-md mt-1 bg-gradient-to-b from-[#fceda2] to-[#875c12] relative">
+        {avatar ? (
+          <img 
+            src={avatar} 
+            alt={name} 
+            className="w-full h-full object-cover rounded-[8px]" 
+            onError={(e) => {
+              e.currentTarget.style.display = 'none';
+              const fallback = e.currentTarget.parentElement?.querySelector('.avatar-fallback');
+              if (fallback) fallback.classList.remove('hidden');
+            }}
+          />
+        ) : null}
+        <div 
+          className={`avatar-fallback w-full h-full bg-slate-900 text-amber-300 font-extrabold text-3xl flex items-center justify-center rounded-[8px] ${avatar ? 'hidden' : ''}`}
+        >
+          {name ? name.charAt(0).toUpperCase() : 'U'}
+        </div>
+      </div>
+
+      {/* 2. Name */}
+      <div className="py-1 px-2.5 rounded-md bg-white/40 border border-[#8a6316]/30 text-center my-0.5 shadow-inner">
+        <span className="text-xs font-black uppercase text-[#241703] truncate block font-sans tracking-wide">
+          {name}
+        </span>
+      </div>
+
+      {/* 3. Level */}
+      <div className="flex items-center justify-center gap-1 py-0.5 px-2 bg-black/15 rounded-md border border-[#8a6316]/30 text-center mx-auto w-full max-w-[130px] shadow-xs my-0.5 font-mono">
+        <span className="text-[10px] font-extrabold text-[#241703] tracking-wider uppercase">
+          Level {level || 1}
+        </span>
+      </div>
+
+      {/* 4. Country (Flag + Full Country Name) */}
+      <div className="flex items-center justify-center gap-1.5 px-2 py-0.5 rounded-md bg-black/15 border border-[#8a6316]/30 text-center mx-auto w-full max-w-[170px] shadow-xs my-0.5">
+        <span className="text-sm shrink-0 leading-none">{countryFlag}</span>
+        <span className="text-[10px] font-black uppercase tracking-wider text-[#241703] font-sans truncate">
+          {countryName}
+        </span>
+      </div>
+
+      {/* 5. Current Location */}
+      <div className="flex items-center justify-center gap-1 py-0.5 px-2 bg-black/10 rounded-md border border-[#8a6316]/20 font-sans text-[10px] text-[#3a2503] font-bold truncate mx-auto w-full max-w-[220px] my-0.5">
+        <MapPin className="w-3 h-3 text-rose-700 shrink-0" />
+        <span className="truncate">{currentLocation}</span>
+      </div>
+
+      {/* 6. Total Net Worth (Bright High-Contrast Change) */}
+      <div className="flex flex-col items-center justify-center py-2 px-3 bg-black/20 rounded-lg border border-[#8a6316]/30 font-mono text-[#241703] mt-1 w-full shadow-inner">
+        <div className="text-[9px] font-bold uppercase tracking-wider text-[#472f05] flex items-center gap-1">
+          <span>Total Net Worth</span>
+        </div>
+        <div className="text-sm font-black text-[#1a1102] tracking-tight">
+          {typeof netWorth === 'number' ? netWorth.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 }) : '0.0'} BTC
+        </div>
+        {hourlyStats && (
+          <div className={`text-[10px] font-black tracking-tight ${hourlyStats.netWorthCoins >= 0 ? 'text-[#00e676]' : 'text-[#ff1744]'}`}>
+            {hourlyStats.netWorthCoins >= 0 ? '+' : ''}{hourlyStats.netWorthCoins.toFixed(1)} ({hourlyStats.netWorthPct >= 0 ? '+' : ''}{hourlyStats.netWorthPct.toFixed(2)}%) past 1h
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 
 export default function StockExchangeListing({
   companies = [],
@@ -166,7 +261,25 @@ export default function StockExchangeListing({
   const ownerLevel = user?.leveling?.level;
   const ownerPrestige = user?.leveling?.prestigeLevel;
 
-  // Region & Location resolution
+  // Dynamic Country Resolution (user.country is official citizenship, e.g. Israel)
+  const [resolvedCountry, setResolvedCountry] = useState(null);
+
+  useEffect(() => {
+    let isMounted = true;
+    if (user?.country && /^[a-f\d]{24}$/i.test(user.country)) {
+      api.getCountryById(user.country).then(c => {
+        if (isMounted && c) {
+          setResolvedCountry({
+            code: c.code?.toUpperCase(),
+            name: c.name
+          });
+        }
+      }).catch(() => {});
+    }
+    return () => { isMounted = false; };
+  }, [user?.country]);
+
+  // Region & Location resolution with live updates
   const [resolvedHomeRegion, setResolvedHomeRegion] = useState(() => {
     if (user?.homeRegionName) {
       return `${user.homeRegionName}${user.homeCountryCode ? ` (${user.homeCountryCode})` : ''}`;
@@ -183,36 +296,51 @@ export default function StockExchangeListing({
 
   useEffect(() => {
     let isMounted = true;
-    if (user?.region && !user.homeRegionName && /^[a-f\d]{24}$/i.test(user.region)) {
+    if (user?.homeRegionName) {
+      setResolvedHomeRegion(`${user.homeRegionName}${user.homeCountryCode ? ` (${user.homeCountryCode})` : ''}`);
+    } else if (user?.region && /^[a-f\d]{24}$/i.test(user.region)) {
       api.getRegionById(user.region).then(r => {
         if (isMounted && r) {
-          const str = `${r.name || 'Regional Sector'}${r.countryCode ? ` (${r.countryCode.toUpperCase()})` : ''}`;
-          setResolvedHomeRegion(str);
+          setResolvedHomeRegion(`${r.name || 'Regional Sector'}${r.countryCode ? ` (${r.countryCode.toUpperCase()})` : ''}`);
         }
       }).catch(() => {});
-    } else if (user?.homeRegionName) {
-      setResolvedHomeRegion(`${user.homeRegionName}${user.homeCountryCode ? ` (${user.homeCountryCode})` : ''}`);
     }
 
-    if (user?.location && !user.currentLocationName && /^[a-f\d]{24}$/i.test(user.location)) {
+    if (user?.currentLocationName) {
+      setResolvedCurrentLoc(`${user.currentLocationName}${user.currentCountryCode ? ` (${user.currentCountryCode})` : ''}`);
+    } else if (user?.location && /^[a-f\d]{24}$/i.test(user.location)) {
       api.getRegionById(user.location).then(r => {
         if (isMounted && r) {
-          const str = `${r.name || 'Regional Sector'}${r.countryCode ? ` (${r.countryCode.toUpperCase()})` : ''}`;
-          setResolvedCurrentLoc(str);
+          setResolvedCurrentLoc(`${r.name || 'Regional Sector'}${r.countryCode ? ` (${r.countryCode.toUpperCase()})` : ''}`);
         }
       }).catch(() => {});
-    } else if (user?.currentLocationName) {
-      setResolvedCurrentLoc(`${user.currentLocationName}${user.currentCountryCode ? ` (${user.currentCountryCode})` : ''}`);
     }
 
     return () => { isMounted = false; };
-  }, [user?.region, user?.location, user?.homeRegionName, user?.currentLocationName]);
+  }, [user?.region, user?.location, user?.homeRegionName, user?.currentLocationName, user?.currentCountryCode, user?.homeCountryCode]);
 
   const homeRegionDisplay = resolvedHomeRegion 
     || (companies[0] ? `${companies[0].regionName} (${companies[0].countryCode})` : 'Central District (HQ)');
 
   const currentLocDisplay = resolvedCurrentLoc 
     || homeRegionDisplay;
+
+  // Owner Country Info (Prioritizes official citizenship country, e.g. Israel 'IL')
+  const ownerCountryCode = resolvedCountry?.code
+    || (user?.countryCode && typeof user.countryCode === 'string' ? user.countryCode.toUpperCase() : null)
+    || (user?.countryData?.code ? user.countryData.code.toUpperCase() : null)
+    || (typeof user?.country === 'string' && user.country.length === 2 ? user.country.toUpperCase() : null)
+    || user?.currentCountryCode
+    || user?.homeCountryCode
+    || companies[0]?.countryCode
+    || 'IL';
+
+  const ownerCountryFlag = getCountryFlag(ownerCountryCode);
+  const ownerCountryName = resolvedCountry?.name
+    || user?.countryName
+    || user?.countryData?.name
+    || getCountryName(ownerCountryCode)
+    || (ownerCountryCode === 'HQ' ? 'Global HQ' : ownerCountryCode);
 
   // Live Portfolio Net Worth & Breakdown (matches authoritative in-game wealth stats and live updates with yield/prices)
   const wealth = user?.stats?.wealth || dossier?.user?.stats?.wealth || {};
@@ -389,104 +517,36 @@ export default function StockExchangeListing({
     return (
     <div className="w-full max-w-[1440px] mx-auto px-4 sm:px-8 py-4 space-y-5 select-none font-sans">
       
-      {/* 1. PORTFOLIO OWNER INTRO & NET WORTH BREAKDOWN */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-stretch">
+      {/* 1. TOP DASHBOARD: 3-PART UNIFIED LAYOUT (USER CARD LEFT, NET WORTH BREAKDOWN CENTER, OVERVIEW CARDS RIGHT) */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-stretch">
         
-        {/* LEFT COLUMN: OWNER IDENTITY & LOCATIONS */}
-        <div className="lg:col-span-5 bg-white p-5 space-y-4 flex flex-col justify-between border border-slate-200/80">
-          
-          {/* Owner Profile Header */}
-          <div className="flex items-start justify-between gap-3 pb-2">
-            <div className="flex items-center space-x-3.5 min-w-0">
-              {ownerAvatar ? (
-                <img 
-                  src={ownerAvatar} 
-                  alt={ownerName} 
-                  className="w-14 h-14 object-cover shrink-0" 
-                />
-              ) : (
-                <div className="w-14 h-14 bg-slate-900 text-white font-extrabold text-xl flex items-center justify-center shrink-0">
-                  {ownerName.charAt(0).toUpperCase()}
-                </div>
-              )}
-              <div className="space-y-0.5 min-w-0">
-                <div className="flex items-center space-x-2 flex-wrap">
-                  <h2 className="text-lg font-extrabold text-slate-900 font-sans truncate">{ownerName}</h2>
-                  {ownerLevel && (
-                    <span className="px-2 py-0.5 text-[10px] font-mono font-bold bg-slate-100 text-slate-700">
-                      Lv.{ownerLevel}
-                    </span>
-                  )}
-                  {ownerPrestige > 0 && (
-                    <span className="px-2 py-0.5 text-[10px] font-mono font-bold bg-amber-100 text-amber-800">
-                      Prestige {ownerPrestige}
-                    </span>
-                  )}
-                </div>
-                <div className="flex items-center space-x-2 text-xs text-slate-500 font-mono">
-                  <span>Portfolio Owner</span>
-                  <span>•</span>
-                  <span>{companies.length} Operating Facilities</span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Territory & Domicile Details */}
-          <div className="space-y-2.5 font-mono text-xs flex-1 flex flex-col justify-around">
-            <div className="flex items-center justify-between pb-1 font-sans">
-              <span className="text-[11px] font-bold text-slate-800 uppercase tracking-wide">
-                Territory & Residence
-              </span>
-            </div>
-
-            <div className="space-y-2 text-slate-600 flex-1 flex flex-col justify-around">
-              <div className="flex justify-between items-center">
-                <span>Home Region:</span>
-                <strong className="text-slate-900 font-sans">
-                  {homeRegionDisplay}
-                </strong>
-              </div>
-
-              <div className="flex justify-between items-center">
-                <span>Current Location:</span>
-                <strong className="text-slate-900 font-sans">
-                  {currentLocDisplay}
-                </strong>
-              </div>
-            </div>
-
-            {/* Total Net Worth Highlight with Past 1h Gain & % */}
-            <div className="pt-2 flex justify-between items-baseline border-t border-slate-100">
-              <span className="text-slate-500 text-xs font-sans">Total Net Worth:</span>
-              <div className="flex items-baseline space-x-2">
-                <span className="text-xl sm:text-2xl font-black font-mono text-slate-900">
-                  {liveTotalNetWorth.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
-                </span>
-                <span className={`text-xs font-bold font-mono ${hourlyStats.netWorthCoins > 0 ? 'text-emerald-500' : hourlyStats.netWorthCoins < 0 ? 'text-red-500' : 'text-blue-500'}`}>
-                  {hourlyStats.netWorthCoins >= 0 ? '+' : ''}{hourlyStats.netWorthCoins.toFixed(1)} ({hourlyStats.netWorthPct >= 0 ? '+' : ''}{hourlyStats.netWorthPct.toFixed(2)}%)
-                </span>
-                <span className="text-[10px] text-slate-400 font-sans">past 1h</span>
-              </div>
-            </div>
-          </div>
-
+        {/* LEFT: USER FIFA CARD (FLOATING ON PAGE) */}
+        <div className="lg:col-span-3 flex justify-center lg:justify-start items-center">
+          <UserFifaCard
+            avatar={ownerAvatar}
+            name={ownerName}
+            level={ownerLevel}
+            countryFlag={ownerCountryFlag}
+            countryName={ownerCountryName}
+            currentLocation={currentLocDisplay}
+            netWorth={liveTotalNetWorth}
+            hourlyStats={hourlyStats}
+          />
         </div>
 
-        {/* RIGHT COLUMN: NET WORTH BREAKDOWN (ASSET ALLOCATION STRUCTURE) */}
-        <div className="lg:col-span-7 bg-white p-5 space-y-4 flex flex-col justify-between border border-slate-200/80">
-          
+        {/* CENTER: NET WORTH BREAKDOWN - ROYAL PURPLE GRADIENT SHADE */}
+        <div className="lg:col-span-4 bg-gradient-to-br from-purple-100/80 via-purple-50/35 to-white p-4 sm:p-5 space-y-3 flex flex-col justify-between border border-purple-200/80 rounded-lg shadow-xs">
           <div className="space-y-2.5 font-mono text-xs flex-1 flex flex-col justify-around">
-            <div className="flex items-center justify-between pb-1.5 font-sans">
-              <span className="text-[11px] font-bold text-slate-800 uppercase tracking-wide">
+            <div className="flex items-center justify-between pb-1 font-sans border-b border-purple-100/80">
+              <span className="text-[11px] font-bold text-purple-950 uppercase tracking-wide">
                 Net Worth Breakdown
               </span>
-              <span className="font-mono text-xs font-bold text-slate-500">
+              <span className="font-mono text-xs font-bold text-purple-700/70">
                 Allocation
               </span>
             </div>
 
-            <div className="space-y-2 text-slate-600 flex-1 flex flex-col justify-around">
+            <div className="space-y-2 text-slate-700 flex-1 flex flex-col justify-around">
               {netWorthBreakdownItems.map((item, idx) => (
                 <div key={idx} className="flex justify-between items-center">
                   <span>{item.label}:</span>
@@ -494,7 +554,7 @@ export default function StockExchangeListing({
                     <strong className="text-slate-900 font-bold">
                       {item.value.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
                     </strong>
-                    <span className="text-[11px] font-bold font-mono text-slate-500">
+                    <span className="text-[11px] font-bold font-mono text-purple-900/60">
                       {item.sharePct.toFixed(1)}%
                     </span>
                   </div>
@@ -503,17 +563,17 @@ export default function StockExchangeListing({
 
               <div 
                 onClick={() => setActiveBreakdownMetric('valuation')}
-                className="flex justify-between items-center pt-2 text-slate-900 font-bold border-t border-slate-100 cursor-pointer hover:bg-slate-50 px-1.5 py-1 -mx-1.5 transition-colors group"
+                className="flex justify-between items-center pt-2 text-slate-900 font-bold border-t border-purple-100/80 cursor-pointer hover:bg-purple-50/50 px-1.5 py-1 -mx-1.5 transition-colors group rounded"
                 title="Click to view full portfolio valuation breakdown"
               >
                 <div className="flex items-center space-x-1.5">
                   <span>Total:</span>
-                  <span className="text-[10px] text-slate-400 group-hover:text-amber-800 font-normal font-mono flex items-center gap-0.5">
+                  <span className="text-[10px] text-purple-600/70 group-hover:text-purple-900 font-normal font-mono flex items-center gap-0.5">
                     Breakdown <ExternalLink className="w-2.5 h-2.5 inline" />
                   </span>
                 </div>
                 <div className="flex items-center space-x-2">
-                  <span className="text-amber-800 font-black text-sm">
+                  <span className="text-purple-950 font-black text-sm">
                     {liveTotalNetWorth.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
                   </span>
                   <span className={`text-xs font-bold font-mono ${hourlyStats.netWorthCoins > 0 ? 'text-emerald-500' : hourlyStats.netWorthCoins < 0 ? 'text-red-500' : 'text-blue-500'}`}>
@@ -524,205 +584,206 @@ export default function StockExchangeListing({
               </div>
             </div>
           </div>
-
         </div>
 
-      </div>
-
-      {/* 2. OVERVIEW VALUE BOXES (STANDARDIZED ON BASE INCOME & PRODUCTION - ALL CLICKABLE FOR DETAILED BREAKDOWN) */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        {/* Total Market Cap / Portfolio Valuation */}
-        <div 
-          onClick={() => setActiveBreakdownMetric('valuation')}
-          className="bg-white p-4 space-y-1 border border-slate-200/80 hover:border-slate-400 hover:shadow-xs transition-all cursor-pointer group relative"
-          title="Click to view asset-by-asset valuation breakdown"
-        >
-          <div className="flex items-center justify-between">
-            <div className="text-slate-500 text-[11px] font-bold uppercase tracking-wider font-mono">
-              Portfolio Valuation
+        {/* RIGHT: OVERVIEW KPI CARDS IN A COMPACT 2-COLUMN GRID */}
+        <div className="lg:col-span-5 grid grid-cols-2 gap-2 content-between">
+          
+          {/* 1. Portfolio Valuation - Champagne / Amber Cream & White */}
+          <div 
+            onClick={() => setActiveBreakdownMetric('valuation')}
+            className="bg-gradient-to-br from-amber-100/60 via-amber-50/30 to-white p-2.5 space-y-0.5 border border-amber-200/80 hover:border-amber-400 hover:shadow-xs transition-all cursor-pointer group relative flex flex-col justify-between rounded-lg"
+            title="Click to view asset-by-asset valuation breakdown"
+          >
+            <div className="flex items-center justify-between">
+              <div className="text-slate-500 text-[10px] font-bold uppercase tracking-wider font-mono truncate">
+                Portfolio Valuation
+              </div>
+              <span className="text-[9px] text-slate-400 group-hover:text-amber-800 transition-colors font-mono flex items-center gap-0.5 shrink-0">
+                Breakdown <ExternalLink className="w-2.5 h-2.5" />
+              </span>
             </div>
-            <span className="text-[10px] text-slate-400 group-hover:text-amber-800 transition-colors font-mono flex items-center gap-0.5">
-              Breakdown <ExternalLink className="w-2.5 h-2.5" />
-            </span>
+            <div className="text-base sm:text-lg font-black font-mono text-slate-900">
+              {(liveTotalNetWorth > 0 ? liveTotalNetWorth : marketOverview.totalValuation).toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
+            </div>
+            <div className="flex items-center gap-1.5 text-[10px] font-mono">
+              <span className={`font-bold ${hourlyStats.netWorthCoins > 0 ? 'text-emerald-500' : hourlyStats.netWorthCoins < 0 ? 'text-red-500' : 'text-blue-500'}`}>
+                {hourlyStats.netWorthCoins >= 0 ? '+' : ''}{hourlyStats.netWorthCoins.toFixed(1)} ({hourlyStats.netWorthPct >= 0 ? '+' : ''}{hourlyStats.netWorthPct.toFixed(2)}%)
+              </span>
+              <span className="text-slate-400 font-sans">past 1h</span>
+            </div>
           </div>
-          <div className="text-xl sm:text-2xl font-black font-mono text-slate-900">
-            {(liveTotalNetWorth > 0 ? liveTotalNetWorth : marketOverview.totalValuation).toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
+
+          {/* 2. Base Daily Revenue - Mint / Emerald Cream & White */}
+          <div 
+            onClick={() => setActiveBreakdownMetric('revenue')}
+            className="bg-gradient-to-br from-emerald-100/60 via-emerald-50/30 to-white p-2.5 space-y-0.5 border border-emerald-200/80 hover:border-emerald-400 hover:shadow-xs transition-all cursor-pointer group relative flex flex-col justify-between rounded-lg"
+            title="Click to view company-by-company revenue breakdown"
+          >
+            <div className="flex items-center justify-between">
+              <div className="text-slate-500 text-[10px] font-bold uppercase tracking-wider font-mono truncate">
+                Base Daily Revenue
+              </div>
+              <span className="text-[9px] text-slate-400 group-hover:text-amber-800 transition-colors font-mono flex items-center gap-0.5 shrink-0">
+                Breakdown <ExternalLink className="w-2.5 h-2.5" />
+              </span>
+            </div>
+            <div className="text-base sm:text-lg font-black font-mono text-emerald-500">
+              +{marketOverview.totalBaseGrossRevenue.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
+              <span className="text-[10px] font-normal text-slate-400 ml-1">/day</span>
+            </div>
+            <div className="text-[10px] text-slate-500 font-sans flex items-center justify-between">
+              <span>Gross output</span>
+              <span className="text-slate-400 font-mono">Spot</span>
+            </div>
           </div>
-          <div className="flex items-center gap-1.5 text-xs font-mono">
-            <span className={`font-bold ${hourlyStats.netWorthCoins > 0 ? 'text-emerald-500' : hourlyStats.netWorthCoins < 0 ? 'text-red-500' : 'text-blue-500'}`}>
-              {hourlyStats.netWorthCoins >= 0 ? '+' : ''}{hourlyStats.netWorthCoins.toFixed(1)} ({hourlyStats.netWorthPct >= 0 ? '+' : ''}{hourlyStats.netWorthPct.toFixed(2)}%)
-            </span>
-            <span className="text-[10px] text-slate-400 font-sans">past 1h</span>
+
+          {/* 3. Labor Cost / PP - Ice / Sky Blue Cream & White */}
+          <div 
+            onClick={() => setActiveBreakdownMetric('salaries')}
+            className="bg-gradient-to-br from-sky-100/60 via-sky-50/30 to-white p-2.5 space-y-0.5 border border-sky-200/80 hover:border-sky-400 hover:shadow-xs transition-all cursor-pointer group relative flex flex-col justify-between rounded-lg"
+            title="Click to view workforce payroll and average labor cost per PP"
+          >
+            <div className="flex items-center justify-between">
+              <div className="text-slate-500 text-[10px] font-bold uppercase tracking-wider font-mono truncate">
+                Labor Cost / PP
+              </div>
+              <span className="text-[9px] text-slate-400 group-hover:text-amber-800 transition-colors font-mono flex items-center gap-0.5 shrink-0">
+                Breakdown <ExternalLink className="w-2.5 h-2.5" />
+              </span>
+            </div>
+            <div className="text-base sm:text-lg font-black font-mono text-slate-900">
+              {(marketOverview.totalCompanyProducedPp > 0 ? (marketOverview.totalBaseLaborExpense / marketOverview.totalCompanyProducedPp) : 0).toFixed(3)}
+              <span className="text-[10px] font-normal text-slate-400 ml-1">BTC/PP</span>
+            </div>
+            <div className="text-[10px] text-slate-500 font-sans flex items-center justify-between">
+              <span>Workforce rate</span>
+              <span className="text-slate-400 font-mono">Avg</span>
+            </div>
           </div>
+
+          {/* 4. Base Salaries Paid - Peach / Rose Cream & White */}
+          <div 
+            onClick={() => setActiveBreakdownMetric('salaries')}
+            className="bg-gradient-to-br from-rose-100/60 via-rose-50/30 to-white p-2.5 space-y-0.5 border border-rose-200/80 hover:border-rose-400 hover:shadow-xs transition-all cursor-pointer group relative flex flex-col justify-between rounded-lg"
+            title="Click to view worker roster and payable salary breakdown"
+          >
+            <div className="flex items-center justify-between">
+              <div className="text-slate-500 text-[10px] font-bold uppercase tracking-wider font-mono truncate">
+                Base Salaries Paid
+              </div>
+              <span className="text-[9px] text-slate-400 group-hover:text-amber-800 transition-colors font-mono flex items-center gap-0.5 shrink-0">
+                Breakdown <ExternalLink className="w-2.5 h-2.5" />
+              </span>
+            </div>
+            <div className={`text-base sm:text-lg font-black font-mono ${marketOverview.totalBaseLaborExpense > 0 ? 'text-red-500' : 'text-blue-500'}`}>
+              {marketOverview.totalBaseLaborExpense > 0 ? '-' : ''}{marketOverview.totalBaseLaborExpense.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
+              <span className="text-[10px] font-normal text-slate-400 ml-1">/day</span>
+            </div>
+            <div className="text-[10px] text-slate-500 font-sans flex items-center justify-between">
+              <span>Emps: -{marketOverview.totalWorkerWages.toFixed(1)}</span>
+              <span className="text-slate-400 font-mono">Mgr: -{marketOverview.totalManagerCost.toFixed(1)}</span>
+            </div>
+          </div>
+
+          {/* 5. Base Daily Profit - Teal / Jade Cream & White */}
+          <div 
+            onClick={() => setActiveBreakdownMetric('profit')}
+            className="bg-gradient-to-br from-teal-100/60 via-emerald-50/30 to-white p-2.5 space-y-0.5 border border-teal-200/80 hover:border-teal-400 hover:shadow-xs transition-all cursor-pointer group relative flex flex-col justify-between rounded-lg"
+            title="Click to view company-by-company profit statement"
+          >
+            <div className="flex items-center justify-between">
+              <div className="text-slate-500 text-[10px] font-bold uppercase tracking-wider font-mono truncate">
+                Base Daily Profit
+              </div>
+              <span className="text-[9px] text-slate-400 group-hover:text-amber-800 transition-colors font-mono flex items-center gap-0.5 shrink-0">
+                Breakdown <ExternalLink className="w-2.5 h-2.5" />
+              </span>
+            </div>
+            <div className={`text-base sm:text-lg font-black font-mono ${marketOverview.baseDailyProfit > 0 ? 'text-emerald-500' : marketOverview.baseDailyProfit < 0 ? 'text-red-500' : 'text-blue-500'}`}>
+              {marketOverview.baseDailyProfit >= 0 ? '+' : ''}{marketOverview.baseDailyProfit.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
+              <span className="text-[10px] font-normal text-slate-400 ml-1">/day</span>
+            </div>
+            <div className="text-[10px] text-slate-500 font-sans flex items-center justify-between">
+              <span>Net profit</span>
+              <span className={`font-mono font-bold ${marketOverview.baseNetMarginPct > 0 ? 'text-emerald-500' : marketOverview.baseNetMarginPct < 0 ? 'text-red-500' : 'text-blue-500'}`}>{marketOverview.baseNetMarginPct.toFixed(1)}% margin</span>
+            </div>
+          </div>
+
+          {/* 6. Operating Facilities - Light Purple and White Cream */}
+          <div 
+            onClick={() => setActiveBreakdownMetric('valuation')}
+            className="bg-gradient-to-br from-purple-100/70 via-purple-50/30 to-white p-2.5 space-y-0.5 border border-purple-200/80 hover:border-purple-400 hover:shadow-xs transition-all cursor-pointer group relative flex flex-col justify-between rounded-lg"
+            title="Click to view all enterprise facilities"
+          >
+            <div className="flex items-center justify-between">
+              <div className="text-slate-500 text-[10px] font-bold uppercase tracking-wider font-mono truncate">
+                Operating Facilities
+              </div>
+              <span className="text-[9px] text-slate-400 group-hover:text-amber-800 transition-colors font-mono flex items-center gap-0.5 shrink-0">
+                Breakdown <ExternalLink className="w-2.5 h-2.5" />
+              </span>
+            </div>
+            <div className="text-base sm:text-lg font-black font-mono text-slate-900">
+              {companies.length} <span className="text-[10px] font-normal text-slate-400">Facilities</span>
+            </div>
+            <div className="text-[10px] text-slate-500 font-sans flex items-center justify-between">
+              <span>Enterprises</span>
+              <span className="text-emerald-700 font-bold font-mono">100% active</span>
+            </div>
+          </div>
+
+          {/* 7. Total Enterprise PP - Orange Cream and White */}
+          <div 
+            onClick={() => setActiveBreakdownMetric('pp')}
+            className="bg-gradient-to-br from-orange-100/70 via-orange-50/30 to-white p-2.5 space-y-0.5 border border-orange-200/80 hover:border-orange-400 hover:shadow-xs transition-all cursor-pointer group relative flex flex-col justify-between rounded-lg"
+            title="Click to view engine, worker, and self-work PP breakdown"
+          >
+            <div className="flex items-center justify-between">
+              <div className="text-slate-500 text-[10px] font-bold uppercase tracking-wider font-mono truncate">
+                Total Enterprise PP
+              </div>
+              <span className="text-[9px] text-slate-400 group-hover:text-amber-800 transition-colors font-mono flex items-center gap-0.5 shrink-0">
+                Breakdown <ExternalLink className="w-2.5 h-2.5" />
+              </span>
+            </div>
+            <div className="text-base sm:text-lg font-black font-mono text-slate-900 flex items-baseline">
+              <span>{marketOverview.totalCompanyProducedPp.toFixed(1)}</span>
+              <span className="text-[10px] font-normal text-slate-400 ml-1 mr-1.5">PP/d</span>
+              <span className="px-1 py-0.2 text-[9px] font-mono font-bold bg-orange-100/90 text-orange-950 rounded">
+                ~{Math.round(marketOverview.totalCompanyProducedPp / 1000)}k
+              </span>
+            </div>
+            <div className="text-[10px] text-slate-500 font-sans truncate">
+              <span>Workforce yield</span>
+            </div>
+          </div>
+
+          {/* 8. Staff Deployment - Lavender / Violet Cream and White */}
+          <div 
+            onClick={() => setActiveBreakdownMetric('staff')}
+            className="bg-gradient-to-br from-violet-100/70 via-violet-50/30 to-white p-2.5 space-y-0.5 border border-violet-200/80 hover:border-violet-400 hover:shadow-xs transition-all cursor-pointer group relative flex flex-col justify-between rounded-lg"
+            title="Click to view staff deployment and management capacity"
+          >
+            <div className="flex items-center justify-between">
+              <div className="text-slate-500 text-[10px] font-bold uppercase tracking-wider font-mono truncate">
+                Staff Deployment
+              </div>
+              <span className="text-[9px] text-slate-400 group-hover:text-amber-800 transition-colors font-mono flex items-center gap-0.5 shrink-0">
+                Breakdown <ExternalLink className="w-2.5 h-2.5" />
+              </span>
+            </div>
+            <div className="text-base sm:text-lg font-black font-mono text-slate-900">
+              {marketOverview.totalWorkers} <span className="text-[10px] font-normal text-slate-400">/ {maxHiringSlots}</span>
+            </div>
+            <div className="text-[10px] text-slate-500 font-sans flex items-center justify-between">
+              <span>+{marketOverview.totalManagers || 0} Mgr</span>
+              <span className="text-emerald-700 font-bold font-mono">{Math.max(0, maxHiringSlots - marketOverview.totalWorkers)} open</span>
+            </div>
+          </div>
+
         </div>
 
-        {/* Base Daily Revenue */}
-        <div 
-          onClick={() => setActiveBreakdownMetric('revenue')}
-          className="bg-white p-4 space-y-1 border border-slate-200/80 hover:border-slate-400 hover:shadow-xs transition-all cursor-pointer group relative"
-          title="Click to view company-by-company revenue breakdown"
-        >
-          <div className="flex items-center justify-between">
-            <div className="text-slate-500 text-[11px] font-bold uppercase tracking-wider font-mono">
-              Base Daily Revenue
-            </div>
-            <span className="text-[10px] text-slate-400 group-hover:text-amber-800 transition-colors font-mono flex items-center gap-0.5">
-              Breakdown <ExternalLink className="w-2.5 h-2.5" />
-            </span>
-          </div>
-          <div className="text-xl sm:text-2xl font-black font-mono text-emerald-500">
-            +{marketOverview.totalBaseGrossRevenue.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
-            <span className="text-xs font-normal text-slate-400 ml-1">/day</span>
-          </div>
-          <div className="text-[11px] text-slate-500 font-sans flex items-center justify-between">
-            <span>Gross output sales</span>
-            <span className="text-slate-400 text-[10px] font-mono">Market spot</span>
-          </div>
-        </div>
-
-        {/* Average Labor Cost Per PP */}
-        <div 
-          onClick={() => setActiveBreakdownMetric('salaries')}
-          className="bg-white p-4 space-y-1 border border-slate-200/80 hover:border-slate-400 hover:shadow-xs transition-all cursor-pointer group relative"
-          title="Click to view workforce payroll and average labor cost per PP"
-        >
-          <div className="flex items-center justify-between">
-            <div className="text-slate-500 text-[11px] font-bold uppercase tracking-wider font-mono">
-              Labor Cost / PP
-            </div>
-            <span className="text-[10px] text-slate-400 group-hover:text-amber-800 transition-colors font-mono flex items-center gap-0.5">
-              Breakdown <ExternalLink className="w-2.5 h-2.5" />
-            </span>
-          </div>
-          <div className="text-xl sm:text-2xl font-black font-mono text-slate-900">
-            {(marketOverview.totalCompanyProducedPp > 0 ? (marketOverview.totalBaseLaborExpense / marketOverview.totalCompanyProducedPp) : 0).toFixed(3)}
-            <span className="text-xs font-normal text-slate-400 ml-1">BTC/PP</span>
-          </div>
-          <div className="text-[11px] text-slate-500 font-sans flex items-center justify-between">
-            <span>Workforce labor rate</span>
-            <span className="text-slate-400 text-[10px] font-mono">In-game avg</span>
-          </div>
-        </div>
-
-        {/* Base Salaries Paid Out Per Day */}
-        <div 
-          onClick={() => setActiveBreakdownMetric('salaries')}
-          className="bg-white p-4 space-y-1 border border-slate-200/80 hover:border-slate-400 hover:shadow-xs transition-all cursor-pointer group relative"
-          title="Click to view worker roster and payable salary breakdown"
-        >
-          <div className="flex items-center justify-between">
-            <div className="text-slate-500 text-[11px] font-bold uppercase tracking-wider font-mono">
-              Base Salaries Paid
-            </div>
-            <span className="text-[10px] text-slate-400 group-hover:text-amber-800 transition-colors font-mono flex items-center gap-0.5">
-              Breakdown <ExternalLink className="w-2.5 h-2.5" />
-            </span>
-          </div>
-          <div className={`text-xl sm:text-2xl font-black font-mono ${marketOverview.totalBaseLaborExpense > 0 ? 'text-red-500' : 'text-blue-500'}`}>
-            {marketOverview.totalBaseLaborExpense > 0 ? '-' : ''}{marketOverview.totalBaseLaborExpense.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
-            <span className="text-xs font-normal text-slate-400 ml-1">/day</span>
-          </div>
-          <div className="text-[11px] text-slate-500 font-sans flex items-center justify-between">
-            <span>Emps: -{marketOverview.totalWorkerWages.toFixed(1)}</span>
-            <span className="text-slate-400 text-[10px] font-mono">Mgrs: -{marketOverview.totalManagerCost.toFixed(1)}</span>
-          </div>
-        </div>
-
-        {/* Base Daily Profit (Standard) */}
-        <div 
-          onClick={() => setActiveBreakdownMetric('profit')}
-          className="bg-white p-4 space-y-1 border border-slate-200/80 hover:border-slate-400 hover:shadow-xs transition-all cursor-pointer group relative"
-          title="Click to view company-by-company profit statement"
-        >
-          <div className="flex items-center justify-between">
-            <div className="text-slate-500 text-[11px] font-bold uppercase tracking-wider font-mono">
-              Base Daily Profit
-            </div>
-            <span className="text-[10px] text-slate-400 group-hover:text-amber-800 transition-colors font-mono flex items-center gap-0.5">
-              Breakdown <ExternalLink className="w-2.5 h-2.5" />
-            </span>
-          </div>
-          <div className={`text-xl sm:text-2xl font-black font-mono ${marketOverview.baseDailyProfit > 0 ? 'text-emerald-500' : marketOverview.baseDailyProfit < 0 ? 'text-red-500' : 'text-blue-500'}`}>
-            {marketOverview.baseDailyProfit >= 0 ? '+' : ''}{marketOverview.baseDailyProfit.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
-            <span className="text-xs font-normal text-slate-400 ml-1">/day</span>
-          </div>
-          <div className="text-[11px] text-slate-500 font-sans flex items-center justify-between">
-            <span>Net profit after costs</span>
-            <span className={`font-mono text-[10px] font-bold ${marketOverview.baseNetMarginPct > 0 ? 'text-emerald-500' : marketOverview.baseNetMarginPct < 0 ? 'text-red-500' : 'text-blue-500'}`}>{marketOverview.baseNetMarginPct.toFixed(1)}% margin</span>
-          </div>
-        </div>
-
-        {/* Operating Facilities */}
-        <div 
-          onClick={() => setActiveBreakdownMetric('valuation')}
-          className="bg-white p-4 space-y-1 border border-slate-200/80 hover:border-slate-400 hover:shadow-xs transition-all cursor-pointer group relative"
-          title="Click to view all enterprise facilities"
-        >
-          <div className="flex items-center justify-between">
-            <div className="text-slate-500 text-[11px] font-bold uppercase tracking-wider font-mono">
-              Operating Facilities
-            </div>
-            <span className="text-[10px] text-slate-400 group-hover:text-amber-800 transition-colors font-mono flex items-center gap-0.5">
-              Breakdown <ExternalLink className="w-2.5 h-2.5" />
-            </span>
-          </div>
-          <div className="text-xl sm:text-2xl font-black font-mono text-slate-900">
-            {companies.length} <span className="text-xs font-normal text-slate-400">Facilities</span>
-          </div>
-          <div className="text-[11px] text-slate-500 font-sans flex items-center justify-between">
-            <span>Active enterprises</span>
-            <span className="text-emerald-700 font-bold font-mono">100% operational</span>
-          </div>
-        </div>
-
-        {/* Total Enterprise PP (Workforce Daily PP) */}
-        <div 
-          onClick={() => setActiveBreakdownMetric('pp')}
-          className="bg-white p-4 space-y-1 border border-slate-200/80 hover:border-slate-400 hover:shadow-xs transition-all cursor-pointer group relative"
-          title="Click to view engine, worker, and self-work PP breakdown"
-        >
-          <div className="flex items-center justify-between">
-            <div className="text-slate-500 text-[11px] font-bold uppercase tracking-wider font-mono">
-              Total Enterprise PP
-            </div>
-            <span className="text-[10px] text-slate-400 group-hover:text-amber-800 transition-colors font-mono flex items-center gap-0.5">
-              Breakdown <ExternalLink className="w-2.5 h-2.5" />
-            </span>
-          </div>
-          <div className="text-xl sm:text-2xl font-black font-mono text-slate-900 flex items-baseline">
-            <span>{marketOverview.totalCompanyProducedPp.toFixed(1)}</span>
-            <span className="text-xs font-normal text-slate-400 ml-1 mr-2">PP/day</span>
-            <span className="px-1.5 py-0.5 text-[10px] font-mono font-bold bg-blue-100 text-blue-900">
-              ~{Math.round(marketOverview.totalCompanyProducedPp / 1000)}k
-            </span>
-          </div>
-          <div className="text-[11px] text-slate-500 font-sans truncate">
-            <span>Bonuses included (in-game workforce rate)</span>
-          </div>
-        </div>
-
-        {/* Staff Deployment */}
-        <div 
-          onClick={() => setActiveBreakdownMetric('staff')}
-          className="bg-white p-4 space-y-1 border border-slate-200/80 hover:border-slate-400 hover:shadow-xs transition-all cursor-pointer group relative"
-          title="Click to view staff deployment and management capacity"
-        >
-          <div className="flex items-center justify-between">
-            <div className="text-slate-500 text-[11px] font-bold uppercase tracking-wider font-mono">
-              Staff Deployment
-            </div>
-            <span className="text-[10px] text-slate-400 group-hover:text-amber-800 transition-colors font-mono flex items-center gap-0.5">
-              Breakdown <ExternalLink className="w-2.5 h-2.5" />
-            </span>
-          </div>
-          <div className="text-xl sm:text-2xl font-black font-mono text-slate-900">
-            {marketOverview.totalWorkers} <span className="text-xs font-normal text-slate-400">/ {maxHiringSlots} emps</span>
-          </div>
-          <div className="text-[11px] text-slate-500 font-sans flex items-center justify-between">
-            <span>+{marketOverview.totalManagers || 0} Managers</span>
-            <span className="text-emerald-700 font-bold font-mono">{Math.max(0, maxHiringSlots - marketOverview.totalWorkers)} open</span>
-          </div>
-        </div>
       </div>
 
       {/* 5. CATEGORY FILTERS & SYNC ACTIONS */}
@@ -782,19 +843,19 @@ export default function StockExchangeListing({
                 <th className="py-3 px-3">Sector</th>
                 <th className="py-3 px-3 text-right">Market Spot</th>
                 <th className="py-3 px-3 text-right">Daily PP (24h)</th>
-                <th className="py-3 px-3 text-right">Output Yield</th>
-                <th className="py-3 px-3 text-right">Daily Revenue</th>
+                <th className="py-3 px-3 text-right">Units Yield/Day</th>
+                <th className="py-3 px-3 text-right">Revenue/Day (BTC)</th>
                 <th className="py-3 px-3 text-right">Salaries Paid</th>
-                <th className="py-3 px-3 text-right">Net Daily Profit</th>
-                <th className="py-3 px-3 text-center min-w-[110px]">Storage</th>
-                <th className="py-3 px-3 text-center min-w-[110px]">Staff & Roles</th>
-                <th className="py-3 px-3 text-center w-20">Action</th>
+                <th className="py-3 px-3 text-right">Net Profit (BTC)</th>
+                <th className="py-3 px-3 text-right">Margin</th>
+                <th className="py-3 px-3 text-center min-w-[100px]">Storage</th>
+                <th className="py-3 px-3 text-center min-w-[80px]">Staff</th>
               </tr>
             </thead>
             <tbody className="font-mono">
               {filteredCompanies.length === 0 ? (
                 <tr>
-                  <td colSpan={16} className="py-12 text-center text-slate-400 font-sans">
+                  <td colSpan={12} className="py-12 text-center text-slate-400 font-sans">
                     No companies match your filter criteria.
                   </td>
                 </tr>
@@ -868,59 +929,45 @@ export default function StockExchangeListing({
                       </td>
 
                       {/* Daily PP (24h) */}
-                      <td className="py-3.5 px-3 text-right whitespace-nowrap">
-                        <div className="font-bold text-slate-900">
-                          {c.companyProducedDailyPp.toFixed(1)}
-                        </div>
-                        <span className="text-[10px] text-emerald-700 block font-semibold">
-                          Bonuses included
-                        </span>
+                      <td className="py-3.5 px-3 text-right whitespace-nowrap font-bold text-slate-900 font-mono">
+                        {c.companyProducedDailyPp.toFixed(1)}
                       </td>
 
                       {/* Daily Output Yield */}
-                      <td className="py-3.5 px-3 text-right whitespace-nowrap">
-                        <span className="font-bold text-slate-800">
-                          {(c.baseUnits !== undefined ? c.baseUnits : (c.unitsPerDay || 0)).toFixed(1)}
-                        </span>
-                        <span className="text-[10px] text-slate-400 ml-1">u/d</span>
+                      <td className="py-3.5 px-3 text-right whitespace-nowrap font-bold text-slate-800 font-mono">
+                        {(c.baseUnits !== undefined ? c.baseUnits : (c.unitsPerDay || 0)).toFixed(1)}
                       </td>
 
                       {/* Daily Gross Revenue */}
-                      <td className="py-3.5 px-3 text-right whitespace-nowrap">
-                        <div className="font-bold text-emerald-600">
-                          +{(c.grossRevenue ?? 0).toFixed(2)}
-                        </div>
-                        <span className="text-[10px] text-slate-400 block font-normal">
-                          BTC/day
-                        </span>
+                      <td className="py-3.5 px-3 text-right whitespace-nowrap font-bold text-emerald-600 font-mono">
+                        +{(c.grossRevenue ?? 0).toFixed(2)}
                       </td>
 
                       {/* Base Salaries Paid Out */}
-                      <td className="py-3.5 px-3 text-right whitespace-nowrap">
-                        <div className={`font-bold ${(c.dailyLaborExpense || 0) > 0 ? 'text-red-500' : 'text-blue-500'}`}>
+                      <td className="py-3.5 px-3 text-right whitespace-nowrap font-mono">
+                        <span className={`font-bold ${(c.dailyLaborExpense || 0) > 0 ? 'text-red-500' : 'text-blue-500'}`}>
                           {(c.dailyLaborExpense || 0) > 0 ? `-${c.dailyLaborExpense.toFixed(2)}` : '0.00'}
-                        </div>
-                        <span className="text-[10px] text-slate-400 block font-normal">
-                          {c.hasManager && c.managerPay > 0
-                            ? `Emps: -${(c.workersDailyWages || 0).toFixed(2)} | Mgr: -${c.managerPay.toFixed(2)}`
-                            : (c.workers?.length ? `${c.workers.length} hired emps` : '0 hired')}
                         </span>
                       </td>
 
-                      {/* Net Daily Profit (Matches In-Game Exactly) */}
-                      <td className="py-3.5 px-3 text-right whitespace-nowrap">
-                        <div className={`font-bold ${baseIncome > 0 ? 'text-emerald-500' : baseIncome < 0 ? 'text-red-500' : 'text-blue-500'}`}>
+                      {/* Net Daily Profit */}
+                      <td className="py-3.5 px-3 text-right whitespace-nowrap font-mono">
+                        <span className={`font-bold ${baseIncome > 0 ? 'text-emerald-500' : baseIncome < 0 ? 'text-red-500' : 'text-blue-500'}`}>
                           {baseIncome >= 0 ? '+' : ''}{baseIncome.toFixed(2)}
-                        </div>
-                        <span className="text-[10px] text-slate-400 block font-normal">
-                          {c.baseNetMarginPct ? `${c.baseNetMarginPct.toFixed(1)}% margin` : '—'}
+                        </span>
+                      </td>
+
+                      {/* Margin Column */}
+                      <td className="py-3.5 px-3 text-right whitespace-nowrap font-mono">
+                        <span className={`font-bold ${(c.baseNetMarginPct ?? 0) > 0 ? 'text-emerald-600' : (c.baseNetMarginPct ?? 0) < 0 ? 'text-red-500' : 'text-slate-500'}`}>
+                          {typeof c.baseNetMarginPct === 'number' ? `${c.baseNetMarginPct.toFixed(1)}%` : '—'}
                         </span>
                       </td>
 
                       {/* Storage / Capacity Progress */}
                       <td className="py-3.5 px-3">
-                        <div className="w-full max-w-[110px] mx-auto space-y-1">
-                          <div className="flex justify-between text-[10px] text-slate-500">
+                        <div className="w-full max-w-[100px] mx-auto space-y-1">
+                          <div className="flex justify-between text-[10px] text-slate-500 font-mono">
                             <span>{(c.currentStoredPp || 0).toFixed(0)} PP</span>
                             <span>{(c.currentFillPct || 0).toFixed(0)}%</span>
                           </div>
@@ -935,45 +982,18 @@ export default function StockExchangeListing({
                         </div>
                       </td>
 
-                      {/* Staff & Roles (Employees + Managers) */}
+                      {/* Staff (Workers + Managers with Icons) */}
                       <td className="py-3.5 px-3 text-center whitespace-nowrap">
-                        <div className="inline-flex flex-col items-center gap-1">
-                          <div className="flex items-center gap-1.5">
-                            {(c.workers?.length || 0) > 0 ? (
-                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-slate-100 text-slate-800 font-bold text-[11px]" title={`${c.workers.length} Hired Employees`}>
-                                <Users className="w-3 h-3 text-slate-600" />
-                                <span>{c.workers.length}</span>
-                              </span>
-                            ) : (
-                              <span className="text-[11px] text-slate-400 font-sans">0 emps</span>
-                            )}
-                            {c.hasManager ? (
-                              <span 
-                                className="px-1.5 py-0.5 bg-amber-100 text-amber-800 font-bold text-[10px]" 
-                                title={`Hired Manager Lv.${c.manager?.managementLevel || 1} (+${c.manager?.productionBonusPercent || 0}% prod bonus, -${(c.managerPay || 0).toFixed(2)} BTC/d)`}
-                              >
-                                Mgr Lv.{c.manager?.managementLevel || 1}
-                              </span>
-                            ) : (
-                              <span className="text-[10px] text-slate-400">No mgr</span>
-                            )}
-                          </div>
+                        <div className="inline-flex items-center justify-center gap-2.5 font-mono font-bold text-xs">
+                          <span className="inline-flex items-center gap-1 text-slate-700" title={`${c.workers?.length || 0} Workers`}>
+                            <Users className="w-3.5 h-3.5 text-slate-500" />
+                            <span>{c.workers?.length || 0}</span>
+                          </span>
+                          <span className="inline-flex items-center gap-1 text-slate-900" title={`${c.hasManager ? 1 : 0} Manager`}>
+                            <User className="w-3.5 h-3.5 text-slate-900" />
+                            <span>{c.hasManager ? 1 : 0}</span>
+                          </span>
                         </div>
-                      </td>
-
-                      {/* Action Button */}
-                      <td className="py-3.5 px-3 text-center whitespace-nowrap">
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onSelectCompany(c.id);
-                          }}
-                          className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-slate-900 group-hover:bg-blue-600 text-white font-bold text-xs transition cursor-pointer"
-                        >
-                          <span>Inspect</span>
-                          <ChevronRight className="w-3 h-3" />
-                        </button>
                       </td>
 
                     </tr>
@@ -982,40 +1002,6 @@ export default function StockExchangeListing({
               )}
             </tbody>
           </table>
-        </div>
-
-        {/* Table Footer Summary Bar */}
-        <div className="bg-slate-50 px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs font-mono text-slate-600 border-t border-slate-100">
-          <div className="flex items-center space-x-2">
-            <span className="font-bold text-slate-800">Showing {filteredCompanies.length} of {companies.length} listed enterprises</span>
-            <span>•</span>
-            <span className="text-slate-500">Standardized Base Operations</span>
-          </div>
-          <div className="flex items-center flex-wrap gap-x-3 gap-y-1">
-            <span>
-              Revenue: <strong className="text-emerald-500 font-bold">+{marketOverview.totalBaseGrossRevenue.toFixed(2)} BTC</strong>
-            </span>
-            <span>•</span>
-            <span>
-              Raw Costs: <strong className={`font-bold ${marketOverview.totalBaseRawExpense > 0 ? 'text-red-500' : 'text-blue-500'}`}>-{marketOverview.totalBaseRawExpense.toFixed(2)} BTC</strong>
-            </span>
-            <span>•</span>
-            <span>
-              Salaries: <strong className={`font-bold ${marketOverview.totalBaseLaborExpense > 0 ? 'text-red-500' : 'text-blue-500'}`}>-{marketOverview.totalBaseLaborExpense.toFixed(2)} BTC</strong>
-            </span>
-            <span>•</span>
-            <span>
-              Net Profit: <strong className={`font-bold ${marketOverview.baseDailyProfit > 0 ? 'text-emerald-500' : marketOverview.baseDailyProfit < 0 ? 'text-red-500' : 'text-blue-500'}`}>{marketOverview.baseDailyProfit >= 0 ? '+' : ''}{marketOverview.baseDailyProfit.toFixed(2)} BTC</strong>
-            </span>
-            <span>•</span>
-            <span>
-              Total Base PP: <strong className="text-slate-900 font-bold">{marketOverview.totalCompanyBasePp.toFixed(1)}</strong>
-            </span>
-            <span>•</span>
-            <span>
-              Total Daily Output PP: <strong className="text-blue-900 font-bold">{marketOverview.totalCompanyProducedPp.toFixed(1)}</strong>
-            </span>
-          </div>
         </div>
 
       </div>
