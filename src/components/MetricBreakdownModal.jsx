@@ -18,6 +18,7 @@ import {
 import EmployeeAuditModal from './EmployeeAuditModal';
 import { getCompanyTheme } from '../data/companyThemes';
 import { RECIPES } from '../data/gameData';
+import { isCompanyDisabled } from '../data/marketMath';
 
 const RAW_MATERIAL_NAMES = {
   grain: 'Grain',

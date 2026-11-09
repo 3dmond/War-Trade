@@ -27,6 +27,7 @@ import { getCountryFlag } from './CompanyPortfolio';
 import { getCountryName } from '../data/traitSynergyEngine';
 import { getCompanyTheme } from '../data/companyThemes';
 import CountryFlagBadge from './CountryFlagBadge';
+import { isCompanyDisabled } from '../data/marketMath';
 
 const PIPELINE_META = {
   iron: { name: 'Metallurgy Pipeline', rawName: 'Iron', endName: 'Steel', endCode: 'steel' },
