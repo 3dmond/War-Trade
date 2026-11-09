@@ -478,9 +478,20 @@ export function calculateCompanyBaseEconomics(comp, prices = {}, insourceOverrid
   const rawList = comp.employees || comp.workers || comp.workersList || comp.employeesList || [];
 
   const employeesList = rawList.map((w, idx) => {
-    const hourlyOutputPp = typeof w.hourlyOutputPp === 'number'
+    let hourlyOutputPp = typeof w.hourlyOutputPp === 'number' && w.hourlyOutputPp > 0
       ? w.hourlyOutputPp
-      : (typeof w.estimate?.production === 'number' ? w.estimate.production : 0);
+      : (typeof w.estimate?.production === 'number' && w.estimate.production > 0 ? w.estimate.production : 0);
+
+    if (hourlyOutputPp === 0) {
+      const prodStat = (w.baseProduction ?? 0) + (w.trainedProduction ?? 0) + (w.traitProduction ?? 0);
+      if (prodStat > 0) {
+        const workerBonus = typeof w.productionBonus === 'number'
+          ? w.productionBonus
+          : (typeof w.productionBonusData?.total === 'number' ? w.productionBonusData.total : totalBonusPct);
+        hourlyOutputPp = (prodStat * 0.25) * (1 + (workerBonus / 100));
+      }
+    }
+
     const hourlyWage = typeof w.wage === 'number'
       ? w.wage
       : (typeof w.salary === 'number' ? w.salary : (typeof w.estimate?.wage === 'number' ? w.estimate.wage : 0));
@@ -523,10 +534,13 @@ export function calculateCompanyBaseEconomics(comp, prices = {}, insourceOverrid
   const hasManager = !!comp.manager || managerDailyPay > 0;
   const managerCount = hasManager ? 1 : 0;
 
-  // Automated engine metrics
+  // Automated engine metrics (accounting for engine production bonuses)
   const engineBasePph = comp.engineTier?.ppPerHour || (comp.engineLevel || 1);
+  const effectiveEnginePph = typeof comp.effectiveEnginePph === 'number'
+    ? comp.effectiveEnginePph
+    : (engineBasePph * bonusMultiplier);
   const engineBaseDailyPp = engineBasePph * 24;
-  const engineProducedDailyPp = engineBaseDailyPp * bonusMultiplier;
+  const engineProducedDailyPp = effectiveEnginePph * 24;
 
   const companyBaseDailyPp = workersProducedDailyPp;
   const companyProducedDailyPp = workersProducedDailyPp;
@@ -552,6 +566,7 @@ export function calculateCompanyBaseEconomics(comp, prices = {}, insourceOverrid
     spotPrice,
     totalBonusPct,
     bonusMultiplier,
+    effectiveEnginePph,
     engineBaseDailyPp,
     engineProducedDailyPp,
     workersBaseDailyPp,

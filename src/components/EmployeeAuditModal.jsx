@@ -3,6 +3,7 @@ import { X, CheckCircle2, ShieldCheck, Zap, Sparkles, Smile, TrendingUp, AlertTr
 import { GoldCoin } from './CompanyPortfolio';
 import { getTraitInfo } from '../data/employeeTraits';
 import { getItemValuePerPp } from '../data/marketMath';
+import { getCompanyTheme } from '../data/companyThemes';
 
 export default function EmployeeAuditModal({
   isOpen = false,
@@ -56,6 +57,7 @@ export default function EmployeeAuditModal({
     : Number((hourlyWage * 24).toFixed(3));
 
   const itemCode = worker.companyItemCode || worker.estimate?.itemCode || 'steel';
+  const theme = getCompanyTheme(itemCode);
   const ratePerPp = typeof worker.ratePerPp === 'number' ? worker.ratePerPp : getItemValuePerPp(itemCode);
 
   const hourlyRevenue = Number((hourlyOutputPp * ratePerPp).toFixed(4));
@@ -106,26 +108,29 @@ export default function EmployeeAuditModal({
       onClick={onClose}
     >
       <div 
-        className="bg-white border border-slate-300 w-full max-w-2xl max-h-[92vh] flex flex-col shadow-2xl relative animate-in zoom-in-95 duration-150 overflow-hidden font-sans my-auto"
+        className={`bg-white border-2 ${theme.modalBorder} w-full max-w-2xl max-h-[92vh] flex flex-col shadow-2xl relative animate-in zoom-in-95 duration-150 overflow-hidden font-sans my-auto rounded-2xl`}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header */}
-        <div className="p-4 sm:p-5 border-b border-slate-200 flex items-center justify-between bg-white shrink-0">
+        {/* Top Product Theme Accent Strip */}
+        <div className="h-1.5 w-full shrink-0" style={{ backgroundColor: theme.accentColor }} />
+
+        {/* Header with Product Theme Gradient Wash */}
+        <div className={`p-4 sm:p-5 ${theme.modalHeader} flex items-center justify-between shrink-0`}>
           <div className="space-y-1">
             <div className="flex items-center space-x-2 flex-wrap gap-y-1">
               <span className="text-base sm:text-lg font-black text-slate-900">
                 {worker.name || worker.username || 'AI Employee'}
               </span>
               {worker.age && (
-                <span className="text-[10px] font-mono uppercase bg-slate-100 text-slate-700 px-2 py-0.5 font-bold">
+                <span className="text-[10px] font-mono uppercase bg-slate-100 text-slate-700 px-2 py-0.5 font-bold rounded">
                   Age {worker.age} {worker.gender ? `(${worker.gender})` : ''}
                 </span>
               )}
-              <span className="text-[10px] font-mono uppercase bg-emerald-50 text-emerald-800 px-2 py-0.5 font-bold border border-emerald-200">
-                Hired AI Worker (v0.27+)
+              <span className={`text-[10px] font-mono uppercase px-2 py-0.5 font-bold rounded ${theme.modalPill}`}>
+                {itemCode} • {theme.label}
               </span>
               {happiness !== null && (
-                <span className={`text-[10px] font-mono font-bold px-2 py-0.5 border ${happiness >= 50 ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-amber-50 text-amber-700 border-amber-200'}`}>
+                <span className={`text-[10px] font-mono font-bold px-2 py-0.5 border rounded ${happiness >= 50 ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-amber-50 text-amber-700 border-amber-200'}`}>
                   😊 {happiness}% Happiness
                 </span>
               )}
@@ -138,7 +143,7 @@ export default function EmployeeAuditModal({
           <button
             type="button"
             onClick={onClose}
-            className="p-1.5 text-slate-400 hover:text-slate-800 hover:bg-slate-100 transition cursor-pointer"
+            className="p-1.5 text-slate-400 hover:text-slate-800 hover:bg-slate-100 transition cursor-pointer rounded-lg"
             title="Close Audit (Esc)"
           >
             <X className="w-5 h-5" />
@@ -149,7 +154,7 @@ export default function EmployeeAuditModal({
         <div className="p-4 sm:p-6 overflow-y-auto space-y-5 text-xs font-mono">
 
           {/* Quick Result KPI Bar */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 bg-slate-50 p-3 border border-slate-200">
+          <div className={`grid grid-cols-2 sm:grid-cols-4 gap-2.5 ${theme.modalKpiBg} p-3 rounded-xl`}>
             <div>
               <span className="text-[10px] text-slate-400 uppercase block">Hourly Salary</span>
               <strong className="text-red-600 text-sm font-black flex items-center gap-1">

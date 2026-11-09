@@ -1,8 +1,7 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { 
   Plus, 
   Minus,
-  Trash2, 
   RotateCcw, 
   RotateCw,
   MapPin, 
@@ -39,6 +38,8 @@ import { getTraitInfo } from '../data/employeeTraits';
 import ItemIcon from './ItemIcon';
 import StockExchangeListing from './StockExchangeListing';
 import EmployeeFifaCard, { EmployeeFifaCardMini, EmployeeProductionBreakdown } from './EmployeeFifaCard';
+import WorkforceFifaCarousel from './WorkforceFifaCarousel';
+import { getCompanyTheme } from '../data/companyThemes';
 
 // Reusable tactile Gold Coin icon
 export function GoldCoin({ size = 15, className = '' }) {
@@ -538,11 +539,33 @@ export default function CompanyPortfolio({
     return userCompanies?.[0]?._id || userCompanies?.[0]?.id || 'c1';
   });
 
+  const topRef = useRef(null);
+
   // Insource toggle overrides: { [`${companyId}_${rawItemCode}`]: boolean }
   const [insourceOverrides, setInsourceOverrides] = useState({});
 
   // Portfolio View Mode: 'listing' (Stock Exchange homepage) | 'details' (Company deep-dive)
   const [viewMode, setViewMode] = useState('listing');
+
+  // Always scroll to top of page when opening or switching company details
+  useEffect(() => {
+    if (viewMode === 'details') {
+      window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+      document.documentElement.scrollTop = 0;
+      document.body.scrollTop = 0;
+
+      if (topRef.current) {
+        topRef.current.scrollIntoView({ behavior: 'instant', block: 'start' });
+        let parent = topRef.current.parentElement;
+        while (parent) {
+          if (parent.scrollTop > 0) {
+            parent.scrollTop = 0;
+          }
+          parent = parent.parentElement;
+        }
+      }
+    }
+  }, [viewMode, selectedCompanyId]);
 
   // Live 24h market price movements for accurate valuation growth
   const [priceChanges24h, setPriceChanges24h] = useState({});
@@ -627,46 +650,83 @@ export default function CompanyPortfolio({
   const remainingHiringSlots = Math.max(0, totalEmployeeCapacity - totalEmployedWorkers);
   const isAtHiringLimit = totalEmployedWorkers >= totalEmployeeCapacity;
 
-  // 1. Base Output Computations
+  // 1. Base Output Computations (incorporating all live Production Bonuses)
   const baseCompaniesData = useMemo(() => {
+    // Owner Management Skill production bonus across all portfolio facilities (+2% per effective level)
+    const ownerBonusPct = ownerMgmtBonusPct || 0;
+
     return companies.map(comp => {
       const recipe = RECIPES.find(r => r.id === comp.itemCode) || RECIPES[0];
 
-      // Authoritative live production bonus from WarEra API (company.getProductionBonus):
-      // Components: strategicBonus + depositBonus + ethicSpecializationBonus + ethicDepositBonus = total
+      // Regional & natural deposit bonuses from WarEra API (strategic + deposit + ethic)
       const depositBonusPct = comp.depositBonusPct ?? (comp.hasDepositBonus ? 30.0 : 0.0);
       const countryBonusPct = comp.countryBonusPct ?? (comp.productionBonusData?.strategicBonus ?? 5.5);
-      const totalBonusPct = typeof comp.totalBonusPct === 'number'
+      const ethicBonusPct = comp.ethicBonusPct ?? (comp.productionBonusData?.ethicSpecializationBonus ?? 0.0);
+      const regionalBonusPct = typeof comp.totalBonusPct === 'number'
         ? comp.totalBonusPct
         : (typeof comp.productionBonus === 'number'
             ? comp.productionBonus
             : (typeof comp.productionBonusData?.total === 'number'
                 ? comp.productionBonusData.total
-                : (depositBonusPct + countryBonusPct)));
-      const bonusMultiplier = 1 + (totalBonusPct / 100);
+                : (depositBonusPct + countryBonusPct + ethicBonusPct)));
+
+      // Facility Manager boost percentage (e.g. +16% for contracted Lv.8 facility manager)
+      const managerBonusPct = comp.manager?.productionBonusPercent || (comp.manager?.managementLevel ? comp.manager.managementLevel * 2 : (comp.managerBonusPct ?? 0)) || 0;
+
+      // Complete Production Bonus applied to Automated Engine: Regional + Owner Mgmt + Facility Manager
+      const totalEngineBonusPct = regionalBonusPct + ownerBonusPct + managerBonusPct;
+      const engineBonusMultiplier = 1 + (totalEngineBonusPct / 100);
 
       const engineTier = ENGINE_UPGRADE_TIERS.find(t => t.level === comp.engineLevel) || ENGINE_UPGRADE_TIERS[0];
-      const effectiveEnginePph = engineTier.ppPerHour * bonusMultiplier;
+      const effectiveEnginePph = engineTier.ppPerHour * engineBonusMultiplier;
       const engineDailyPp = effectiveEnginePph * 24;
 
-      // v0.27+: employees have the new schema from enrichEmployees()
-      // salary (BTC/hr) and baseProduction/trainedProduction are the core stats
-      // where totalProduction = baseProduction + trainedProduction + traitProduction
-      const employeesList = (comp.employees || comp.workers || []).map(w => {
+      // v0.27+: employees with production stats, individual bonuses, and hourly outputs
+      const employeesList = (comp.employees || comp.workers || []).map((w, idx) => {
         const totalProd = (w.baseProduction ?? 0) + (w.trainedProduction ?? 0) + (w.traitProduction ?? 0);
-        // Daily salary cost: salary is in BTC/hr directly
-        const dailySalary = typeof w.salary === 'number' ? w.salary * 24 : null;
+        const hourlyWage = typeof w.wage === 'number'
+          ? w.wage
+          : (typeof w.salary === 'number' ? w.salary : (typeof w.estimate?.wage === 'number' ? w.estimate.wage : 0));
+        const dailySalary = typeof w.salary === 'number' ? w.salary * 24 : hourlyWage * 24;
+
+        // Effective hourly PP: use authoritative API estimate if available, otherwise calculate from stat points & worker bonuses
+        let hourlyOutputPp = typeof w.hourlyOutputPp === 'number' && w.hourlyOutputPp > 0
+          ? w.hourlyOutputPp
+          : (typeof w.estimate?.production === 'number' && w.estimate.production > 0 ? w.estimate.production : 0);
+
+        if (hourlyOutputPp === 0 && totalProd > 0) {
+          const wBonus = typeof w.productionBonus === 'number'
+            ? w.productionBonus
+            : (typeof w.productionBonusData?.total === 'number' ? w.productionBonusData.total : totalEngineBonusPct);
+          hourlyOutputPp = (totalProd * 0.25) * (1 + (wBonus / 100));
+        }
+
+        const dailyOutputPp = typeof w.dailyOutputPp === 'number' && w.dailyOutputPp > 0
+          ? w.dailyOutputPp
+          : hourlyOutputPp * 24;
+
         return {
           ...w,
+          id: w.id || w._id || `emp-${idx}`,
           totalProduction: totalProd,
+          hourlyWage,
           dailySalary,
-          companyTotalBonusPct: totalBonusPct,
+          hourlyOutputPp,
+          dailyOutputPp,
+          companyTotalBonusPct: regionalBonusPct,
+          ownerMgmtBonusPct: ownerBonusPct,
+          managerBonusPct,
         };
       });
 
+      const totalWorkersHourlyPp = employeesList.reduce((sum, w) => sum + (w.hourlyOutputPp || 0), 0);
+      const workersProducedDailyPp = employeesList.reduce((sum, w) => sum + (w.dailyOutputPp || 0), 0);
       const totalWorkerDailySalary = employeesList.reduce((sum, w) => sum + (w.dailySalary ?? 0), 0);
 
-      // Engine base: pure automated hardware, no longer includes worker PP in engine model
+      // Total combined continuous production speed (Engine + Staff) with all bonuses
+      const totalCombinedPph = effectiveEnginePph + totalWorkersHourlyPp;
+
+      // Engine hardware daily PP
       const totalDailyEffectivePp = engineDailyPp;
       const unitsPerDay = recipe.pp > 0 ? (totalDailyEffectivePp / recipe.pp) : 0;
 
@@ -675,13 +735,12 @@ export default function CompanyPortfolio({
       const storageCapacityPp = storageTier.capacity;
       const storageCapacityUnits = recipe.pp > 0 ? (storageCapacityPp / recipe.pp) : 0;
 
-      // Real-time live in-storage production accumulation:
-      // In WarEra, automated engine runs continuously at effectiveEnginePph (base * bonusMultiplier)
+      // Real-time live in-storage production accumulation (Combined Engine + Staff):
       const elapsedHours = Math.max(0, (liveTick - (comp.syncedAt || liveTick)) / 3600000);
-      const engineAccumulatedPp = effectiveEnginePph * elapsedHours;
+      const liveAccumulatedPp = totalCombinedPph * elapsedHours;
       const currentStoredPp = Math.min(
         storageCapacityPp,
-        Math.max(0, (comp.production || 0) + engineAccumulatedPp)
+        Math.max(0, (comp.production || 0) + liveAccumulatedPp)
       );
       const storedReadyUnits = recipe.pp > 0 ? (currentStoredPp / recipe.pp) : 0;
 
@@ -690,11 +749,19 @@ export default function CompanyPortfolio({
         recipe,
         depositBonusPct,
         countryBonusPct,
-        totalBonusPct,
-        bonusMultiplier,
+        ethicBonusPct,
+        regionalBonusPct,
+        totalBonusPct: regionalBonusPct,
+        ownerMgmtBonusPct: ownerBonusPct,
+        managerBonusPct,
+        totalEngineBonusPct,
+        bonusMultiplier: engineBonusMultiplier,
         engineTier,
         effectiveEnginePph,
         engineDailyPp,
+        totalWorkersHourlyPp,
+        workersProducedDailyPp,
+        totalCombinedPph,
         storageTier,
         storageCapacityPp,
         storageCapacityUnits,
@@ -709,7 +776,7 @@ export default function CompanyPortfolio({
         storedReadyUnits
       };
     });
-  }, [companies, liveTick]);
+  }, [companies, liveTick, ownerMgmtBonusPct]);
 
   // 2. Portfolio-wide Base Portfolio Overview & Supply Chain Ledger
   const portfolioOverview = useMemo(() => {
@@ -740,19 +807,41 @@ export default function CompanyPortfolio({
       const currentFillPct = Math.min(100, (currentStoredPp / storageCapacity) * 100);
       const remainingPpToFull = Math.max(0, storageCapacity - currentStoredPp);
 
-      const effectiveEnginePph = comp.effectiveEnginePph || ((comp.engineTier?.ppPerHour || comp.engineLevel || 1) * comp.bonusMultiplier);
+      // Automated Engine effective speed (including Regional + Owner Mgmt + Facility Manager bonuses)
+      const effectiveEnginePph = comp.effectiveEnginePph || ((comp.engineTier?.ppPerHour || comp.engineLevel || 1) * (comp.bonusMultiplier || 1));
+      
+      // AI Workforce effective speed (including Worker bonuses: Tool, Traits, Happiness, Specialization, Mgmt)
       const workersProducedDailyPp = comp.companyProducedDailyPp || comp.workersProducedDailyPp || 0;
-      const workersHourlyPp = workersProducedDailyPp / 24;
+      const workersHourlyPp = comp.totalWorkersHourlyPp || (workersProducedDailyPp / 24);
+
+      // Total combined continuous production speed
       const totalCombinedPph = effectiveEnginePph + workersHourlyPp;
 
-      const totalHoursUntilFull = totalCombinedPph > 0 ? (remainingPpToFull / totalCombinedPph) : 9999;
-      const storageDaysOnly = Math.floor(totalHoursUntilFull / 24);
-      const storageHoursRemainder = Math.floor(totalHoursUntilFull % 24);
-      const storageMinutesRemainder = Math.floor((totalHoursUntilFull * 60) % 60);
+      // Precise Countdown incorporating all Production Bonuses:
+      const isStorageFull = remainingPpToFull <= 0 || currentFillPct >= 100;
+      const totalHoursUntilFull = isStorageFull 
+        ? 0 
+        : (totalCombinedPph > 0 ? (remainingPpToFull / totalCombinedPph) : 99999);
 
-      const engineHoursUntilFull = effectiveEnginePph > 0 ? (remainingPpToFull / effectiveEnginePph) : 9999;
-      const engineDaysOnly = Math.floor(engineHoursUntilFull / 24);
-      const engineHoursRemainder = Math.floor(engineHoursUntilFull % 24);
+      // Exact time breakdown using total rounded minutes with full carry-over:
+      const totalMinutesUntilFull = (isStorageFull || totalHoursUntilFull >= 99999)
+        ? 0
+        : Math.max(0, Math.round(totalHoursUntilFull * 60));
+
+      const storageDaysOnly = Math.floor(totalMinutesUntilFull / 1440);
+      const storageHoursRemainder = Math.floor((totalMinutesUntilFull % 1440) / 60);
+      const storageMinutesRemainder = totalMinutesUntilFull % 60;
+
+      // Engine-only benchmark comparison:
+      const engineHoursUntilFull = isStorageFull 
+        ? 0 
+        : (effectiveEnginePph > 0 ? (remainingPpToFull / effectiveEnginePph) : 99999);
+      const engineTotalMinutes = (isStorageFull || engineHoursUntilFull >= 99999)
+        ? 0
+        : Math.max(0, Math.round(engineHoursUntilFull * 60));
+      const engineDaysOnly = Math.floor(engineTotalMinutes / 1440);
+      const engineHoursRemainder = Math.floor((engineTotalMinutes % 1440) / 60);
+      const engineMinutesRemainder = engineTotalMinutes % 60;
 
       // Ready inventory
       const uncollectedUnits = comp.storedReadyUnits || 0;
@@ -805,7 +894,7 @@ export default function CompanyPortfolio({
       if (nextStorageTier) {
         storageUpgradeSteel = nextStorageTier.steel - storageTier.steel;
         storageExtraCapacity = nextStorageTier.capacity - storageCapacity;
-        storageExtraEngineHours = effectiveEnginePph > 0 ? (storageExtraCapacity / effectiveEnginePph) : 0;
+        storageExtraEngineHours = totalCombinedPph > 0 ? (storageExtraCapacity / totalCombinedPph) : 0;
       }
 
       // v0.27+ employees: pass through with context enrichment (Line workers only, managers are executive row entries)
@@ -839,16 +928,20 @@ export default function CompanyPortfolio({
         currentStoredPp,
         currentFillPct,
         remainingPpToFull,
+        isStorageFull,
+        totalEngineBonusPct: comp.totalEngineBonusPct || 0,
         effectiveEnginePph,
         workersHourlyPp,
         totalCombinedPph,
         totalHoursUntilFull,
+        totalMinutesUntilFull,
         storageDaysOnly,
         storageHoursRemainder,
         storageMinutesRemainder,
         engineHoursUntilFull,
         engineDaysOnly,
         engineHoursRemainder,
+        engineMinutesRemainder,
         uncollectedUnits,
         uncollectedValueCoins,
         concreteInvestedVal,
@@ -889,6 +982,9 @@ export default function CompanyPortfolio({
       || filteredCompanies[0] 
       || analyzedCompanies[0];
   }, [filteredCompanies, analyzedCompanies, effectiveSelectedId]);
+
+  // Guiding Product Theme (Grey, Green, Blue, Purple)
+  const activeTheme = useMemo(() => getCompanyTheme(activeCompany), [activeCompany]);
 
   // Combined workforce statistics for active company (mathematically aligned with zero double-counting)
   const combinedWorkforceStats = useMemo(() => {
@@ -1007,6 +1103,18 @@ export default function CompanyPortfolio({
   // Dynamic fill theme for warehouse storage
   const storageFillTheme = useMemo(() => {
     const pct = activeCompany?.currentFillPct || 0;
+    const isFull = activeCompany?.isStorageFull || pct >= 100;
+
+    if (isFull) {
+      return {
+        badgeText: 'Storage Full',
+        badgeClass: 'bg-rose-200 text-rose-900 border border-rose-300 font-extrabold',
+        timerColor: 'text-rose-700',
+        bannerBg: 'bg-rose-500/15 border-rose-500/40 text-rose-950',
+        liquidGradient: 'from-rose-600 via-red-600 to-rose-500',
+        capColor: 'bg-rose-500',
+      };
+    }
     if (pct >= 90) {
       return {
         badgeText: 'Near Capacity',
@@ -1039,16 +1147,16 @@ export default function CompanyPortfolio({
     }
     return {
       badgeText: 'Optimal Capacity',
-      badgeClass: 'bg-emerald-100 text-emerald-800',
-      timerColor: 'text-emerald-600',
-      bannerBg: 'bg-emerald-500/10 border-emerald-500/30 text-emerald-900',
-      liquidGradient: 'from-emerald-600 via-teal-500 to-cyan-500',
-      capColor: 'bg-emerald-400/70',
+      badgeClass: activeTheme.badgeBg || 'bg-emerald-100 text-emerald-800',
+      timerColor: activeTheme.accentText || 'text-emerald-600',
+      bannerBg: `${activeTheme.cardHeaderBg} border ${activeTheme.cardBorder}`,
+      liquidGradient: activeTheme.liquidGradient || 'from-emerald-600 via-teal-500 to-cyan-500',
+      capColor: 'opacity-90',
     };
-  }, [activeCompany?.currentFillPct]);
+  }, [activeCompany?.currentFillPct, activeCompany?.isStorageFull, activeTheme]);
 
   return (
-    <div className="flex-1 w-full max-w-[1440px] mx-auto px-4 sm:px-8 py-6 space-y-8 select-none">
+    <div ref={topRef} className={`flex-1 w-full max-w-[1440px] mx-auto px-4 sm:px-8 select-none ${viewMode === 'details' ? 'py-2.5 sm:py-3 space-y-3' : 'py-6 space-y-8'}`}>
       {viewMode === 'listing' ? (
         <StockExchangeListing
           companies={analyzedCompanies}
@@ -1062,6 +1170,10 @@ export default function CompanyPortfolio({
           onSelectCompany={(compId) => {
             setSelectedCompanyId(compId);
             setViewMode('details');
+            window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+            if (topRef.current?.parentElement) {
+              topRef.current.parentElement.scrollTop = 0;
+            }
           }}
           onRefreshLive={handleRefreshActiveCompany}
           isRefreshingLive={isRefreshingLive}
@@ -1069,56 +1181,60 @@ export default function CompanyPortfolio({
           maxHiringSlots={maxHiringSlots}
         />
       ) : (
-        <div className="space-y-6 animate-in fade-in duration-150 font-sans">
+        <div className="space-y-3 animate-in fade-in duration-150 font-sans">
           {/* Navigation Bar / Return to Stock Exchange Listing */}
-          <div className="flex items-center justify-between gap-4 pb-2">
+          <div className="flex items-center justify-between gap-4 py-0.5">
             <div className="flex items-center space-x-3">
               <button
                 type="button"
                 onClick={() => setViewMode('listing')}
-                className="flex items-center space-x-2 px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold font-mono transition cursor-pointer group"
+                className={`flex items-center space-x-1.5 px-3 py-1.5 ${activeTheme.backButton} text-xs font-bold font-mono transition cursor-pointer group`}
               >
-                <ArrowLeft className="w-4 h-4 text-slate-300 group-hover:-translate-x-1 transition-transform" />
+                <ArrowLeft className="w-4 h-4 opacity-80 group-hover:-translate-x-1 transition-transform" />
                 <span>Back to Stock Exchange Listing</span>
               </button>
               
               <div className="hidden sm:flex items-center space-x-2 text-xs text-slate-400 font-mono">
                 <span>/</span>
                 <span className="font-bold text-slate-900 font-sans">{activeCompany.name}</span>
-                <span className="text-[10px] font-mono uppercase bg-slate-100 px-1.5 py-0.5 text-slate-600">
-                  {activeCompany.itemCode}
+                <span className={`text-[10px] font-mono uppercase px-2 py-0.5 rounded font-bold ${activeTheme.pillTag}`}>
+                  {activeCompany.itemCode} • {activeTheme.label}
                 </span>
               </div>
             </div>
           </div>
 
-          {/* 1. TOP GRID: COMPANY INTRODUCTION & LINKEDIN-STYLE EMPLOYEE STRUCTURE */}
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-stretch">
+          {/* MAIN 2-COLUMN BALANCED GRID (5 COLS LEFT, 7 COLS RIGHT) MAXIMIZING VISIBLE SPACE */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
             
+            {/* LEFT COLUMN (5 COLS): ASSET VALUATION BREAKDOWN & WAREHOUSE STORAGE */}
+            <div className="lg:col-span-5 space-y-4">
             {/* LEFT COLUMN: COMPANY INTRODUCTION (ASSET VALUATION BREAKDOWN STRUCTURE) */}
-            <div className="lg:col-span-5 bg-white p-5 space-y-4 flex flex-col justify-between">
+            <div className={`bg-white p-3.5 sm:p-4 border ${activeTheme.cardBorder} rounded-2xl shadow-xs space-y-2.5 relative overflow-hidden`}>
+              {/* Top Accent Strip */}
+              <div className="absolute top-0 inset-x-0 h-1" style={{ backgroundColor: activeTheme.accentColor }} />
               
               {/* Company Identity Header */}
-              <div className="flex items-start justify-between gap-3 pb-2">
-                <div className="flex items-center space-x-3">
-                  <div className="w-12 h-12 bg-slate-100 flex items-center justify-center shrink-0">
-                    <ItemIcon itemCode={activeCompany.itemCode} size={28} />
+              <div className="flex items-start justify-between gap-3 pb-1 border-b border-slate-100">
+                <div className="flex items-center space-x-2.5">
+                  <div className={`w-9 h-9 flex items-center justify-center shrink-0 rounded-lg ${activeTheme.iconBox}`}>
+                    <ItemIcon itemCode={activeCompany.itemCode} size={22} />
                   </div>
                   <div className="space-y-0.5 min-w-0">
                     <div className="flex items-center space-x-2 flex-wrap">
-                      <h2 className="text-lg font-extrabold text-slate-900 font-sans truncate">{activeCompany.name}</h2>
-                      <span className="px-2 py-0.5 text-[10px] font-mono font-bold bg-slate-100 text-slate-700 uppercase">
+                      <h2 className="text-base font-extrabold text-slate-900 font-sans truncate">{activeCompany.name}</h2>
+                      <span className={`px-1.5 py-0.2 text-[9px] font-mono font-bold uppercase rounded-sm ${activeTheme.pillTag}`}>
                         {activeCompany.itemCode}
                       </span>
                     </div>
-                    <div className="flex items-center space-x-2 text-xs text-slate-500 font-mono">
-                      <MapPin className="w-3.5 h-3.5 text-rose-500 shrink-0" />
+                    <div className="flex items-center space-x-2 text-[11px] text-slate-500 font-mono">
+                      <MapPin className="w-3 h-3 text-rose-500 shrink-0" />
                       <span className="truncate">
                         {activeCompany.regionName} ({activeCompany.countryCode}){activeCompany.mainCity ? ` • ${activeCompany.mainCity}` : ''}
                       </span>
                       <span>•</span>
                       <span 
-                        className="text-emerald-700 font-bold shrink-0 cursor-help"
+                        className={`font-bold shrink-0 cursor-help ${activeTheme.accentText}`}
                         title={activeCompany.productionBonusData ? `Strategic: +${activeCompany.strategicBonus}% | Ethics: +${activeCompany.ethicBonusPct}% | Deposit: +${activeCompany.depositBonusPct}%` : `Production Bonus: +${activeCompany.totalBonusPct.toFixed(1)}%`}
                       >
                         +{activeCompany.totalBonusPct.toFixed(1)}%
@@ -1126,100 +1242,90 @@ export default function CompanyPortfolio({
                     </div>
                   </div>
                 </div>
-
-                <div className="flex items-center space-x-1.5 shrink-0">
-                  <button
-                    onClick={() => handleDelete(activeCompany.id)}
-                    className="p-1.5 text-slate-300 hover:text-rose-600 hover:bg-rose-50 transition cursor-pointer"
-                    title="Delete this facility"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
               </div>
 
               {/* Asset Valuation Breakdown Structure */}
-              <div className="space-y-2.5 font-mono text-xs flex-1 flex flex-col justify-around">
-                <div className="flex items-center justify-between pb-1.5 font-sans">
-                  <span className="text-[11px] font-bold text-slate-800 uppercase tracking-wide">
+              <div className="space-y-1.5 font-mono text-[11px]">
+                <div className="flex items-center justify-between pb-1 font-sans border-b border-slate-100">
+                  <span className="text-[10px] font-bold text-slate-800 uppercase tracking-wide">
                     Asset Valuation Breakdown
                   </span>
-                  <span className="font-mono text-xs font-bold text-slate-600">
+                  <span className={`font-mono text-[11px] font-bold ${activeTheme.accentText}`}>
                     Engine Lv.{activeCompany.engineLevel} • Storage Lv.{activeCompany.storageLevel}
                   </span>
                 </div>
 
-                <div className="space-y-1.5 text-slate-600 flex-1 flex flex-col justify-around">
-                  <div className="flex justify-between items-center">
+                <div className="space-y-1 text-slate-600">
+                  <div className="flex justify-between items-center py-0.5">
                     <span>Building Structure ({activeCompany.concreteInvested} Concrete):</span>
                     <strong className="text-slate-900 font-bold">{activeCompany.concreteInvestedVal.toFixed(0)}</strong>
                   </div>
-                  <div className="flex justify-between items-center">
+                  <div className="flex justify-between items-center py-0.5">
                     <span>Engine Lv.{activeCompany.engineLevel} Hardware:</span>
                     <strong className="text-slate-900 font-bold">{activeCompany.steelInEngine.toFixed(0)}</strong>
                   </div>
-                  <div className="flex justify-between items-center">
+                  <div className="flex justify-between items-center py-0.5">
                     <span>Storage Lv.{activeCompany.storageLevel} Hardware:</span>
                     <strong className="text-slate-900 font-bold">{activeCompany.steelInStorage.toFixed(0)}</strong>
                   </div>
-                  <div className="flex justify-between items-center">
+                  <div className="flex justify-between items-center py-0.5">
                     <span>Ready Yield in Storage ({activeCompany.uncollectedUnits.toFixed(1)} units):</span>
                     <strong className="text-amber-700 font-bold">{activeCompany.uncollectedValueCoins.toFixed(0)}</strong>
                   </div>
-                  <div className="flex justify-between items-center pt-1.5 text-slate-900 font-bold">
+                  <div className="flex justify-between items-center pt-1 text-slate-900 font-bold">
                     <span>Total Asset Valuation:</span>
-                    <span className="text-emerald-700 font-black text-sm">
+                    <span className={`font-black text-xs ${activeTheme.accentText}`}>
                       {activeCompany.totalCalculatedWorth.toLocaleString(undefined, { maximumFractionDigits: 0 })}
                     </span>
                   </div>
-                  <div className="flex justify-between items-center pt-0.5">
+                  <div className="flex justify-between items-center py-0.5">
                     <span>Hourly Growth:</span>
                     <span className={`font-black ${activeCompany.growth24hCoins > 0 ? 'text-emerald-500' : activeCompany.growth24hCoins < 0 ? 'text-red-500' : 'text-blue-500'}`}>
                       {activeCompany.growth24hCoins >= 0 ? '+' : ''}{(activeCompany.growth24hCoins / 24).toFixed(2)} ({(activeCompany.growth24hPct / 24).toFixed(2)}%) past 1h
                     </span>
                   </div>
-                  <div className="flex justify-between items-center pt-1.5 border-t border-slate-100">
+                  <div className="flex justify-between items-center pt-1 border-t border-slate-100">
                     <span className="font-bold text-slate-800">Daily Production (PP):</span>
                     <div className="text-right">
                       <strong className="text-slate-900 font-mono">
                         {activeCompany.companyProducedDailyPp.toFixed(1)} PP/day
                       </strong>
-                      <span className="text-[10px] text-emerald-700 block font-semibold">
+                      <span className="text-[9px] text-emerald-700 block font-semibold">
                         Bonuses included
                       </span>
                     </div>
                   </div>
-                  <div className="flex justify-between items-center text-slate-600">
+                  <div className="flex justify-between items-center py-0.5 text-slate-600">
                     <span>Output Yield:</span>
                     <strong className="text-slate-900 font-mono">
                       {activeCompany.baseUnits.toFixed(1)} units/day
                     </strong>
                   </div>
-                  <div className="flex justify-between items-center text-slate-600">
+                  <div className="flex justify-between items-center py-0.5 text-slate-600">
                     <span>Daily Gross Revenue:</span>
                     <strong className="text-emerald-500 font-mono">
                       +{activeCompany.grossRevenue.toFixed(2)} BTC/day
                     </strong>
                   </div>
-                  <div className="flex justify-between items-center text-slate-600">
+                  <div className="flex justify-between items-center py-0.5 text-slate-600">
                     <span>Daily Salaries Paid:</span>
                     <strong className={activeCompany.dailyLaborExpense > 0 ? "text-red-500 font-mono" : "text-blue-500 font-mono"}>
                       {activeCompany.dailyLaborExpense > 0 ? `-${activeCompany.dailyLaborExpense.toFixed(2)}` : '0.00'} BTC/day
                     </strong>
                   </div>
-                  <div className="flex justify-between items-center pt-1.5 border-t border-slate-100">
+                  <div className="flex justify-between items-center pt-1 border-t border-slate-100">
                     <span className="font-bold text-slate-800">Daily Net Profit:</span>
                     <div className="text-right">
                       <strong className={`font-bold font-mono ${activeCompany.baseNetProfit > 0 ? 'text-emerald-500' : activeCompany.baseNetProfit < 0 ? 'text-red-500' : 'text-blue-500'}`}>
                         {activeCompany.baseNetProfit >= 0 ? '+' : ''}{activeCompany.baseNetProfit.toFixed(2)} BTC/day
                       </strong>
-                      <span className="text-[10px] text-slate-400 block font-normal">
+                      <span className="text-[9px] text-slate-400 block font-normal">
                         {activeCompany.baseNetMarginPct ? `${activeCompany.baseNetMarginPct.toFixed(1)}% margin` : ''}
                       </span>
                     </div>
                   </div>
                   {(activeCompany.totalCostAvoided || 0) > 0 && (
-                    <div className="flex justify-between items-center pt-1.5 border-t border-slate-100 text-emerald-700 font-bold">
+                    <div className="flex justify-between items-center pt-1 border-t border-slate-100 text-emerald-700 font-bold">
                       <span>Adjusted Net (Insourced):</span>
                       <strong className="font-mono">
                         +{activeCompany.adjustedNetProfit.toFixed(2)}/day (+{activeCompany.totalCostAvoided.toFixed(2)} saved)
@@ -1231,186 +1337,92 @@ export default function CompanyPortfolio({
 
             </div>
 
-            {/* RIGHT COLUMN: SLEEK FIFA-STYLE EMPLOYEE SHOWCASE (CLASSY MODERN LUXURY STADIUM THEME) */}
-            <div className="lg:col-span-7 bg-gradient-to-b from-slate-900 via-[#0a0f1d] to-slate-950 border border-slate-800 rounded-2xl p-5 sm:p-6 space-y-5 flex flex-col justify-between text-white shadow-2xl relative overflow-hidden">
+                        {/* FACILITY MANAGER SECTION (BETWEEN ASSET BREAKDOWN AND STORAGE) */}
+            <div className={`bg-white p-3 sm:p-3.5 border ${activeTheme.cardBorder} rounded-2xl shadow-xs relative overflow-hidden`}>
+              {/* Top Accent Strip */}
+              <div className="absolute top-0 inset-x-0 h-1" style={{ backgroundColor: activeTheme.accentColor }} />
               
-              {/* Ambient Golden Top Radiance */}
-              <div className="absolute top-0 inset-x-0 h-48 bg-[radial-gradient(ellipse_at_top,_rgba(245,158,11,0.14),_transparent_70%)] pointer-events-none" />
-
-              {/* Workforce Roster Header & Manager Row Entry */}
-              <div className="relative z-10 pb-3 border-b border-slate-800/80 space-y-2.5">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-black text-slate-100 font-sans tracking-tight flex items-center gap-2">
-                    <span>Workforce Roster</span>
-                    <span className="text-xs font-mono font-normal text-slate-400">
-                      ({activeCompany.enrichedWorkers.length}/{activeCompany.maxEmployees} line workers)
-                    </span>
-                  </h3>
-                  {ownerMgmtBonusPct > 0 && (
-                    <span className="text-[10px] font-mono font-bold text-amber-300 bg-amber-500/10 border border-amber-500/30 px-2 py-0.5 rounded shadow-xs" title="Applied across all companies in your portfolio">
-                      👑 Owner Mgmt Lv.{ownerMgmtLevel} (+{ownerMgmtBonusPct}%)
-                    </span>
-                  )}
-                </div>
-
-                {/* Hired Facility Manager Row Entry */}
-                {activeCompany.manager ? (
-                  <div className="flex items-center justify-between p-2.5 bg-gradient-to-r from-slate-900/95 via-slate-800/90 to-slate-900/95 border border-amber-500/40 rounded-xl shadow-lg backdrop-blur-xs">
-                    <div className="flex items-center space-x-3 min-w-0">
-                      {/* Avatar */}
-                      <div className="w-10 h-10 rounded-lg overflow-hidden border border-amber-400/60 relative shrink-0 bg-slate-950 shadow-inner">
-                        {activeCompany.manager.avatarUrl ? (
-                          <img 
-                            src={activeCompany.manager.avatarUrl} 
-                            alt={activeCompany.manager.username || 'Manager'} 
-                            className="w-full h-full object-cover"
-                          />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center font-black text-amber-300 text-sm">
-                            {(activeCompany.manager.username || 'M').charAt(0).toUpperCase()}
-                          </div>
-                        )}
-                      </div>
-
-                      <div className="min-w-0">
-                        <div className="flex items-center space-x-2">
-                          <span className="text-xs font-black text-slate-100 tracking-tight truncate">
-                            {activeCompany.manager.username || activeCompany.manager.name || 'Hired Facility Manager'}
-                          </span>
-                          {activeCompany.manager.level && (
-                            <span className="text-[10px] font-mono font-bold text-slate-400 shrink-0">
-                              Lv.{activeCompany.manager.level}
-                            </span>
-                          )}
-                          {activeCompany.manager.countryCode && (
-                            <span className="text-xs shrink-0" title={activeCompany.manager.countryName || activeCompany.manager.countryCode}>
-                              {getCountryFlag(activeCompany.manager.countryCode)}
-                            </span>
-                          )}
-                          <span className="px-1.5 py-0.5 bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[9px] font-mono font-black uppercase tracking-wider rounded shrink-0">
-                            FACILITY MANAGER
-                          </span>
-                        </div>
-                        <div className="text-[11px] text-slate-400 font-mono flex items-center gap-1.5 mt-0.5 flex-wrap">
-                          <span>Management Lv.{activeCompany.manager.managementLevel || 1}</span>
-                          <span>•</span>
-                          <span className="text-emerald-400 font-bold">
-                            +{activeCompany.manager.productionBonusPercent || (activeCompany.manager.managementLevel * 2)}% Facility Boost
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="text-right font-mono shrink-0 pl-3">
-                      <div className="text-xs font-black text-rose-400">
-                        -{(activeCompany.manager.hourlyWage || (activeCompany.managerPay ? activeCompany.managerPay / 24 : 0)).toFixed(3)} BTC/h
-                      </div>
-                      <div className="text-[10px] text-slate-400">
-                        -{(activeCompany.manager.dailyWage || activeCompany.managerPay || 0).toFixed(2)} BTC/day
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="flex items-center justify-between px-3 py-2 bg-slate-900/40 border border-dashed border-slate-800 rounded-xl text-slate-400 text-xs">
-                    <span className="flex items-center gap-1.5 text-[11px] font-sans">
-                      <User className="w-3.5 h-3.5 text-slate-500" />
-                      No Facility Manager Contracted
-                    </span>
-                    <span className="text-[10px] font-mono text-slate-500">0.00 BTC/day</span>
-                  </div>
-                )}
-              </div>
-
-              {/* FIFA TRADING CARD CONTAINER & OUTSIDE PRODUCTION BREAKDOWN */}
-              <div className="relative z-10 flex-1 flex flex-col justify-center space-y-5">
-                {activeCompany.enrichedWorkers.length > 0 && currentWorker ? (
-                  <>
-                    {/* Fanned 3D FIFA Card Deck View:
-                        Card 3 (Previous, Left, z-10) < Card 1 (Active, Center, z-30) > Card 2 (Next, Right, z-20)
-                        - 100% OPAQUE (NO translucent double-exposure ghosting)
-                        - Symmetrical Left & Right peeking positions
-                        - Deep physical drop shadows and scale stepping
-                    */}
-                    <div className="relative flex items-center justify-center py-4 min-h-[480px] isolate overflow-visible">
-                      
-                      {/* Left Peek Card (Previous Employee in roster, z-10) */}
-                      {totalRosterWorkers > 2 && prevRosterWorker && (
-                        <div 
-                          className="hidden lg:block absolute -left-2 xl:left-2 top-1/2 -translate-y-1/2 transition-all duration-300 transform scale-[0.88] brightness-[0.82] hover:brightness-100 hover:scale-[0.92] cursor-pointer pointer-events-auto opacity-100 drop-shadow-[0_15px_35px_rgba(0,0,0,0.8)]"
-                          style={{ zIndex: 10 }}
-                          onClick={() => setActiveWorkerIdx(prevRosterWorkerIdx)}
-                          title={`Click to view previous: #${prevRosterWorkerIdx + 1} ${prevRosterWorker.name || prevRosterWorker.username}`}
-                        >
-                          <EmployeeFifaCardMini 
-                            worker={prevRosterWorker}
-                            company={activeCompany}
-                          />
-                        </div>
-                      )}
-
-                      {/* Right Peek Card (Next Employee in roster, z-20) */}
-                      {totalRosterWorkers > 1 && nextRosterWorker && (
-                        <div 
-                          className="hidden md:block absolute -right-2 xl:right-2 top-1/2 -translate-y-1/2 transition-all duration-300 transform scale-[0.88] brightness-[0.82] hover:brightness-100 hover:scale-[0.92] cursor-pointer pointer-events-auto opacity-100 drop-shadow-[0_15px_35px_rgba(0,0,0,0.8)]"
-                          style={{ zIndex: 20 }}
-                          onClick={() => setActiveWorkerIdx(nextRosterWorkerIdx)}
-                          title={`Click to view next: #${nextRosterWorkerIdx + 1} ${nextRosterWorker.name || nextRosterWorker.username}`}
-                        >
-                          <EmployeeFifaCardMini 
-                            worker={nextRosterWorker}
-                            company={activeCompany}
-                          />
-                        </div>
-                      )}
-
-                      {/* Active Center Card (Top of the deck, z-30) */}
-                      <div 
-                        className="relative transition-all duration-300 transform scale-100 pointer-events-auto drop-shadow-[0_20px_50px_rgba(0,0,0,0.85)]" 
-                        style={{ zIndex: 30 }}
-                      >
-                        <EmployeeFifaCard 
-                          worker={currentWorker}
-                          company={activeCompany}
-                          portfolioWorkers={allPortfolioWorkers}
-                          portfolioCompanies={analyzedCompanies}
-                          onSelectCompany={(compId) => setSelectedCompanyId(compId)}
+              {activeCompany.manager ? (
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center space-x-2.5 min-w-0">
+                    {/* Avatar */}
+                    <div className="w-8 h-8 rounded-lg overflow-hidden border border-amber-400/50 relative shrink-0 bg-slate-900 shadow-inner">
+                      {activeCompany.manager.avatarUrl ? (
+                        <img 
+                          src={activeCompany.manager.avatarUrl} 
+                          alt={activeCompany.manager.username || 'Manager'} 
+                          className="w-full h-full object-cover"
                         />
-                      </div>
-
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center font-black text-amber-300 text-xs">
+                          {(activeCompany.manager.username || 'M').charAt(0).toUpperCase()}
+                        </div>
+                      )}
                     </div>
-
-                    {/* 2. PRODUCTION BREAKDOWN (OUTSIDE THE CARD) */}
-                    <EmployeeProductionBreakdown 
-                      worker={currentWorker}
-                      company={activeCompany}
-                    />
-                  </>
-                ) : (
-                  <div className="p-8 flex flex-col justify-center items-center text-center space-y-2 bg-slate-900/60 border border-dashed border-slate-800 rounded-2xl">
-                    <Users className="w-8 h-8 text-slate-500 stroke-[1.5]" />
-                    <span className="text-xs font-bold text-slate-300 block">No Employees Assigned</span>
-                    <p className="text-xs text-slate-400 font-sans max-w-[260px] leading-relaxed">
-                      Break Room Lv.{activeCompany.breakRoomLevel ?? 0} supports up to {activeCompany.maxEmployees ?? 0} worker{(activeCompany.maxEmployees ?? 0) === 1 ? '' : 's'}. Automated engine generates {(activeCompany.engineTier?.ppPerHour ? activeCompany.engineTier.ppPerHour * 24 : 24)} PP/day at 0 wage cost.
-                    </p>
+                    <div className="min-w-0">
+                      <div className="flex items-center space-x-1.5 flex-wrap">
+                        <span className="text-xs font-black text-slate-900 tracking-tight truncate font-sans">
+                          {activeCompany.manager.username || activeCompany.manager.name || 'Facility Manager'}
+                        </span>
+                        {activeCompany.manager.level && (
+                          <span className="text-[10px] font-mono font-bold text-slate-500 shrink-0">
+                            Lv.{activeCompany.manager.level}
+                          </span>
+                        )}
+                        {activeCompany.manager.countryCode && (
+                          <span className="text-xs shrink-0" title={activeCompany.manager.countryName || activeCompany.manager.countryCode}>
+                            {getCountryFlag(activeCompany.manager.countryCode)}
+                          </span>
+                        )}
+                        <span className="px-1.5 py-0.2 bg-amber-50 text-amber-700 border border-amber-200 text-[8px] font-mono font-black uppercase rounded shrink-0">
+                          MANAGER
+                        </span>
+                      </div>
+                      <div className="text-[10px] text-slate-500 font-mono flex items-center gap-1.5 mt-0.5">
+                        <span>Mgmt Lv.{activeCompany.manager.managementLevel || 1}</span>
+                        <span>•</span>
+                        <span className="text-emerald-600 font-bold">
+                          +{activeCompany.manager.productionBonusPercent || (activeCompany.manager.managementLevel * 2)}% Boost
+                        </span>
+                      </div>
+                    </div>
                   </div>
-                )}
-              </div>
-
+                  <div className="text-right font-mono shrink-0 pl-2">
+                    <div className="text-xs font-black text-rose-500">
+                      -{(activeCompany.manager.dailyWage || activeCompany.managerPay || 0).toFixed(2)} BTC/day
+                    </div>
+                    <div className="text-[10px] text-slate-400">
+                      -{(activeCompany.manager.hourlyWage || (activeCompany.managerPay ? activeCompany.managerPay / 24 : 0)).toFixed(3)} BTC/h
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-center justify-between text-xs text-slate-500 py-0.5">
+                  <div className="flex items-center space-x-2">
+                    <User className="w-4 h-4 text-slate-400 shrink-0" />
+                    <span className="font-bold text-slate-700 font-sans">Facility Manager:</span>
+                    <span className="text-slate-500">No Manager</span>
+                  </div>
+                  <span className="font-mono text-slate-400 text-[11px]">0.00 BTC/day</span>
+                </div>
+              )}
             </div>
 
-          </div>
-
-          {/* 2. MIDDLE GRID: WAREHOUSE STORAGE (LEFT) & UNIT ECONOMICS / UPGRADES (RIGHT) */}
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-stretch">
-            
             {/* LEFT COLUMN: WAREHOUSE STORAGE (5 COLS) */}
-            <div className="lg:col-span-5 bg-white p-5 space-y-4 flex flex-col justify-between">
+            <div className={`bg-white p-5 space-y-4 flex flex-col justify-between border ${activeTheme.cardBorder} rounded-2xl shadow-xs relative overflow-hidden`}>
+              {/* Top Accent Strip */}
+              <div className="absolute top-0 inset-x-0 h-1" style={{ backgroundColor: activeTheme.accentColor }} />
               
-              <div>
-                <span className="text-xs font-black uppercase tracking-wider text-slate-400 block">Warehouse Storage</span>
-                <h3 className="text-base font-extrabold text-slate-900 font-sans mt-0.5">
-                  Storage Capacity & Combined Fill Timer
-                </h3>
+              <div className="flex items-center justify-between">
+                <div>
+                  <span className="text-xs font-black uppercase tracking-wider text-slate-400 block">Warehouse Storage</span>
+                  <h3 className="text-base font-extrabold text-slate-900 font-sans mt-0.5">
+                    Storage Capacity & Combined Fill Timer
+                  </h3>
+                </div>
+                <span className={`text-[10px] font-mono uppercase px-2 py-0.5 rounded font-bold ${activeTheme.pillTag}`}>
+                  {activeCompany.itemCode}
+                </span>
               </div>
 
               {/* TIME UNTIL FULL USING ENGINE + AI WORKFORCE COMBINED */}
@@ -1424,12 +1436,18 @@ export default function CompanyPortfolio({
                   </span>
                 </div>
                 <div className={`text-xl font-black font-mono ${storageFillTheme.timerColor}`}>
-                  {activeCompany.storageDaysOnly > 0 
-                    ? `${activeCompany.storageDaysOnly}d ${activeCompany.storageHoursRemainder}h ${activeCompany.storageMinutesRemainder}m` 
-                    : `${activeCompany.storageHoursRemainder}h ${activeCompany.storageMinutesRemainder}m`}
+                  {activeCompany.isStorageFull || activeCompany.currentFillPct >= 100 ? (
+                    'Storage Full'
+                  ) : activeCompany.totalCombinedPph <= 0 ? (
+                    'Production Inactive'
+                  ) : activeCompany.storageDaysOnly > 0 ? (
+                    `${activeCompany.storageDaysOnly}d ${activeCompany.storageHoursRemainder}h ${activeCompany.storageMinutesRemainder}m` 
+                  ) : (
+                    `${activeCompany.storageHoursRemainder}h ${activeCompany.storageMinutesRemainder}m`
+                  )}
                 </div>
                 <p className="text-[11px] opacity-85 font-sans leading-relaxed">
-                  Combined production speed: <strong>{(activeCompany.totalCombinedPph || 0).toFixed(2)} PP/hr</strong> (Engine: {(activeCompany.effectiveEnginePph || 0).toFixed(2)} + AI Workers: {(activeCompany.workersHourlyPp || 0).toFixed(2)}). Warehouse capacity: <strong>{activeCompany.storageCapacity} PP</strong>.
+                  Combined production speed: <strong>{(activeCompany.totalCombinedPph || 0).toFixed(2)} PP/hr</strong> (Engine: {(activeCompany.effectiveEnginePph || 0).toFixed(2)} PP/h [+{activeCompany.totalEngineBonusPct?.toFixed(0) || 0}% bonus] + AI Workers: {(activeCompany.workersHourlyPp || 0).toFixed(2)} PP/h [bonuses included]). Warehouse capacity: <strong>{activeCompany.storageCapacity} PP</strong>.
                 </p>
               </div>
 
@@ -1462,9 +1480,56 @@ export default function CompanyPortfolio({
               </div>
 
             </div>
+            </div>
+
+            {/* RIGHT COLUMN (7 COLS): WORKFORCE ROSTER (FIFA CAROUSEL) & UNIT ECONOMICS */}
+            <div className="lg:col-span-7 space-y-4">
+            {/* RIGHT COLUMN: SLEEK FIFA-STYLE EMPLOYEE SHOWCASE (CLASSY MODERN LUXURY STADIUM THEME) */}
+            <div className={`bg-gradient-to-b from-slate-900 via-[#0a0f1d] to-slate-950 border ${activeTheme.accentBorder || 'border-slate-800'} rounded-2xl p-3.5 sm:p-4 space-y-2.5 flex flex-col justify-between text-white shadow-2xl relative overflow-hidden`}>
+              
+              {/* Ambient Top Radiance guided by company theme */}
+              <div className={`absolute top-0 inset-x-0 h-48 ${activeTheme.stadiumGlow} pointer-events-none`} />
+
+              {/* FIFA TRADING CARD CONTAINER & OUTSIDE PRODUCTION BREAKDOWN */}
+              <div className="relative z-10 flex-1 flex flex-col justify-center space-y-3">
+                {activeCompany.enrichedWorkers.length > 0 && currentWorker ? (
+                  <>
+                    <WorkforceFifaCarousel
+                      workers={activeCompany.enrichedWorkers}
+                      company={activeCompany}
+                      portfolioWorkers={allPortfolioWorkers}
+                      portfolioCompanies={analyzedCompanies}
+                      onSelectCompany={(compId) => setSelectedCompanyId(compId)}
+                      activeWorkerIdx={validWorkerIdx}
+                      onWorkerChange={(newIdx) => setActiveWorkerIdx(newIdx)}
+                      activeTheme={activeTheme}
+                    />
+
+                    {/* 2. PRODUCTION BREAKDOWN (OUTSIDE THE CARD) */}
+                    <EmployeeProductionBreakdown 
+                      key={currentWorker.userId || currentWorker.id || validWorkerIdx}
+                      worker={currentWorker}
+                      company={activeCompany}
+                      className="animate-in fade-in duration-300"
+                    />
+                  </>
+                ) : (
+                  <div className="p-8 flex flex-col justify-center items-center text-center space-y-2 bg-slate-900/60 border border-dashed border-slate-800 rounded-2xl">
+                    <Users className="w-8 h-8 text-slate-500 stroke-[1.5]" />
+                    <span className="text-xs font-bold text-slate-300 block">No Employees Assigned</span>
+                    <p className="text-xs text-slate-400 font-sans max-w-[260px] leading-relaxed">
+                      Break Room Lv.{activeCompany.breakRoomLevel ?? 0} supports up to {activeCompany.maxEmployees ?? 0} worker{(activeCompany.maxEmployees ?? 0) === 1 ? '' : 's'}. Automated engine generates {(activeCompany.engineTier?.ppPerHour ? activeCompany.engineTier.ppPerHour * 24 : 24)} PP/day at 0 wage cost.
+                    </p>
+                  </div>
+                )}
+              </div>
+
+            </div>
 
             {/* RIGHT COLUMN: UNIT ECONOMICS & HARDWARE UPGRADES (7 COLS) */}
-            <div className="lg:col-span-7 bg-white p-5 space-y-4 flex flex-col justify-between">
+            <div className={`bg-white p-5 space-y-4 flex flex-col justify-between border ${activeTheme.cardBorder} rounded-2xl shadow-xs relative overflow-hidden`}>
+              {/* Top Accent Strip */}
+              <div className="absolute top-0 inset-x-0 h-1" style={{ backgroundColor: activeTheme.accentColor }} />
               
               {/* UNIT ECONOMICS BREAKDOWN STRUCTURE */}
               <div className="space-y-3 font-mono text-xs flex-1 flex flex-col justify-around">
@@ -1475,7 +1540,7 @@ export default function CompanyPortfolio({
                       Production Cost & Margin Analysis
                     </h3>
                   </div>
-                  <span className="font-mono text-xs font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full">
+                  <span className={`font-mono text-xs font-bold px-2.5 py-1 rounded-full ${activeTheme.badgeBg}`}>
                     {activeCompany.baseNetMarginPct ? `${activeCompany.baseNetMarginPct.toFixed(1)}% Margin` : 'Profitable'}
                   </span>
                 </div>
@@ -1513,9 +1578,9 @@ export default function CompanyPortfolio({
                     </strong>
                   </div>
 
-                  <div className="flex justify-between items-center p-2.5 rounded-xl bg-emerald-50 text-emerald-950 font-bold">
+                  <div className={`flex justify-between items-center p-2.5 rounded-xl ${activeTheme.cardHeaderBg} font-bold`}>
                     <span className="font-sans font-extrabold">Net Profit Per Unit:</span>
-                    <span className={`font-black text-sm font-mono ${activeCompany.baseNetProfitPerUnit >= 0 ? 'text-emerald-700' : 'text-rose-600'}`}>
+                    <span className={`font-black text-sm font-mono ${activeTheme.accentText}`}>
                       {activeCompany.baseNetProfitPerUnit >= 0 ? '+' : ''}{activeCompany.baseNetProfitPerUnit.toFixed(3)} BTC / unit
                     </span>
                   </div>
@@ -1531,20 +1596,21 @@ export default function CompanyPortfolio({
 
               {/* HARDWARE UPGRADES IN PLAIN ENGLISH */}
               {activeCompany.nextEngineTier && (
-                <div className="bg-slate-50 p-3.5 rounded-xl space-y-1">
+                <div className={`p-3.5 rounded-xl space-y-1 ${activeTheme.cardHeaderBg} border ${activeTheme.cardBorder}`}>
                   <div className="flex items-center justify-between text-slate-800 font-bold text-xs">
                     <span>Next Automated Engine Level (Lv.{activeCompany.engineLevel + 1})</span>
-                    <span className="text-amber-700 font-mono font-bold">+24 PP / day</span>
+                    <span className={`font-mono font-bold ${activeTheme.accentText}`}>+24 PP / day</span>
                   </div>
                   <p className="text-xs text-slate-600 font-sans">
-                    Upgrading costs <strong>{activeCompany.engineUpgradeSteel} Steel</strong> ({activeCompany.engineUpgradeCoins.toFixed(1)} BTC). Gives you +1 PP/hour (+24 PP/day), generating <strong>+{activeCompany.engineExtraProfitDaily.toFixed(1)} BTC/day</strong> extra net profit.
+                    Upgrading costs <strong>{activeCompany.engineUpgradeSteel} Steel</strong> ({activeCompany.engineUpgradeCoins.toFixed(1)} BTC). Gives you +1 PP/hour (+24 PP/day), generating <strong className={activeTheme.accentText}>+{activeCompany.engineExtraProfitDaily.toFixed(1)} BTC/day</strong> extra net profit.
                   </p>
-                  <div className="text-[11px] font-mono text-emerald-700 font-bold pt-0.5">
+                  <div className={`text-[11px] font-mono font-bold pt-0.5 ${activeTheme.accentText}`}>
                     Recoups its upgrade cost in {activeCompany.enginePaybackDays.toFixed(0)} days.
                   </div>
                 </div>
               )}
 
+            </div>
             </div>
 
           </div>

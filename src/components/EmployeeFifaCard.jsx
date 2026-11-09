@@ -20,12 +20,18 @@ import { getCountryFlag } from './CompanyPortfolio';
 import { getTraitInfo } from '../data/employeeTraits';
 import { getItemValuePerPp } from '../data/marketMath';
 import { evaluateTraitSynergy, getCountryName } from '../data/traitSynergyEngine';
+import CountryFlagBadge from './CountryFlagBadge';
 
 /**
  * Sleek Futuristic AI Robot Avatar Component
  * Used as a placeholder for AI line workers who do not have an in-game profile picture.
+ * - Male: High-tech Electric Blue cybernetic visor, power diodes, and circuit traces.
+ * - Female: Sleek Hot Pink / Rose Neon cybernetic visor, power diodes, and circuit traces.
  */
-export function AiRobotAvatar({ className = "w-full h-full" }) {
+export function AiRobotAvatar({ gender = 'male', className = "w-full h-full" }) {
+  const isFemale = String(gender || '').toLowerCase() === 'female';
+  const idPrefix = isFemale ? 'femaleBot' : 'maleBot';
+
   return (
     <svg 
       className={className} 
@@ -34,44 +40,117 @@ export function AiRobotAvatar({ className = "w-full h-full" }) {
       xmlns="http://www.w3.org/2000/svg"
     >
       <defs>
-        <filter id="neonGlowCyan" x="-20%" y="-20%" width="140%" height="140%">
-          <feGaussianBlur stdDeviation="2" result="blur" />
+        {/* Gender-specific neon glow filter */}
+        <filter id={`${idPrefix}_glow`} x="-20%" y="-20%" width="140%" height="140%">
+          <feGaussianBlur stdDeviation="2.2" result="blur" />
           <feComposite in="SourceGraphic" in2="blur" operator="over" />
         </filter>
-        <linearGradient id="robotChassisGold" x1="0%" y1="0%" x2="100%" y2="100%">
+
+        {/* Chassis gold metallic gradient */}
+        <linearGradient id={`${idPrefix}_chassisGold`} x1="0%" y1="0%" x2="100%" y2="100%">
           <stop offset="0%" stopColor="#fef08a" />
           <stop offset="40%" stopColor="#d97706" />
           <stop offset="100%" stopColor="#451a03" />
         </linearGradient>
-        <linearGradient id="robotDarkArmor" x1="0%" y1="0%" x2="0%" y2="100%">
+
+        {/* Dark cyber armor gradient */}
+        <linearGradient id={`${idPrefix}_darkArmor`} x1="0%" y1="0%" x2="0%" y2="100%">
           <stop offset="0%" stopColor="#292524" />
           <stop offset="100%" stopColor="#0c0a09" />
         </linearGradient>
-        <linearGradient id="robotVisorCyan" x1="0%" y1="0%" x2="100%" y2="0%">
-          <stop offset="0%" stopColor="#38bdf8" />
-          <stop offset="50%" stopColor="#67e8f9" />
-          <stop offset="100%" stopColor="#0284c7" />
+
+        {/* Visor gradient: Pink for female, Blue for male */}
+        <linearGradient id={`${idPrefix}_visor`} x1="0%" y1="0%" x2="100%" y2="0%">
+          {isFemale ? (
+            <>
+              <stop offset="0%" stopColor="#f472b6" />
+              <stop offset="50%" stopColor="#fb7185" />
+              <stop offset="100%" stopColor="#db2777" />
+            </>
+          ) : (
+            <>
+              <stop offset="0%" stopColor="#38bdf8" />
+              <stop offset="50%" stopColor="#60a5fa" />
+              <stop offset="100%" stopColor="#0284c7" />
+            </>
+          )}
         </linearGradient>
       </defs>
 
-      {/* Background radial aura */}
-      <rect width="100" height="120" fill="url(#robotDarkArmor)" rx="10" />
-      <circle cx="50" cy="50" r="38" fill="#d97706" fillOpacity="0.12" />
+      {/* Background cyber armor plate */}
+      <rect width="100" height="120" fill={`url(#${idPrefix}_darkArmor)`} rx="10" />
+      
+      {/* Background ambient radial aura (Pink or Blue) */}
+      <circle 
+        cx="50" 
+        cy="50" 
+        r="38" 
+        fill={isFemale ? "#ec4899" : "#0284c7"} 
+        fillOpacity="0.18" 
+      />
 
       {/* Cybernetic circuit traces in background */}
-      <path d="M 15 25 L 35 25 L 42 35" stroke="#fef08a" strokeWidth="0.8" strokeOpacity="0.25" strokeDasharray="2 2" />
-      <path d="M 85 25 L 65 25 L 58 35" stroke="#fef08a" strokeWidth="0.8" strokeOpacity="0.25" strokeDasharray="2 2" />
-      <path d="M 20 105 L 35 90 L 35 75" stroke="#38bdf8" strokeWidth="0.8" strokeOpacity="0.3" strokeDasharray="2 2" />
-      <path d="M 80 105 L 65 90 L 65 75" stroke="#38bdf8" strokeWidth="0.8" strokeOpacity="0.3" strokeDasharray="2 2" />
+      <path 
+        d="M 15 25 L 35 25 L 42 35" 
+        stroke="#fef08a" 
+        strokeWidth="0.8" 
+        strokeOpacity="0.25" 
+        strokeDasharray="2 2" 
+      />
+      <path 
+        d="M 85 25 L 65 25 L 58 35" 
+        stroke="#fef08a" 
+        strokeWidth="0.8" 
+        strokeOpacity="0.25" 
+        strokeDasharray="2 2" 
+      />
+      
+      {/* Lower circuit traces (Pink or Blue) */}
+      <path 
+        d="M 20 105 L 35 90 L 35 75" 
+        stroke={isFemale ? "#f472b6" : "#38bdf8"} 
+        strokeWidth="0.9" 
+        strokeOpacity="0.4" 
+        strokeDasharray="2 2" 
+      />
+      <path 
+        d="M 80 105 L 65 90 L 65 75" 
+        stroke={isFemale ? "#f472b6" : "#38bdf8"} 
+        strokeWidth="0.9" 
+        strokeOpacity="0.4" 
+        strokeDasharray="2 2" 
+      />
 
       {/* Torso & Shoulder Armor */}
-      <path d="M 22 120 L 32 98 L 44 94 L 56 94 L 68 98 L 78 120 Z" fill="#1c1917" stroke="#b45309" strokeWidth="1" />
-      {/* Chest core / Power LED */}
-      <circle cx="50" cy="108" r="4" fill="#06b6d4" filter="url(#neonGlowCyan)" />
+      {isFemale ? (
+        <path 
+          d="M 24 120 L 34 100 L 45 96 L 55 96 L 66 100 L 76 120 Z" 
+          fill="#1c1917" 
+          stroke="#b45309" 
+          strokeWidth="1" 
+        />
+      ) : (
+        <path 
+          d="M 22 120 L 32 98 L 44 94 L 56 94 L 68 98 L 78 120 Z" 
+          fill="#1c1917" 
+          stroke="#b45309" 
+          strokeWidth="1" 
+        />
+      )}
+
+      {/* Chest core / Power LED (Hot Pink for female, Electric Blue/Cyan for male) */}
+      <circle 
+        cx="50" 
+        cy="108" 
+        r="4.2" 
+        fill={isFemale ? "#f43f5e" : "#06b6d4"} 
+        filter={`url(#${idPrefix}_glow)`} 
+      />
       <circle cx="50" cy="108" r="2" fill="#ffffff" />
+
       {/* Shoulder golden bevels */}
-      <path d="M 18 120 L 28 102 L 34 105 L 26 120 Z" fill="url(#robotChassisGold)" />
-      <path d="M 82 120 L 72 102 L 66 105 L 74 120 Z" fill="url(#robotChassisGold)" />
+      <path d="M 18 120 L 28 102 L 34 105 L 26 120 Z" fill={`url(#${idPrefix}_chassisGold)`} />
+      <path d="M 82 120 L 72 102 L 66 105 L 74 120 Z" fill={`url(#${idPrefix}_chassisGold)`} />
 
       {/* Neck Pistons & Collar */}
       <rect x="44" y="82" width="12" height="14" rx="2" fill="#292524" stroke="#78350f" strokeWidth="0.8" />
@@ -79,30 +158,66 @@ export function AiRobotAvatar({ className = "w-full h-full" }) {
       <line x1="53" y1="84" x2="53" y2="94" stroke="#a8a29e" strokeWidth="1" />
 
       {/* Head Chassis Base */}
-      <path 
-        d="M 32 44 L 42 22 L 58 22 L 68 44 L 66 74 L 50 86 L 34 74 Z" 
-        fill="#1c1917" 
-        stroke="url(#robotChassisGold)" 
-        strokeWidth="1.5" 
-      />
+      {isFemale ? (
+        <path 
+          d="M 33 44 L 43 23 L 57 23 L 67 44 L 64 73 L 50 86 L 36 73 Z" 
+          fill="#1c1917" 
+          stroke={`url(#${idPrefix}_chassisGold)`} 
+          strokeWidth="1.5" 
+        />
+      ) : (
+        <path 
+          d="M 32 44 L 42 22 L 58 22 L 68 44 L 66 74 L 50 86 L 34 74 Z" 
+          fill="#1c1917" 
+          stroke={`url(#${idPrefix}_chassisGold)`} 
+          strokeWidth="1.5" 
+        />
+      )}
 
       {/* Forehead Gold Armor Plate */}
-      <path d="M 40 24 L 60 24 L 64 36 L 36 36 Z" fill="url(#robotChassisGold)" />
-      {/* AI status indicator */}
-      <circle cx="50" cy="30" r="1.8" fill="#38bdf8" filter="url(#neonGlowCyan)" />
+      <path d="M 40 24 L 60 24 L 64 36 L 36 36 Z" fill={`url(#${idPrefix}_chassisGold)`} />
+      
+      {/* Forehead AI status indicator diode (Pink for female, Blue for male) */}
+      <circle 
+        cx="50" 
+        cy="30" 
+        r="2" 
+        fill={isFemale ? "#f472b6" : "#38bdf8"} 
+        filter={`url(#${idPrefix}_glow)`} 
+      />
 
       {/* Side Audio / Sensor Pods */}
-      <rect x="28" y="44" width="4" height="18" rx="1.5" fill="url(#robotChassisGold)" />
-      <rect x="68" y="44" width="4" height="18" rx="1.5" fill="url(#robotChassisGold)" />
-      <line x1="26" y1="53" x2="28" y2="53" stroke="#38bdf8" strokeWidth="1" />
-      <line x1="72" y1="53" x2="74" y2="53" stroke="#38bdf8" strokeWidth="1" />
+      <rect x="28" y="44" width="4" height="18" rx="1.5" fill={`url(#${idPrefix}_chassisGold)`} />
+      <rect x="68" y="44" width="4" height="18" rx="1.5" fill={`url(#${idPrefix}_chassisGold)`} />
+      <line 
+        x1="26" y1="53" x2="28" y2="53" 
+        stroke={isFemale ? "#f472b6" : "#38bdf8"} 
+        strokeWidth="1.2" 
+      />
+      <line 
+        x1="72" y1="53" x2="74" y2="53" 
+        stroke={isFemale ? "#f472b6" : "#38bdf8"} 
+        strokeWidth="1.2" 
+      />
 
       {/* Glowing Neon Visor / Cybernetic Eyes */}
-      <path 
-        d="M 37 49 L 63 49 L 60 59 L 40 59 Z" 
-        fill="url(#robotVisorCyan)" 
-        filter="url(#neonGlowCyan)" 
-      />
+      {isFemale ? (
+        // Sleek styled cat-eye curve visor for female robot
+        <path 
+          d="M 36 49 L 64 49 L 61 59 L 39 59 Z" 
+          fill={`url(#${idPrefix}_visor)`} 
+          filter={`url(#${idPrefix}_glow)`} 
+        />
+      ) : (
+        // Bold angular visor for male robot
+        <path 
+          d="M 37 49 L 63 49 L 60 59 L 40 59 Z" 
+          fill={`url(#${idPrefix}_visor)`} 
+          filter={`url(#${idPrefix}_glow)`} 
+        />
+      )}
+
+      {/* Dual Cybernetic Ocular Pupils */}
       <circle cx="45" cy="54" r="2.2" fill="#ffffff" />
       <circle cx="55" cy="54" r="2.2" fill="#ffffff" />
 
@@ -111,12 +226,12 @@ export function AiRobotAvatar({ className = "w-full h-full" }) {
       <path d="M 65 63 L 58 63 L 55 72 L 63 72 Z" fill="#292524" stroke="#44403c" strokeWidth="0.6" />
 
       {/* Mouth Grille Vent Slats */}
-      <line x1="46" y1="72" x2="54" y2="72" stroke="#d97706" strokeWidth="1" strokeLinecap="round" />
-      <line x1="47" y1="75" x2="53" y2="75" stroke="#d97706" strokeWidth="1" strokeLinecap="round" />
-      <line x1="48" y1="78" x2="52" y2="78" stroke="#d97706" strokeWidth="1" strokeLinecap="round" />
+      <line x1="46" y1="72" x2="54" y2="72" stroke={isFemale ? "#f472b6" : "#d97706"} strokeWidth="1" strokeLinecap="round" />
+      <line x1="47" y1="75" x2="53" y2="75" stroke={isFemale ? "#f472b6" : "#d97706"} strokeWidth="1" strokeLinecap="round" />
+      <line x1="48" y1="78" x2="52" y2="78" stroke={isFemale ? "#f472b6" : "#d97706"} strokeWidth="1" strokeLinecap="round" />
 
       {/* Chin Guard */}
-      <path d="M 46 80 L 54 80 L 50 85 Z" fill="url(#robotChassisGold)" />
+      <path d="M 46 80 L 54 80 L 50 85 Z" fill={`url(#${idPrefix}_chassisGold)`} />
     </svg>
   );
 }
@@ -588,31 +703,31 @@ export default function EmployeeFifaCard({
         - Authentic FIFA gold card color palette and metallic gradients
       */}
       <div 
-        className="relative rounded-2xl p-4 sm:p-5 border-2 border-[#fced9a] shadow-[0_8px_30px_rgba(180,120,20,0.35)] ring-1 ring-[#875c12] text-[#2c1d04] transition-all duration-300 font-sans"
+        className="relative rounded-2xl p-3 sm:p-3.5 border-2 border-[#fef08a] shadow-[0_10px_35px_rgba(202,138,4,0.4)] ring-1 ring-[#ca8a04] text-[#1c1202] transition-all duration-300 font-sans"
         style={{
-          background: 'linear-gradient(160deg, #f7e7a3 0%, #ecd077 18%, #dbb048 42%, #c9992c 68%, #b3801a 88%, #9c6c10 100%)'
+          background: 'linear-gradient(165deg, #fffbeb 0%, #fef08a 12%, #fde047 28%, #facc15 50%, #eab308 75%, #ca8a04 100%)'
         }}
       >
         {/* Subtle FIFA Metallic Diagonal Ray / Ribbon Overlay */}
         <div className="absolute inset-0 rounded-2xl overflow-hidden pointer-events-none">
-          <svg className="w-full h-full opacity-25" viewBox="0 0 360 480" fill="none" preserveAspectRatio="none">
+          <svg className="w-full h-full opacity-35" viewBox="0 0 360 480" fill="none" preserveAspectRatio="none">
             <path d="M-50 120 L280 -40 L380 40 L-10 260 Z" fill="url(#goldSheenLight)" />
             <path d="M40 320 L380 100 L420 160 L100 420 Z" fill="url(#goldSheenDark)" />
             <path d="M-80 380 L320 180 L360 230 L-20 470 Z" fill="url(#goldSheenLight)" />
-            <circle cx="270" cy="110" r="130" stroke="#fff" strokeWidth="1.5" strokeOpacity="0.25" strokeDasharray="3 3" />
-            <circle cx="270" cy="110" r="160" stroke="#fff" strokeWidth="1" strokeOpacity="0.15" />
+            <circle cx="270" cy="110" r="130" stroke="#fff" strokeWidth="1.5" strokeOpacity="0.35" strokeDasharray="3 3" />
+            <circle cx="270" cy="110" r="160" stroke="#fff" strokeWidth="1" strokeOpacity="0.2" />
             <defs>
               <linearGradient id="goldSheenLight" x1="0%" y1="0%" x2="100%" y2="100%">
-                <stop offset="0%" stopColor="#ffffff" stopOpacity="0.4" />
-                <stop offset="100%" stopColor="#f5d77f" stopOpacity="0" />
+                <stop offset="0%" stopColor="#ffffff" stopOpacity="0.5" />
+                <stop offset="100%" stopColor="#fef08a" stopOpacity="0.05" />
               </linearGradient>
               <linearGradient id="goldSheenDark" x1="0%" y1="0%" x2="100%" y2="100%">
-                <stop offset="0%" stopColor="#875c12" stopOpacity="0.25" />
-                <stop offset="100%" stopColor="#f7e7a3" stopOpacity="0" />
+                <stop offset="0%" stopColor="#eab308" stopOpacity="0.2" />
+                <stop offset="100%" stopColor="#fef08a" stopOpacity="0.05" />
               </linearGradient>
             </defs>
           </svg>
-          <div className="absolute top-0 inset-x-0 h-1.5 bg-gradient-to-r from-transparent via-white/60 to-transparent" />
+          <div className="absolute top-0 inset-x-0 h-1.5 bg-gradient-to-r from-transparent via-white/80 to-transparent" />
         </div>
 
         {/* 
@@ -624,7 +739,7 @@ export default function EmployeeFifaCard({
               - Manager profile picture or Robot placeholder for AI workers
               - Below profile picture: Country name in FULL
         */}
-        <div className="relative z-10 flex items-stretch justify-between gap-3 mb-2.5">
+        <div className="relative z-10 flex items-stretch justify-between gap-2.5 mb-1.5">
           
           {/* Left Column Stack: Company and Tool only (no repetitive numbers/country above company) */}
           <div className="flex-1 flex flex-col justify-center space-y-2 max-w-[56%]">
@@ -715,7 +830,7 @@ export default function EmployeeFifaCard({
 
               {/* Robot avatar placeholder for AI workers */}
               <div className={`w-full h-full rounded-[10px] ${avatarUrl ? 'hidden' : 'block'}`}>
-                <AiRobotAvatar className="w-full h-full" />
+                <AiRobotAvatar gender={worker.gender} className="w-full h-full" />
               </div>
 
               {/* Role / Age Badge overlay at bottom of photo */}
@@ -729,13 +844,13 @@ export default function EmployeeFifaCard({
               </div>
             </div>
 
-            {/* Below their profile picture: WRITE their country name in FULL */}
-            <div className="mt-1.5 flex items-center justify-center gap-1.5 px-2 py-0.5 rounded-md bg-black/15 border border-[#8a6316]/30 text-center w-full shadow-xs">
-              <span className="text-sm shrink-0 leading-none">{flagEmoji}</span>
-              <span className="text-[10px] font-black uppercase tracking-wider text-[#241703] font-sans truncate">
-                {countryName}
-              </span>
-            </div>
+            {/* Below their profile picture: WRITE their country name in FULL with waving flag colors */}
+            <CountryFlagBadge
+              countryCode={countryCode}
+              countryFlag={flagEmoji}
+              countryName={countryName}
+              className="mt-1.5 w-full"
+            />
           </div>
 
         </div>
@@ -745,7 +860,7 @@ export default function EmployeeFifaCard({
           "Name: 'as placed'"
           Placed exactly across the card width where "NAME HERE" is in the FIFA card!
         */}
-        <div className="relative z-10 my-2">
+        <div className="relative z-10 my-1">
           <div 
             className="py-1 px-3 rounded-lg shadow-inner border border-[#8a6316]/50 flex items-center justify-center"
             style={{
@@ -764,9 +879,9 @@ export default function EmployeeFifaCard({
           "with the details in [] and the traits filled in the place where the stats are."
           With dropdown arrows for skill points to toggle inline audits!
         */}
-        <div className="relative z-10 pt-1 pb-1">
+        <div className="relative z-10 pt-0.5 pb-0.5">
           
-          <div className="h-px bg-gradient-to-r from-transparent via-[#875c12]/50 to-transparent mb-2" />
+          <div className="h-px bg-gradient-to-r from-transparent via-[#875c12]/50 to-transparent mb-1" />
 
           {/* 6-Stat Grid with central divider line */}
           <div className="relative grid grid-cols-2 gap-x-3.5 gap-y-1 font-mono text-center">
@@ -1145,7 +1260,7 @@ export default function EmployeeFifaCard({
             "remove the ugly borders around the traits and synergies and instead make them lists with dropdowns instead."
             Clean unbordered list of traits with dropdown arrows and simple clear details!
           */}
-          <div className="mt-2.5 pt-2 border-t border-[#875c12]/35">
+          <div className="mt-1 pt-1.5 border-t border-[#875c12]/35">
             <div className="flex items-center justify-between mb-1 px-1">
               <span className="text-[9px] font-black uppercase tracking-widest text-[#52390a] font-sans flex items-center gap-1">
                 <Sparkles className="w-2.5 h-2.5 text-[#52390a]" />
@@ -1157,7 +1272,7 @@ export default function EmployeeFifaCard({
             </div>
 
             {traits.length > 0 ? (
-              <div className="space-y-0.5">
+              <div className="space-y-0.5 max-h-[105px] overflow-y-auto pr-1">
                 {traits.map((t, idx) => (
                   <TraitDropdownItem 
                     key={idx}
@@ -1208,11 +1323,11 @@ export function EmployeeFifaCardMini({
 
   return (
     <div 
-      className={`rounded-2xl p-4 border-2 border-[#fced9a] ring-1 ring-[#875c12] cursor-pointer select-none transition-all duration-300 hover:brightness-105 flex flex-col justify-between opacity-100 shadow-2xl ${className}`}
+      className={`rounded-2xl p-3.5 border-2 border-[#fef08a] ring-1 ring-[#ca8a04] cursor-pointer select-none transition-all duration-300 hover:brightness-105 flex flex-col justify-between opacity-100 shadow-2xl ${className}`}
       style={{
-        background: 'linear-gradient(160deg, #f7e7a3 0%, #ecd077 18%, #dbb048 42%, #c9992c 68%, #b3801a 88%, #9c6c10 100%)',
+        background: 'linear-gradient(165deg, #fffbeb 0%, #fef08a 12%, #fde047 28%, #facc15 50%, #eab308 75%, #ca8a04 100%)',
         width: '260px',
-        minHeight: '370px'
+        minHeight: '330px'
       }}
       onClick={onClick}
     >
@@ -1220,7 +1335,7 @@ export function EmployeeFifaCardMini({
         {avatarUrl ? (
           <img src={avatarUrl} alt={worker.name} className="w-full h-full object-cover rounded-[8px]" />
         ) : (
-          <AiRobotAvatar className="w-full h-full" />
+          <AiRobotAvatar gender={worker.gender} className="w-full h-full" />
         )}
         <div className="absolute bottom-1 inset-x-1 px-1 py-0.5 rounded bg-black/75 text-[8px] font-mono font-bold text-white flex items-center justify-between border border-white/10">
           <span className={worker.gender === 'female' ? 'text-pink-300' : 'text-sky-300'}>
@@ -1232,13 +1347,13 @@ export function EmployeeFifaCardMini({
         </div>
       </div>
 
-      {/* Below picture: full country name with flag */}
-      <div className="flex items-center justify-center gap-1.5 px-2 py-0.5 rounded-md bg-black/15 border border-[#8a6316]/30 text-center mx-auto w-full max-w-[150px] shadow-xs my-2">
-        <span className="text-sm shrink-0 leading-none">{flagEmoji}</span>
-        <span className="text-[10px] font-black uppercase tracking-wider text-[#241703] font-sans truncate">
-          {countryName}
-        </span>
-      </div>
+      {/* Below picture: full country name with flag and waving flag colors */}
+      <CountryFlagBadge
+        countryCode={countryCode}
+        countryFlag={flagEmoji}
+        countryName={countryName}
+        className="mx-auto w-full max-w-[150px] my-2"
+      />
 
       <div className="py-1 px-2 rounded-md bg-white/40 border border-[#8a6316]/30 text-center my-1 shadow-inner">
         <span className="text-xs font-black uppercase text-[#241703] truncate block font-sans">
@@ -1317,14 +1432,14 @@ export function EmployeeProductionBreakdown({
   const monthlyWage = Number((dailyWage * 30).toFixed(2));
 
   return (
-    <div className={`bg-slate-950/80 backdrop-blur-md border border-slate-800 rounded-xl p-3.5 space-y-2.5 font-mono text-xs shadow-xl text-slate-200 ${className}`}>
+    <div className={`bg-slate-950/80 backdrop-blur-md border border-slate-800 rounded-xl p-2.5 space-y-1.5 font-mono text-xs shadow-xl text-slate-200 ${className}`}>
       
       {/* 4 Primary KPI Cards with Dropdown Toggle (No Title) */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
         
         {/* Metric 1: Hourly Output PP */}
         <div 
-          className={`p-2.5 rounded-lg border transition cursor-pointer select-none ${
+          className={`p-2 rounded-lg border transition cursor-pointer select-none ${
             expandedMetric === 'output' 
               ? 'bg-slate-900 border-amber-400 ring-1 ring-amber-400/50 shadow-md' 
               : 'bg-slate-900/90 border-slate-800 hover:border-slate-700 shadow-xs'
@@ -1339,7 +1454,7 @@ export function EmployeeProductionBreakdown({
               <ChevronDown className="w-3 h-3 text-slate-400" />
             )}
           </div>
-          <span className="text-sm font-bold text-slate-100 block font-mono mt-0.5">
+          <span className="text-xs sm:text-sm font-bold text-slate-100 block font-mono mt-0.5">
             {hourlyOutputPp.toFixed(2)} PP/h
           </span>
           <span className="text-[9px] text-emerald-400 font-sans block">
@@ -1349,7 +1464,7 @@ export function EmployeeProductionBreakdown({
 
         {/* Metric 2: Hourly Wage */}
         <div 
-          className={`p-2.5 rounded-lg border transition cursor-pointer select-none ${
+          className={`p-2 rounded-lg border transition cursor-pointer select-none ${
             expandedMetric === 'wage' 
               ? 'bg-slate-900 border-amber-400 ring-1 ring-amber-400/50 shadow-md' 
               : 'bg-slate-900/90 border-slate-800 hover:border-slate-700 shadow-xs'
@@ -1364,7 +1479,7 @@ export function EmployeeProductionBreakdown({
               <ChevronDown className="w-3 h-3 text-slate-400" />
             )}
           </div>
-          <span className="text-sm font-bold text-rose-400 block font-mono mt-0.5">
+          <span className="text-xs sm:text-sm font-bold text-rose-400 block font-mono mt-0.5">
             -{hourlyWage.toFixed(3)} BTC/h
           </span>
           <span className="text-[9px] text-slate-400 font-sans block">
@@ -1374,7 +1489,7 @@ export function EmployeeProductionBreakdown({
 
         {/* Metric 3: Hourly Revenue */}
         <div 
-          className={`p-2.5 rounded-lg border transition cursor-pointer select-none ${
+          className={`p-2 rounded-lg border transition cursor-pointer select-none ${
             expandedMetric === 'revenue' 
               ? 'bg-slate-900 border-amber-400 ring-1 ring-amber-400/50 shadow-md' 
               : 'bg-slate-900/90 border-slate-800 hover:border-slate-700 shadow-xs'
@@ -1389,7 +1504,7 @@ export function EmployeeProductionBreakdown({
               <ChevronDown className="w-3 h-3 text-slate-400" />
             )}
           </div>
-          <span className="text-sm font-bold text-emerald-400 block font-mono mt-0.5">
+          <span className="text-xs sm:text-sm font-bold text-emerald-400 block font-mono mt-0.5">
             +{hourlyRevenue.toFixed(3)} BTC/h
           </span>
           <span className="text-[9px] text-slate-400 font-sans block">
@@ -1399,7 +1514,7 @@ export function EmployeeProductionBreakdown({
 
         {/* Metric 4: Net Daily Profit */}
         <div 
-          className={`p-2.5 rounded-lg border transition cursor-pointer select-none ${
+          className={`p-2 rounded-lg border transition cursor-pointer select-none ${
             expandedMetric === 'profit' 
               ? 'bg-slate-900 border-amber-400 ring-1 ring-amber-400/50 shadow-md' 
               : 'bg-slate-900/90 border-slate-800 hover:border-slate-700 shadow-xs'
@@ -1414,7 +1529,7 @@ export function EmployeeProductionBreakdown({
               <ChevronDown className="w-3 h-3 text-slate-400" />
             )}
           </div>
-          <span className={`text-sm font-black block font-mono mt-0.5 ${dailyProfit >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+          <span className={`text-xs sm:text-sm font-black block font-mono mt-0.5 ${dailyProfit >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
             {dailyProfit >= 0 ? '+' : ''}{dailyProfit.toFixed(2)} BTC/d
           </span>
           <span className="text-[9px] text-slate-400 font-sans block">

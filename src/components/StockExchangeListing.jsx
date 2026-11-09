@@ -25,6 +25,8 @@ import { api } from '../services/wareraApi';
 import { RECIPES } from '../data/gameData';
 import { getCountryFlag } from './CompanyPortfolio';
 import { getCountryName } from '../data/traitSynergyEngine';
+import { getCompanyTheme } from '../data/companyThemes';
+import CountryFlagBadge from './CountryFlagBadge';
 
 const PIPELINE_META = {
   iron: { name: 'Metallurgy Pipeline', rawName: 'Iron', endName: 'Steel', endCode: 'steel' },
@@ -34,15 +36,31 @@ const PIPELINE_META = {
   fish: { name: 'Fisheries Pipeline', rawName: 'Fish', endName: 'Cooked Fish', endCode: 'cookedFish' },
   lead: { name: 'Munitions Pipeline', rawName: 'Lead', endName: 'Ammunition', endCode: 'ammo' },
   petroleum: { name: 'Petroleum & Energy Pipeline', rawName: 'Petroleum', endName: 'Refined Oil', endCode: 'oil' },
-  coca: { name: 'Pharmaceutical Pipeline', rawName: 'Coca Plant', endName: 'Combat Pill', endCode: 'pill' },
-  mysteriousPlant: { name: 'Pharmaceutical Pipeline', rawName: 'Mysterious Plant', endName: 'Combat Pill', endCode: 'pill' },
+  coca: { name: 'Pharmaceutical Pipeline', rawName: 'Coca Plant', endName: 'Cocain', endCode: 'cocain' },
+  mysteriousPlant: { name: 'Pharmaceutical Pipeline', rawName: 'Mysterious Plant', endName: 'Cocain', endCode: 'cocain' },
   wood: { name: 'Forestry & Paper Pipeline', rawName: 'Wood', endName: 'Paper', endCode: 'paper' },
 };
 
 /**
+ * Resolves row gradient colors:
+ * - Raw material companies -> Grey gradient
+ * - Ammo:
+ *     small -> Green gradient
+ *     medium -> Blue gradient
+ *     heavy -> Purple gradient
+ * - Cooked fish -> Purple gradient
+ * - Concrete, steel, bread, paper, oil -> Green gradient
+ * - Pill / Cocain -> Purple gradient
+ * - Steak -> Blue gradient
+ */
+export function getCompanyRowGradient(company) {
+  return getCompanyTheme(company).rowGradient;
+}
+
+/**
  * User / Portfolio Owner FIFA Trading Card Component
  * Order: Image -> Name -> Level -> Country -> Current Location -> Total Net Worth.
- * Contrast: Bright vivid neon green/red for past 1h change.
+ * Contrast: Deep emerald / crimson for past 1h change with clear readability on gold.
  */
 function UserFifaCard({
   avatar,
@@ -52,19 +70,18 @@ function UserFifaCard({
   countryName,
   currentLocation,
   netWorth,
-  hourlyStats
+  hourlyStats,
+  countryCode
 }) {
   return (
     <div 
-      className="rounded-2xl p-4 border-2 border-[#fced9a] ring-1 ring-[#875c12]/40 select-none transition-all duration-300 hover:brightness-105 flex flex-col justify-between opacity-100 shadow-[0_12px_30px_rgba(0,0,0,0.12)] hover:shadow-[0_16px_36px_rgba(0,0,0,0.16)] shrink-0"
+      className="rounded-2xl p-3.5 sm:p-4 border-2 border-[#fced9a] ring-1 ring-[#875c12]/40 select-none transition-all duration-300 hover:brightness-105 flex flex-col justify-between opacity-100 shadow-[0_12px_30px_rgba(0,0,0,0.12)] hover:shadow-[0_16px_36px_rgba(0,0,0,0.16)] w-full h-full"
       style={{
-        background: 'linear-gradient(160deg, #f7e7a3 0%, #ecd077 18%, #dbb048 42%, #c9992c 68%, #b3801a 88%, #9c6c10 100%)',
-        width: '260px',
-        minHeight: '340px'
+        background: 'linear-gradient(160deg, #f7e7a3 0%, #ecd077 18%, #dbb048 42%, #c9992c 68%, #b3801a 88%, #9c6c10 100%)'
       }}
     >
       {/* 1. Image (Clean, unobstructed) */}
-      <div className="w-24 h-28 mx-auto rounded-xl overflow-hidden p-0.5 border border-[#8a6316]/60 shadow-md mt-1 bg-gradient-to-b from-[#fceda2] to-[#875c12] relative">
+      <div className="w-24 h-28 mx-auto rounded-xl overflow-hidden p-0.5 border border-[#8a6316]/60 shadow-md mt-0.5 bg-gradient-to-b from-[#fceda2] to-[#875c12] relative">
         {avatar ? (
           <img 
             src={avatar} 
@@ -92,27 +109,27 @@ function UserFifaCard({
       </div>
 
       {/* 3. Level */}
-      <div className="flex items-center justify-center gap-1 py-0.5 px-2 bg-black/15 rounded-md border border-[#8a6316]/30 text-center mx-auto w-full max-w-[130px] shadow-xs my-0.5 font-mono">
+      <div className="flex items-center justify-center gap-1 py-0.5 px-2 bg-black/15 rounded-md border border-[#8a6316]/30 text-center mx-auto w-full max-w-[140px] shadow-xs my-0.5 font-mono">
         <span className="text-[10px] font-extrabold text-[#241703] tracking-wider uppercase">
           Level {level || 1}
         </span>
       </div>
 
-      {/* 4. Country (Flag + Full Country Name) */}
-      <div className="flex items-center justify-center gap-1.5 px-2 py-0.5 rounded-md bg-black/15 border border-[#8a6316]/30 text-center mx-auto w-full max-w-[170px] shadow-xs my-0.5">
-        <span className="text-sm shrink-0 leading-none">{countryFlag}</span>
-        <span className="text-[10px] font-black uppercase tracking-wider text-[#241703] font-sans truncate">
-          {countryName}
-        </span>
-      </div>
+      {/* 4. Country (Flag + Full Country Name with waving flag colors) */}
+      <CountryFlagBadge
+        countryCode={countryCode}
+        countryFlag={countryFlag}
+        countryName={countryName}
+        className="mx-auto w-full max-w-[190px] my-0.5"
+      />
 
       {/* 5. Current Location */}
-      <div className="flex items-center justify-center gap-1 py-0.5 px-2 bg-black/10 rounded-md border border-[#8a6316]/20 font-sans text-[10px] text-[#3a2503] font-bold truncate mx-auto w-full max-w-[220px] my-0.5">
+      <div className="flex items-center justify-center gap-1 py-0.5 px-2 bg-black/10 rounded-md border border-[#8a6316]/20 font-sans text-[10px] text-[#3a2503] font-bold truncate mx-auto w-full max-w-[240px] my-0.5">
         <MapPin className="w-3 h-3 text-rose-700 shrink-0" />
         <span className="truncate">{currentLocation}</span>
       </div>
 
-      {/* 6. Total Net Worth (Bright High-Contrast Change) */}
+      {/* 6. Total Net Worth */}
       <div className="flex flex-col items-center justify-center py-2 px-3 bg-black/20 rounded-lg border border-[#8a6316]/30 font-mono text-[#241703] mt-1 w-full shadow-inner">
         <div className="text-[9px] font-bold uppercase tracking-wider text-[#472f05] flex items-center gap-1">
           <span>Total Net Worth</span>
@@ -121,8 +138,11 @@ function UserFifaCard({
           {typeof netWorth === 'number' ? netWorth.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 }) : '0.0'} BTC
         </div>
         {hourlyStats && (
-          <div className={`text-[10px] font-black tracking-tight ${hourlyStats.netWorthCoins >= 0 ? 'text-[#00e676]' : 'text-[#ff1744]'}`}>
-            {hourlyStats.netWorthCoins >= 0 ? '+' : ''}{hourlyStats.netWorthCoins.toFixed(1)} ({hourlyStats.netWorthPct >= 0 ? '+' : ''}{hourlyStats.netWorthPct.toFixed(2)}%) past 1h
+          <div className="text-[10px] font-black tracking-tight mt-0.5">
+            <span className={hourlyStats.netWorthCoins > 0 ? 'text-emerald-950 font-black' : hourlyStats.netWorthCoins < 0 ? 'text-red-950 font-black' : 'text-slate-900 font-black'}>
+              {hourlyStats.netWorthCoins > 0 ? '+' : ''}{hourlyStats.netWorthCoins.toFixed(1)} ({hourlyStats.netWorthCoins > 0 ? '+' : ''}{hourlyStats.netWorthPct.toFixed(2)}%)
+            </span>
+            <span className="text-[#3b2704] font-bold ml-1 font-sans text-[9px]">past 1h</span>
           </div>
         )}
       </div>
@@ -145,18 +165,8 @@ export default function StockExchangeListing({
   managementLevel = 0,
   maxHiringSlots = 4
 }) {
-  const [sectorFilter, setSectorFilter] = useState('all'); // 'all' | 'raw' | 'processed'
   const [activeBreakdownMetric, setActiveBreakdownMetric] = useState(null); // 'valuation' | 'revenue' | 'rawCosts' | 'salaries' | 'profit' | 'production' | 'pp' | 'staff' | null
-  // Filter companies by sector only
-  const filteredCompanies = useMemo(() => {
-    let result = [...companies];
-    if (sectorFilter === 'raw') {
-      result = result.filter(c => c.isRaw || c.recipe?.type === 'raw');
-    } else if (sectorFilter === 'processed') {
-      result = result.filter(c => !c.isRaw && c.recipe?.type !== 'raw');
-    }
-    return result;
-  }, [companies, sectorFilter]);
+  const filteredCompanies = companies;
 
   // Aggregate Market Stats (Figures only, no symbols, zero double-counting)
   const marketOverview = useMemo(() => {
@@ -518,10 +528,10 @@ export default function StockExchangeListing({
     <div className="w-full max-w-[1440px] mx-auto px-4 sm:px-8 py-4 space-y-5 select-none font-sans">
       
       {/* 1. TOP DASHBOARD: 3-PART UNIFIED LAYOUT (USER CARD LEFT, NET WORTH BREAKDOWN CENTER, OVERVIEW CARDS RIGHT) */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-stretch">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 lg:gap-5 items-stretch">
         
-        {/* LEFT: USER FIFA CARD (FLOATING ON PAGE) */}
-        <div className="lg:col-span-3 flex justify-center lg:justify-start items-center">
+        {/* LEFT: USER FIFA CARD */}
+        <div className="lg:col-span-3 flex flex-col h-full">
           <UserFifaCard
             avatar={ownerAvatar}
             name={ownerName}
@@ -531,13 +541,14 @@ export default function StockExchangeListing({
             currentLocation={currentLocDisplay}
             netWorth={liveTotalNetWorth}
             hourlyStats={hourlyStats}
+            countryCode={ownerCountryCode}
           />
         </div>
 
         {/* CENTER: NET WORTH BREAKDOWN - ROYAL PURPLE GRADIENT SHADE */}
-        <div className="lg:col-span-4 bg-gradient-to-br from-purple-100/80 via-purple-50/35 to-white p-4 sm:p-5 space-y-3 flex flex-col justify-between border border-purple-200/80 rounded-lg shadow-xs">
-          <div className="space-y-2.5 font-mono text-xs flex-1 flex flex-col justify-around">
-            <div className="flex items-center justify-between pb-1 font-sans border-b border-purple-100/80">
+        <div className="lg:col-span-4 bg-gradient-to-br from-purple-100/80 via-purple-50/35 to-white p-4 sm:p-5 flex flex-col justify-between border border-purple-200/80 rounded-2xl shadow-xs h-full">
+          <div className="space-y-2 font-mono text-xs flex-1 flex flex-col justify-between">
+            <div className="flex items-center justify-between pb-1.5 font-sans border-b border-purple-100/80">
               <span className="text-[11px] font-bold text-purple-950 uppercase tracking-wide">
                 Net Worth Breakdown
               </span>
@@ -546,53 +557,53 @@ export default function StockExchangeListing({
               </span>
             </div>
 
-            <div className="space-y-2 text-slate-700 flex-1 flex flex-col justify-around">
+            <div className="space-y-2 text-slate-700 flex-1 flex flex-col justify-around py-1">
               {netWorthBreakdownItems.map((item, idx) => (
-                <div key={idx} className="flex justify-between items-center">
+                <div key={idx} className="flex justify-between items-center py-0.5">
                   <span>{item.label}:</span>
                   <div className="flex items-center space-x-2 text-right">
                     <strong className="text-slate-900 font-bold">
                       {item.value.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
                     </strong>
-                    <span className="text-[11px] font-bold font-mono text-purple-900/60">
+                    <span className="text-[11px] font-bold font-mono text-purple-900/60 min-w-[42px] text-right">
                       {item.sharePct.toFixed(1)}%
                     </span>
                   </div>
                 </div>
               ))}
+            </div>
 
-              <div 
-                onClick={() => setActiveBreakdownMetric('valuation')}
-                className="flex justify-between items-center pt-2 text-slate-900 font-bold border-t border-purple-100/80 cursor-pointer hover:bg-purple-50/50 px-1.5 py-1 -mx-1.5 transition-colors group rounded"
-                title="Click to view full portfolio valuation breakdown"
-              >
-                <div className="flex items-center space-x-1.5">
-                  <span>Total:</span>
-                  <span className="text-[10px] text-purple-600/70 group-hover:text-purple-900 font-normal font-mono flex items-center gap-0.5">
-                    Breakdown <ExternalLink className="w-2.5 h-2.5 inline" />
-                  </span>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <span className="text-purple-950 font-black text-sm">
-                    {liveTotalNetWorth.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
-                  </span>
-                  <span className={`text-xs font-bold font-mono ${hourlyStats.netWorthCoins > 0 ? 'text-emerald-500' : hourlyStats.netWorthCoins < 0 ? 'text-red-500' : 'text-blue-500'}`}>
-                    {hourlyStats.netWorthCoins >= 0 ? '+' : ''}{hourlyStats.netWorthCoins.toFixed(1)} ({hourlyStats.netWorthPct >= 0 ? '+' : ''}{hourlyStats.netWorthPct.toFixed(2)}%)
-                  </span>
-                  <span className="text-[10px] text-slate-400 font-sans">past 1h</span>
-                </div>
+            <div 
+              onClick={() => setActiveBreakdownMetric('valuation')}
+              className="flex justify-between items-center pt-2 text-slate-900 font-bold border-t border-purple-100/80 cursor-pointer hover:bg-purple-50/60 px-2 py-1.5 -mx-2 transition-colors group rounded-xl"
+              title="Click to view full portfolio valuation breakdown"
+            >
+              <div className="flex items-center space-x-1.5">
+                <span>Total:</span>
+                <span className="text-[10px] text-purple-600/70 group-hover:text-purple-900 font-normal font-mono flex items-center gap-0.5">
+                  Breakdown <ExternalLink className="w-2.5 h-2.5 inline" />
+                </span>
+              </div>
+              <div className="flex items-center space-x-2">
+                <span className="text-purple-950 font-black text-sm">
+                  {liveTotalNetWorth.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
+                </span>
+                <span className={`text-xs font-bold font-mono ${hourlyStats.netWorthCoins > 0 ? 'text-emerald-500' : hourlyStats.netWorthCoins < 0 ? 'text-red-500' : 'text-blue-500'}`}>
+                  {hourlyStats.netWorthCoins >= 0 ? '+' : ''}{hourlyStats.netWorthCoins.toFixed(1)} ({hourlyStats.netWorthPct >= 0 ? '+' : ''}{hourlyStats.netWorthPct.toFixed(2)}%)
+                </span>
+                <span className="text-[10px] text-slate-400 font-sans">past 1h</span>
               </div>
             </div>
           </div>
         </div>
 
         {/* RIGHT: OVERVIEW KPI CARDS IN A COMPACT 2-COLUMN GRID */}
-        <div className="lg:col-span-5 grid grid-cols-2 gap-2 content-between">
+        <div className="lg:col-span-5 grid grid-cols-2 gap-2.5 h-full">
           
           {/* 1. Portfolio Valuation - Champagne / Amber Cream & White */}
           <div 
             onClick={() => setActiveBreakdownMetric('valuation')}
-            className="bg-gradient-to-br from-amber-100/60 via-amber-50/30 to-white p-2.5 space-y-0.5 border border-amber-200/80 hover:border-amber-400 hover:shadow-xs transition-all cursor-pointer group relative flex flex-col justify-between rounded-lg"
+            className="bg-gradient-to-br from-amber-100/60 via-amber-50/30 to-white p-2.5 space-y-0.5 border border-amber-200/80 hover:border-amber-400 hover:shadow-xs transition-all cursor-pointer group relative flex flex-col justify-between rounded-xl h-full"
             title="Click to view asset-by-asset valuation breakdown"
           >
             <div className="flex items-center justify-between">
@@ -617,7 +628,7 @@ export default function StockExchangeListing({
           {/* 2. Base Daily Revenue - Mint / Emerald Cream & White */}
           <div 
             onClick={() => setActiveBreakdownMetric('revenue')}
-            className="bg-gradient-to-br from-emerald-100/60 via-emerald-50/30 to-white p-2.5 space-y-0.5 border border-emerald-200/80 hover:border-emerald-400 hover:shadow-xs transition-all cursor-pointer group relative flex flex-col justify-between rounded-lg"
+            className="bg-gradient-to-br from-emerald-100/60 via-emerald-50/30 to-white p-2.5 space-y-0.5 border border-emerald-200/80 hover:border-emerald-400 hover:shadow-xs transition-all cursor-pointer group relative flex flex-col justify-between rounded-xl h-full"
             title="Click to view company-by-company revenue breakdown"
           >
             <div className="flex items-center justify-between">
@@ -641,7 +652,7 @@ export default function StockExchangeListing({
           {/* 3. Labor Cost / PP - Ice / Sky Blue Cream & White */}
           <div 
             onClick={() => setActiveBreakdownMetric('salaries')}
-            className="bg-gradient-to-br from-sky-100/60 via-sky-50/30 to-white p-2.5 space-y-0.5 border border-sky-200/80 hover:border-sky-400 hover:shadow-xs transition-all cursor-pointer group relative flex flex-col justify-between rounded-lg"
+            className="bg-gradient-to-br from-sky-100/60 via-sky-50/30 to-white p-2.5 space-y-0.5 border border-sky-200/80 hover:border-sky-400 hover:shadow-xs transition-all cursor-pointer group relative flex flex-col justify-between rounded-xl h-full"
             title="Click to view workforce payroll and average labor cost per PP"
           >
             <div className="flex items-center justify-between">
@@ -665,7 +676,7 @@ export default function StockExchangeListing({
           {/* 4. Base Salaries Paid - Peach / Rose Cream & White */}
           <div 
             onClick={() => setActiveBreakdownMetric('salaries')}
-            className="bg-gradient-to-br from-rose-100/60 via-rose-50/30 to-white p-2.5 space-y-0.5 border border-rose-200/80 hover:border-rose-400 hover:shadow-xs transition-all cursor-pointer group relative flex flex-col justify-between rounded-lg"
+            className="bg-gradient-to-br from-rose-100/60 via-rose-50/30 to-white p-2.5 space-y-0.5 border border-rose-200/80 hover:border-rose-400 hover:shadow-xs transition-all cursor-pointer group relative flex flex-col justify-between rounded-xl h-full"
             title="Click to view worker roster and payable salary breakdown"
           >
             <div className="flex items-center justify-between">
@@ -689,7 +700,7 @@ export default function StockExchangeListing({
           {/* 5. Base Daily Profit - Teal / Jade Cream & White */}
           <div 
             onClick={() => setActiveBreakdownMetric('profit')}
-            className="bg-gradient-to-br from-teal-100/60 via-emerald-50/30 to-white p-2.5 space-y-0.5 border border-teal-200/80 hover:border-teal-400 hover:shadow-xs transition-all cursor-pointer group relative flex flex-col justify-between rounded-lg"
+            className="bg-gradient-to-br from-teal-100/60 via-emerald-50/30 to-white p-2.5 space-y-0.5 border border-teal-200/80 hover:border-teal-400 hover:shadow-xs transition-all cursor-pointer group relative flex flex-col justify-between rounded-xl h-full"
             title="Click to view company-by-company profit statement"
           >
             <div className="flex items-center justify-between">
@@ -713,7 +724,7 @@ export default function StockExchangeListing({
           {/* 6. Operating Facilities - Light Purple and White Cream */}
           <div 
             onClick={() => setActiveBreakdownMetric('valuation')}
-            className="bg-gradient-to-br from-purple-100/70 via-purple-50/30 to-white p-2.5 space-y-0.5 border border-purple-200/80 hover:border-purple-400 hover:shadow-xs transition-all cursor-pointer group relative flex flex-col justify-between rounded-lg"
+            className="bg-gradient-to-br from-purple-100/70 via-purple-50/30 to-white p-2.5 space-y-0.5 border border-purple-200/80 hover:border-purple-400 hover:shadow-xs transition-all cursor-pointer group relative flex flex-col justify-between rounded-xl h-full"
             title="Click to view all enterprise facilities"
           >
             <div className="flex items-center justify-between">
@@ -736,7 +747,7 @@ export default function StockExchangeListing({
           {/* 7. Total Enterprise PP - Orange Cream and White */}
           <div 
             onClick={() => setActiveBreakdownMetric('pp')}
-            className="bg-gradient-to-br from-orange-100/70 via-orange-50/30 to-white p-2.5 space-y-0.5 border border-orange-200/80 hover:border-orange-400 hover:shadow-xs transition-all cursor-pointer group relative flex flex-col justify-between rounded-lg"
+            className="bg-gradient-to-br from-orange-100/70 via-orange-50/30 to-white p-2.5 space-y-0.5 border border-orange-200/80 hover:border-orange-400 hover:shadow-xs transition-all cursor-pointer group relative flex flex-col justify-between rounded-xl h-full"
             title="Click to view engine, worker, and self-work PP breakdown"
           >
             <div className="flex items-center justify-between">
@@ -762,7 +773,7 @@ export default function StockExchangeListing({
           {/* 8. Staff Deployment - Lavender / Violet Cream and White */}
           <div 
             onClick={() => setActiveBreakdownMetric('staff')}
-            className="bg-gradient-to-br from-violet-100/70 via-violet-50/30 to-white p-2.5 space-y-0.5 border border-violet-200/80 hover:border-violet-400 hover:shadow-xs transition-all cursor-pointer group relative flex flex-col justify-between rounded-lg"
+            className="bg-gradient-to-br from-violet-100/70 via-violet-50/30 to-white p-2.5 space-y-0.5 border border-violet-200/80 hover:border-violet-400 hover:shadow-xs transition-all cursor-pointer group relative flex flex-col justify-between rounded-xl h-full"
             title="Click to view staff deployment and management capacity"
           >
             <div className="flex items-center justify-between">
@@ -786,77 +797,38 @@ export default function StockExchangeListing({
 
       </div>
 
-      {/* 5. CATEGORY FILTERS & SYNC ACTIONS */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-3 border border-slate-200/80">
-        <div className="flex items-center gap-1.5 overflow-x-auto text-xs font-mono scrollbar-none">
-          <button
-            type="button"
-            onClick={() => setSectorFilter('all')}
-            className={`px-3 py-1.5 transition cursor-pointer shrink-0 font-bold ${
-              sectorFilter === 'all' 
-                ? 'bg-slate-900 text-white' 
-                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-            }`}
-          >
-            All Listed ({companies.length})
-          </button>
-          <button
-            type="button"
-            onClick={() => setSectorFilter('processed')}
-            className={`px-3 py-1.5 transition cursor-pointer shrink-0 font-bold ${
-              sectorFilter === 'processed' 
-                ? 'bg-slate-900 text-white' 
-                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-            }`}
-          >
-            Manufactured ({companies.filter(c => !c.isRaw).length})
-          </button>
-          <button
-            type="button"
-            onClick={() => setSectorFilter('raw')}
-            className={`px-3 py-1.5 transition cursor-pointer shrink-0 font-bold ${
-              sectorFilter === 'raw' 
-                ? 'bg-slate-900 text-white' 
-                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-            }`}
-          >
-            Raw Materials ({companies.filter(c => c.isRaw).length})
-          </button>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <div className="flex items-center space-x-1.5 px-2.5 py-1 text-slate-600 text-xs font-mono">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-            <span className="text-[11px] font-bold text-slate-700">Live Continuous Feed</span>
-          </div>
-        </div>
-      </div>
-
-      {/* 6. STOCK EXCHANGE LISTING BOARD (DATA TABLE WITH PP & PRICE RATIOS) */}
+      {/* 5. STOCK EXCHANGE LISTING BOARD (DATA TABLE WITH PP & PRICE RATIOS) */}
       <div className="bg-white overflow-hidden border border-slate-200/80">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">
             <thead>
               <tr className="bg-slate-100/90 text-slate-700 uppercase font-mono font-bold tracking-wider text-[11px]">
                 <th className="py-3 px-3 w-10 text-center">#</th>
-                <th className="py-3 px-3 min-w-[180px]">Asset / Listing</th>
-                <th className="py-3 px-3">Sector</th>
-                <th className="py-3 px-3 text-right">Market Spot</th>
-                <th className="py-3 px-3 text-right">Daily PP (24h)</th>
-                <th className="py-3 px-3 text-right">Units Yield/Day</th>
-                <th className="py-3 px-3 text-right">Revenue/Day (BTC)</th>
-                <th className="py-3 px-3 text-right">Salaries Paid</th>
-                <th className="py-3 px-3 text-right">Net Profit (BTC)</th>
-                <th className="py-3 px-3 text-right">Margin</th>
+                <th className="py-3 px-3 min-w-[180px]">Company</th>
+                <th className="py-3 px-3 min-w-[110px]">Commodity</th>
+                <th className="py-3 px-3 text-center min-w-[110px]">Engine / Storage</th>
+                <th className="py-3 px-3 text-right whitespace-nowrap">Daily PP (24h)</th>
+                <th className="py-3 px-3 text-right whitespace-nowrap">Units Yield/Day</th>
+                <th className="py-3 px-3 text-right whitespace-nowrap">Revenue/Day (BTC)</th>
+                <th className="py-3 px-3 text-right whitespace-nowrap">Salaries Paid</th>
+                <th className="py-3 px-3 text-right whitespace-nowrap">Net Profit (BTC)</th>
+                <th className="py-3 px-3 text-right whitespace-nowrap">Margin</th>
                 <th className="py-3 px-3 text-center min-w-[100px]">Storage</th>
                 <th className="py-3 px-3 text-center min-w-[80px]">Staff</th>
+                <th className="py-3 px-3 text-right whitespace-nowrap">Concrete Invested</th>
+                <th className="py-3 px-3 text-right whitespace-nowrap">Steel Invested</th>
+                <th className="py-3 px-3 text-right whitespace-nowrap">Concrete Value</th>
+                <th className="py-3 px-3 text-right whitespace-nowrap">Steel Value</th>
+                <th className="py-3 px-3 text-right whitespace-nowrap">Stored Yield</th>
+                <th className="py-3 px-3 text-right whitespace-nowrap">Total Worth</th>
+                <th className="py-3 px-3 text-right whitespace-nowrap">Share</th>
               </tr>
             </thead>
             <tbody className="font-mono">
               {filteredCompanies.length === 0 ? (
                 <tr>
-                  <td colSpan={12} className="py-12 text-center text-slate-400 font-sans">
-                    No companies match your filter criteria.
+                  <td colSpan={19} className="py-12 text-center text-slate-400 font-sans">
+                    No companies listed.
                   </td>
                 </tr>
               ) : (
@@ -868,26 +840,45 @@ export default function StockExchangeListing({
                   const ppRatio = c.ppRatioPct || (basePp > 0 ? (prodPp / basePp) * 100 : 100);
                   const priceRatio = c.pricePerBasePp || 0;
 
+                  // Hardware, physical investment & valuation calculations
+                  const concretePrice = prices.concrete || 1.703;
+                  const steelPrice = prices.steel || 1.725;
+                  const theme = getCompanyTheme(c);
+
+                  const concreteInvested = c.concreteInvested || 200;
+                  const engineSteel = c.engineTier?.steel || 0;
+                  const storageSteel = c.storageTier?.steel || 0;
+                  const steelInvested = (c.steelInvested !== undefined) ? c.steelInvested : (engineSteel + storageSteel);
+
+                  const concreteVal = concreteInvested * concretePrice;
+                  const steelVal = steelInvested * steelPrice;
+
+                  const baseWorth = c.estimatedValue || c.totalCalculatedWorth || 0;
+                  const yieldWorth = c.uncollectedValueCoins || 0;
+                  const totalWorth = baseWorth + yieldWorth;
+
+                  const sharePct = liveFacilitiesVal > 0 ? (totalWorth / liveFacilitiesVal) * 100 : 0;
+
                   return (
                     <tr 
                       key={c.id || idx}
                       onClick={() => onSelectCompany(c.id)}
-                      className="hover:bg-slate-50/90 transition cursor-pointer group border-b border-slate-100"
+                      className={`transition cursor-pointer group ${getCompanyRowGradient(c)}`}
                     >
                       {/* Rank Index */}
-                      <td className="py-3.5 px-3 text-center text-slate-400 font-bold group-hover:text-slate-700">
+                      <td className="py-3.5 px-3 text-center text-slate-500 font-bold group-hover:text-slate-900">
                         {idx + 1}
                       </td>
 
                       {/* Company Name & Ticker */}
                       <td className="py-3.5 px-3">
                         <div className="flex items-center space-x-3">
-                          <div className="w-8 h-8 rounded-none bg-slate-100 flex items-center justify-center shrink-0">
+                          <div className="w-8 h-8 rounded-none bg-white/80 border border-slate-200/60 shadow-xs flex items-center justify-center shrink-0">
                             <ItemIcon itemCode={c.itemCode} size={20} />
                           </div>
                           <div className="min-w-0">
                             <div className="flex items-center space-x-1.5">
-                              <span className="font-extrabold text-slate-900 group-hover:text-blue-600 transition font-sans text-sm truncate">
+                              <span className="font-extrabold text-slate-900 group-hover:text-blue-700 transition font-sans text-sm truncate">
                                 {c.name}
                               </span>
                               {c.isRealGameCompany && (
@@ -896,8 +887,8 @@ export default function StockExchangeListing({
                                 </span>
                               )}
                             </div>
-                            <div className="text-[11px] text-slate-400 font-sans truncate">
-                              <span className="font-bold text-slate-600">{c.countryCode}</span>
+                            <div className="text-[11px] text-slate-500 font-sans truncate">
+                              <span className="font-bold text-slate-700">{c.countryCode}</span>
                               {c.mainCity ? ` • ${c.mainCity}` : ''}
                               {c.regionName ? ` (${c.regionName})` : ''}
                             </div>
@@ -905,27 +896,16 @@ export default function StockExchangeListing({
                         </div>
                       </td>
 
-                      {/* Sector / Category */}
-                      <td className="py-3.5 px-3 whitespace-nowrap">
-                        <span className={`inline-block px-2 py-0.5 text-[10px] font-bold font-sans ${
-                          c.isRaw || c.recipe?.type === 'raw'
-                            ? 'bg-amber-100/70 text-amber-900' 
-                            : 'bg-blue-100/70 text-blue-900'
-                        }`}>
-                          {c.recipe?.category || (c.isRaw ? 'Raw Materials' : 'Manufacturing')}
+                      {/* Commodity */}
+                      <td className="py-3.5 px-3 capitalize text-slate-700 whitespace-nowrap">
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-mono uppercase font-bold ${theme.pillTag}`}>
+                          {c.recipe?.name || c.itemCode}
                         </span>
                       </td>
 
-                      {/* Market Spot Price */}
-                      <td className="py-3.5 px-3 text-right whitespace-nowrap">
-                        <div className="font-bold text-slate-900">
-                          {c.spotPrice ? c.spotPrice.toFixed(3) : '—'}
-                        </div>
-                        {c.priceChange24h !== undefined && (
-                          <div className={`text-[10px] font-bold ${c.priceChange24h.changePct > 0 ? 'text-emerald-500' : c.priceChange24h.changePct < 0 ? 'text-red-500' : 'text-blue-500'}`}>
-                            {c.priceChange24h.changePct >= 0 ? '+' : ''}{c.priceChange24h.changePct.toFixed(2)}%
-                          </div>
-                        )}
+                      {/* Engine / Storage */}
+                      <td className="py-3.5 px-3 text-center text-slate-600 whitespace-nowrap font-mono text-xs">
+                        Lv.{c.engineLevel || 1} / Lv.{c.storageLevel || 1}
                       </td>
 
                       {/* Daily PP (24h) */}
@@ -965,7 +945,16 @@ export default function StockExchangeListing({
                       </td>
 
                       {/* Storage / Capacity Progress */}
-                      <td className="py-3.5 px-3">
+                      <td 
+                        className="py-3.5 px-3 cursor-help"
+                        title={
+                          c.isStorageFull || (c.currentFillPct || 0) >= 100
+                            ? 'Storage is Full'
+                            : (c.totalCombinedPph || 0) <= 0
+                              ? 'Production Inactive'
+                              : `Time until full: ${c.storageDaysOnly > 0 ? `${c.storageDaysOnly}d ` : ''}${c.storageHoursRemainder}h ${c.storageMinutesRemainder}m (Combined speed: ${(c.totalCombinedPph || 0).toFixed(1)} PP/hr)`
+                        }
+                      >
                         <div className="w-full max-w-[100px] mx-auto space-y-1">
                           <div className="flex justify-between text-[10px] text-slate-500 font-mono">
                             <span>{(c.currentStoredPp || 0).toFixed(0)} PP</span>
@@ -994,6 +983,41 @@ export default function StockExchangeListing({
                             <span>{c.hasManager ? 1 : 0}</span>
                           </span>
                         </div>
+                      </td>
+
+                      {/* Concrete Invested */}
+                      <td className="py-3.5 px-3 text-right whitespace-nowrap font-mono text-slate-700">
+                        {concreteInvested.toLocaleString()}
+                      </td>
+
+                      {/* Steel Invested */}
+                      <td className="py-3.5 px-3 text-right whitespace-nowrap font-mono text-slate-700">
+                        {steelInvested.toLocaleString()}
+                      </td>
+
+                      {/* Concrete Value */}
+                      <td className="py-3.5 px-3 text-right whitespace-nowrap font-mono text-slate-700">
+                        {concreteVal.toFixed(0)} BTC
+                      </td>
+
+                      {/* Steel Value */}
+                      <td className="py-3.5 px-3 text-right whitespace-nowrap font-mono text-slate-700">
+                        {steelVal.toFixed(0)} BTC
+                      </td>
+
+                      {/* Stored Yield (no plus sign as it is always positive) */}
+                      <td className={`py-3.5 px-3 text-right whitespace-nowrap font-mono font-bold ${yieldWorth > 0 ? 'text-emerald-600' : 'text-slate-500'}`}>
+                        {yieldWorth.toFixed(1)} BTC
+                      </td>
+
+                      {/* Total Worth */}
+                      <td className="py-3.5 px-3 text-right whitespace-nowrap font-mono font-black text-slate-900">
+                        {totalWorth.toFixed(1)} BTC
+                      </td>
+
+                      {/* Share */}
+                      <td className="py-3.5 px-3 text-right whitespace-nowrap font-mono font-bold text-slate-800">
+                        {sharePct.toFixed(1)}%
                       </td>
 
                     </tr>

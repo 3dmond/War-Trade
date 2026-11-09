@@ -24,8 +24,8 @@ export const RECIPES = [
   { id: 'lightAmmo', name: 'Light Ammo', type: 'processed', pp: 1, inputs: [{ id: 'lead', qty: 1 }], totalPp: 2, category: 'Munitions', minLevel: 1, effect: 'Consumable for battle attacks' },
   { id: 'ammo', name: 'Standard Ammo', type: 'processed', pp: 4, inputs: [{ id: 'lead', qty: 4 }], totalPp: 8, category: 'Munitions', minLevel: 1, effect: 'Mid-tier battle attack ammunition' },
   { id: 'heavyAmmo', name: 'Heavy Ammo', type: 'processed', pp: 16, inputs: [{ id: 'lead', qty: 16 }], totalPp: 32, category: 'Munitions', minLevel: 1, effect: 'High-damage combat ammunition' },
-  { id: 'cocain', name: 'Combat Pill / Cocain', type: 'processed', pp: 200, inputs: [{ id: 'coca', qty: 200 }], totalPp: 400, category: 'Pharma', minLevel: 5, effect: '+80% Damage Buff for 1 hunger' },
-  { id: 'pill', name: 'Combat Pill', type: 'processed', pp: 200, inputs: [{ id: 'coca', qty: 200 }], totalPp: 400, category: 'Pharma', minLevel: 5, effect: '+80% Damage Buff for 1 hunger' },
+  { id: 'cocain', name: 'Cocain', type: 'processed', pp: 200, inputs: [{ id: 'coca', qty: 200 }], totalPp: 400, category: 'Pharma', minLevel: 5, effect: '+80% Damage Buff for 1 hunger' },
+  { id: 'pill', name: 'Cocain', type: 'processed', pp: 200, inputs: [{ id: 'coca', qty: 200 }], totalPp: 400, category: 'Pharma', minLevel: 5, effect: '+80% Damage Buff for 1 hunger' },
   { id: 'paper', name: 'Paper', type: 'processed', pp: 1, inputs: [{ id: 'wood', qty: 1 }], totalPp: 2, category: 'Governance', minLevel: 1, effect: 'Required for Battle Orders, Alliances & Treaties' },
 ];
 
