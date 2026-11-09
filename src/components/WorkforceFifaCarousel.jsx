@@ -112,9 +112,9 @@ export default function WorkforceFifaCarousel({
   // Responsive geometry calculations
   const isMobile = windowWidth < 640;
   const isTablet = windowWidth >= 640 && windowWidth < 1024;
-  const sideX = isMobile ? 115 : isTablet ? 140 : 155;
-  const centerScale = isMobile ? 0.80 : 0.85;
-  const sideScale = isMobile ? 0.68 : 0.72;
+  const sideX = isMobile ? 120 : isTablet ? 145 : 160;
+  const centerScale = 1.0;
+  const sideScale = isMobile ? 0.78 : 0.82;
 
   /**
    * Computes 3D transform & visual properties for each worker card.
@@ -125,10 +125,9 @@ export default function WorkforceFifaCarousel({
     // Single card
     if (totalWorkers === 1) {
       return {
-        transform: `translate3d(-50%, -50%, 0) scale(${centerScale})`,
+        transform: 'translate3d(-50%, -50%, 0) scale(1)',
         zIndex: 30,
         opacity: 1,
-        filter: 'brightness(1.05) drop-shadow(0 15px 35px rgba(0,0,0,0.8))',
         pointerEvents: 'auto'
       };
     }
@@ -138,20 +137,18 @@ export default function WorkforceFifaCarousel({
       const isCenter = index === currentIndex;
       if (isCenter) {
         return {
-          transform: `translate3d(-50%, -50%, 0) scale(${centerScale}) rotateY(0deg)`,
+          transform: 'translate3d(-50%, -50%, 0) scale(1) rotateY(0deg)',
           zIndex: 30,
           opacity: 1,
-          filter: 'brightness(1.05) drop-shadow(0 15px 35px rgba(0,0,0,0.8))',
           pointerEvents: 'auto'
         };
       } else {
         const xOffset = currentIndex === 0 ? sideX : -sideX;
         const rotY = currentIndex === 0 ? 10 : -10;
         return {
-          transform: `translate3d(calc(-50% + ${xOffset}px), -50%, -60px) scale(${sideScale}) rotateY(${rotY}deg)`,
+          transform: `translate3d(calc(-50% + ${xOffset}px), -50%, -40px) scale(${sideScale}) rotateY(${rotY}deg)`,
           zIndex: 20,
           opacity: 0.94,
-          filter: 'brightness(0.96)',
           pointerEvents: 'auto'
         };
       }
@@ -161,13 +158,12 @@ export default function WorkforceFifaCarousel({
     let slot = (index - currentIndex) % totalWorkers;
     if (slot < 0) slot += totalWorkers;
 
-    // Slot 0: Front Center Stage
+    // Slot 0: Front Center Stage (100% native 1:1 scale for crystal-clear razor-sharp rendering)
     if (slot === 0) {
       return {
-        transform: `translate3d(-50%, -50%, 0) scale(${centerScale}) rotateY(0deg)`,
+        transform: 'translate3d(-50%, -50%, 0) scale(1) rotateY(0deg)',
         zIndex: isTransitioning && animatingToIdx === index ? 35 : 30,
         opacity: 1,
-        filter: 'brightness(1.05) drop-shadow(0 15px 35px rgba(0,0,0,0.8))',
         pointerEvents: 'auto'
       };
     }
@@ -175,10 +171,9 @@ export default function WorkforceFifaCarousel({
     // Slot 1: Right peeking card
     if (slot === 1) {
       return {
-        transform: `translate3d(calc(-50% + ${sideX}px), -50%, -60px) scale(${sideScale}) rotateY(12deg)`,
+        transform: `translate3d(calc(-50% + ${sideX}px), -50%, -40px) scale(${sideScale}) rotateY(12deg)`,
         zIndex: isTransitioning && animatingFromIdx === index ? 22 : 18,
         opacity: 0.94,
-        filter: 'brightness(0.96)',
         pointerEvents: 'auto'
       };
     }
@@ -186,10 +181,9 @@ export default function WorkforceFifaCarousel({
     // Last Slot (e.g. Slot 2 for N=3): Left peeking card
     if (slot === totalWorkers - 1) {
       return {
-        transform: `translate3d(calc(-50% - ${sideX}px), -50%, -60px) scale(${sideScale}) rotateY(-12deg)`,
+        transform: `translate3d(calc(-50% - ${sideX}px), -50%, -40px) scale(${sideScale}) rotateY(-12deg)`,
         zIndex: isTransitioning && animatingFromIdx === index ? 22 : 18,
         opacity: 0.94,
-        filter: 'brightness(0.96)',
         pointerEvents: 'auto'
       };
     }
@@ -199,7 +193,6 @@ export default function WorkforceFifaCarousel({
       transform: 'translate3d(-50%, -50%, -180px) scale(0.60)',
       zIndex: 5,
       opacity: 0,
-      filter: 'brightness(0.5)',
       pointerEvents: 'none'
     };
   };
@@ -212,7 +205,7 @@ export default function WorkforceFifaCarousel({
     >
       {/* 3D Perspective Card Stage with calibrated height for complete vertical clearance */}
       <div 
-        className="fifa-card-perspective-stage relative w-full h-[395px] sm:h-[415px] flex items-center justify-center isolate overflow-visible my-1"
+        className="fifa-card-perspective-stage relative w-full h-[425px] sm:h-[445px] flex items-center justify-center isolate overflow-visible my-1"
         style={{ perspective: '1100px', transformStyle: 'preserve-3d' }}
       >
         {/* Render each worker persistently in DOM with smooth cylinder positioning */}
@@ -223,7 +216,7 @@ export default function WorkforceFifaCarousel({
           return (
             <div
               key={worker.userId || worker.id || idx}
-              className="absolute left-1/2 top-1/2 origin-center transition-all duration-[600ms] ease-[cubic-bezier(0.25,1,0.5,1)] will-change-transform w-[290px] xs:w-[310px] sm:w-[330px]"
+              className={`absolute left-1/2 top-1/2 origin-center transition-all duration-[600ms] ease-[cubic-bezier(0.25,1,0.5,1)] w-[295px] xs:w-[315px] sm:w-[330px] ${isTransitioning ? 'will-change-transform' : ''}`}
               style={cardStyle}
             >
               <div className="relative rounded-2xl overflow-hidden drop-shadow-[0_20px_45px_rgba(0,0,0,0.85)]">
@@ -259,7 +252,7 @@ export default function WorkforceFifaCarousel({
 
       {/* Roster Quick Selector Indicator Bar (Guaranteed clearance below card stage) */}
       {totalWorkers > 1 && (
-        <div className="mt-3 sm:mt-4 pb-1">
+        <div className="mt-4 sm:mt-5 pb-1">
           {/* Mobile view: Minimal sleek dot indicators (no names) */}
           <div className="flex sm:hidden items-center justify-center gap-2.5 px-4">
             {workers.map((w, idx) => (

@@ -339,7 +339,7 @@ export default function MetricBreakdownModal({
       equipmentDelta1h = Number((totalDelta1h * equipShare).toFixed(1));
       weaponsDelta1h = Number((totalDelta1h - (facilitiesDelta1h + itemsDelta1h + moneyDelta1h + equipmentDelta1h)).toFixed(1));
     } else {
-      const totalCompanyOperatingProfit1h = companies.reduce((sum, c) => sum + ((c.baseNetProfit || 0) / 24), 0);
+      const totalCompanyOperatingProfit1h = companies.filter(c => !isCompanyDisabled(c)).reduce((sum, c) => sum + ((c.baseNetProfit || 0) / 24), 0);
       facilitiesDelta1h = Number((totalCompanyOperatingProfit1h + constructionMetrics.totalConstructionCapitalChange1h).toFixed(1));
     }
 
@@ -1980,9 +1980,10 @@ export default function MetricBreakdownModal({
                         const theme = getCompanyTheme(c);
                         const inputs = getCompanyRawInputs(c);
                         const isRaw = c.isRaw === true || c.recipe?.type === 'raw' || inputs.length === 0;
-                        const units = c.baseUnits !== undefined ? c.baseUnits : (c.unitsPerDay || 0);
+                        const disabled = isCompanyDisabled(c);
+                        const units = disabled ? 0 : (c.baseUnits !== undefined ? c.baseUnits : (c.unitsPerDay || 0));
                         const finishedSpot = c.spotPrice || prices[c.itemCode] || 1.0;
-                        const rev = c.grossRevenue || (units * finishedSpot);
+                        const rev = disabled ? 0 : (c.grossRevenue || (units * finishedSpot));
 
                         // Raw cost calculations for this facility
                         const rawDetails = inputs.map(inp => {
@@ -2002,9 +2003,9 @@ export default function MetricBreakdownModal({
                           };
                         });
                         const rawCost = isRaw ? 0 : (c.dailyRawExpenseTotal !== undefined ? c.dailyRawExpenseTotal : rawDetails.reduce((s, r) => s + r.cost, 0));
-                        const sal = c.dailyLaborExpense || 0;
-                        const net = c.baseNetProfit !== undefined ? c.baseNetProfit : (rev - rawCost - sal);
-                        const margin = rev > 0 ? (net / rev) * 100 : 0;
+                        const sal = disabled ? 0 : (c.dailyLaborExpense || 0);
+                        const net = disabled ? 0 : (c.baseNetProfit !== undefined ? c.baseNetProfit : (rev - rawCost - sal));
+                        const margin = (!disabled && rev > 0) ? (net / rev) * 100 : 0;
                         const workersCount = (c.workersList || c.workers || c.employees || []).length;
 
                         return (

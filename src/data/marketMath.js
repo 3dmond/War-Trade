@@ -1,3 +1,22 @@
+export function isCompanyDisabled(comp) {
+  if (!comp) return false;
+  return Boolean(
+    comp.disabled === true ||
+    comp.isDisabled === true ||
+    comp.isClosed === true ||
+    comp.isInactive === true ||
+    comp.paused === true ||
+    comp.isPaused === true ||
+    comp.active === false ||
+    comp.isActive === false ||
+    comp.enabled === false ||
+    comp.status === 'disabled' ||
+    comp.status === 'inactive' ||
+    comp.status === 'closed' ||
+    comp.status === 'paused'
+  );
+}
+
 // Mathematical utilities for WarEra Financial Market & TradingView Chart Engine
 import { RECIPES, getBreakRoomCapacity } from './gameData.js';
 
@@ -521,42 +540,44 @@ export function calculateCompanyBaseEconomics(comp, prices = {}, insourceOverrid
     };
   });
 
-  const workersProducedDailyPp = employeesList.reduce((sum, e) => sum + e.dailyOutputPp, 0);
+  const disabled = isCompanyDisabled(comp);
+
+  const workersProducedDailyPp = disabled ? 0 : employeesList.reduce((sum, e) => sum + e.dailyOutputPp, 0);
   const workersBaseDailyPp = workersProducedDailyPp;
-  const workersDailyWages = employeesList.reduce((sum, e) => sum + e.dailyWage, 0);
-  const workersDailyRevenue = employeesList.reduce((sum, e) => sum + e.dailyProductionValue, 0);
-  const workersDailyProfit = employeesList.reduce((sum, e) => sum + e.dailyProfit, 0);
+  const workersDailyWages = disabled ? 0 : employeesList.reduce((sum, e) => sum + e.dailyWage, 0);
+  const workersDailyRevenue = disabled ? 0 : employeesList.reduce((sum, e) => sum + e.dailyProductionValue, 0);
+  const workersDailyProfit = disabled ? 0 : employeesList.reduce((sum, e) => sum + e.dailyProfit, 0);
 
   // Manager economics (v0.27+ paid manager role)
-  const managerDailyPay = typeof comp.manager?.dailyWage === 'number'
+  const managerDailyPay = disabled ? 0 : (typeof comp.manager?.dailyWage === 'number'
     ? comp.manager.dailyWage
-    : (typeof comp.managerPay === 'number' ? comp.managerPay : 0);
-  const hasManager = !!comp.manager || managerDailyPay > 0;
+    : (typeof comp.managerPay === 'number' ? comp.managerPay : 0));
+  const hasManager = !disabled && (!!comp.manager || managerDailyPay > 0);
   const managerCount = hasManager ? 1 : 0;
 
   // Automated engine metrics (accounting for engine production bonuses)
   const engineBasePph = comp.engineTier?.ppPerHour || (comp.engineLevel || 1);
-  const effectiveEnginePph = typeof comp.effectiveEnginePph === 'number'
+  const effectiveEnginePph = disabled ? 0 : (typeof comp.effectiveEnginePph === 'number'
     ? comp.effectiveEnginePph
-    : (engineBasePph * bonusMultiplier);
-  const engineBaseDailyPp = engineBasePph * 24;
-  const engineProducedDailyPp = effectiveEnginePph * 24;
+    : (engineBasePph * bonusMultiplier));
+  const engineBaseDailyPp = disabled ? 0 : (engineBasePph * 24);
+  const engineProducedDailyPp = disabled ? 0 : (effectiveEnginePph * 24);
 
   const companyBaseDailyPp = workersProducedDailyPp;
   const companyProducedDailyPp = workersProducedDailyPp;
 
-  // Base Production in units per day
-  const baseUnits = recipe.pp > 0 ? (companyProducedDailyPp / recipe.pp) : 0;
-  const grossRevenue = workersDailyRevenue;
-  const dailyLaborExpense = workersDailyWages + managerDailyPay;
+  // Base Production in units per day (strictly 0 for disabled companies)
+  const baseUnits = (!disabled && recipe.pp > 0) ? (companyProducedDailyPp / recipe.pp) : 0;
+  const grossRevenue = disabled ? 0 : workersDailyRevenue;
+  const dailyLaborExpense = disabled ? 0 : (workersDailyWages + managerDailyPay);
   const dailyRawExpenseTotal = 0;
 
-  // Base Net Profit directly reflects live in-game employee generation minus worker wages and manager pay
-  const baseNetProfit = grossRevenue - dailyLaborExpense;
-  const baseLaborCostPerUnit = baseUnits > 0 ? (dailyLaborExpense / baseUnits) : 0;
+  // Base Net Profit directly reflects live in-game employee generation minus worker wages and manager pay (0 for disabled companies)
+  const baseNetProfit = disabled ? 0 : (grossRevenue - dailyLaborExpense);
+  const baseLaborCostPerUnit = (!disabled && baseUnits > 0) ? (dailyLaborExpense / baseUnits) : 0;
   const baseRawCostPerUnit = 0;
-  const baseNetProfitPerUnit = baseUnits > 0 ? (baseNetProfit / baseUnits) : 0;
-  const baseNetMarginPct = grossRevenue > 0 ? (baseNetProfit / grossRevenue) * 100 : 0;
+  const baseNetProfitPerUnit = (!disabled && baseUnits > 0) ? (baseNetProfit / baseUnits) : 0;
+  const baseNetMarginPct = (!disabled && grossRevenue > 0) ? (baseNetProfit / grossRevenue) * 100 : 0;
 
   return {
     ...comp,
@@ -597,6 +618,7 @@ export function calculateCompanyBaseEconomics(comp, prices = {}, insourceOverrid
     dailyLaborExpense,
     baseNetProfit,
     dailyNetProfit: baseNetProfit,
+    isDisabled: disabled,
     baseLaborCostPerUnit: baseUnits > 0 ? (dailyLaborExpense / baseUnits) : 0,
     baseRawCostPerUnit: 0,
     baseNetProfitPerUnit: baseUnits > 0 ? (baseNetProfit / baseUnits) : 0,
@@ -622,18 +644,20 @@ export function calculatePortfolioOverview({
   insourceOverrides = {}
 }) {
   const baseCalculated = companies.map(c => calculateCompanyBaseEconomics(c, prices, insourceOverrides));
+  // Active companies only: strictly exclude disabled companies from profit/loss, production, and labor totals
+  const activeCompanies = baseCalculated.filter(c => !isCompanyDisabled(c));
 
-  // Totals across the portfolio directly matching live in-game data
-  const totalCompanyBasePp = baseCalculated.reduce((sum, c) => sum + (c.companyProducedDailyPp || 0), 0);
+  // Totals across active companies directly matching live in-game data
+  const totalCompanyBasePp = activeCompanies.reduce((sum, c) => sum + (c.companyProducedDailyPp || 0), 0);
   const totalCompanyProducedPp = totalCompanyBasePp;
-  const totalBaseProductionUnits = baseCalculated.reduce((sum, c) => sum + (c.baseUnits || 0), 0);
-  const totalBaseGrossRevenue = baseCalculated.reduce((sum, c) => sum + (c.grossRevenue || 0), 0);
-  const totalWorkerWages = baseCalculated.reduce((sum, c) => sum + (c.workersDailyWages || 0), 0);
-  const totalManagerCost = baseCalculated.reduce((sum, c) => sum + (c.managerPay || 0), 0);
+  const totalBaseProductionUnits = activeCompanies.reduce((sum, c) => sum + (c.baseUnits || 0), 0);
+  const totalBaseGrossRevenue = activeCompanies.reduce((sum, c) => sum + (c.grossRevenue || 0), 0);
+  const totalWorkerWages = activeCompanies.reduce((sum, c) => sum + (c.workersDailyWages || 0), 0);
+  const totalManagerCost = activeCompanies.reduce((sum, c) => sum + (c.managerPay || 0), 0);
   const totalBaseLaborExpense = totalWorkerWages + totalManagerCost;
   const totalBaseNetProfit = totalBaseGrossRevenue - totalBaseLaborExpense;
-  const totalEmployees = baseCalculated.reduce((sum, c) => sum + ((c.employees || c.workers || []).length), 0);
-  const totalManagers = baseCalculated.reduce((sum, c) => sum + (c.managerCount || 0), 0);
+  const totalEmployees = activeCompanies.reduce((sum, c) => sum + ((c.employees || c.workers || []).length), 0);
+  const totalManagers = activeCompanies.reduce((sum, c) => sum + (c.managerCount || 0), 0);
 
   return {
     ownerLabor: {

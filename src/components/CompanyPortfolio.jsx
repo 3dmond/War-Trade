@@ -33,7 +33,7 @@ import {
 } from 'lucide-react';
 import { RECIPES, ENGINE_UPGRADE_TIERS, STORAGE_UPGRADE_TIERS, getBreakRoomCapacity } from '../data/gameData';
 import { api } from '../services/wareraApi';
-import { calculatePortfolioOverview, mapCompanyFromDossier } from '../data/marketMath';
+import { calculatePortfolioOverview, mapCompanyFromDossier, isCompanyDisabled } from '../data/marketMath';
 import { getTraitInfo } from '../data/employeeTraits';
 import ItemIcon from './ItemIcon';
 import StockExchangeListing from './StockExchangeListing';
@@ -677,9 +677,10 @@ export default function CompanyPortfolio({
       const totalEngineBonusPct = regionalBonusPct + ownerBonusPct + managerBonusPct;
       const engineBonusMultiplier = 1 + (totalEngineBonusPct / 100);
 
+      const disabled = isCompanyDisabled(comp);
       const engineTier = ENGINE_UPGRADE_TIERS.find(t => t.level === comp.engineLevel) || ENGINE_UPGRADE_TIERS[0];
-      const effectiveEnginePph = engineTier.ppPerHour * engineBonusMultiplier;
-      const engineDailyPp = effectiveEnginePph * 24;
+      const effectiveEnginePph = disabled ? 0 : (engineTier.ppPerHour * engineBonusMultiplier);
+      const engineDailyPp = disabled ? 0 : (effectiveEnginePph * 24);
 
       // v0.27+: employees with production stats, individual bonuses, and hourly outputs
       const employeesList = (comp.employees || comp.workers || []).map((w, idx) => {
@@ -719,16 +720,16 @@ export default function CompanyPortfolio({
         };
       });
 
-      const totalWorkersHourlyPp = employeesList.reduce((sum, w) => sum + (w.hourlyOutputPp || 0), 0);
-      const workersProducedDailyPp = employeesList.reduce((sum, w) => sum + (w.dailyOutputPp || 0), 0);
-      const totalWorkerDailySalary = employeesList.reduce((sum, w) => sum + (w.dailySalary ?? 0), 0);
+      const totalWorkersHourlyPp = disabled ? 0 : employeesList.reduce((sum, w) => sum + (w.hourlyOutputPp || 0), 0);
+      const workersProducedDailyPp = disabled ? 0 : employeesList.reduce((sum, w) => sum + (w.dailyOutputPp || 0), 0);
+      const totalWorkerDailySalary = disabled ? 0 : employeesList.reduce((sum, w) => sum + (w.dailySalary ?? 0), 0);
 
       // Total combined continuous production speed (Engine + Staff) with all bonuses
-      const totalCombinedPph = effectiveEnginePph + totalWorkersHourlyPp;
+      const totalCombinedPph = disabled ? 0 : (effectiveEnginePph + totalWorkersHourlyPp);
 
       // Engine hardware daily PP
-      const totalDailyEffectivePp = engineDailyPp;
-      const unitsPerDay = recipe.pp > 0 ? (totalDailyEffectivePp / recipe.pp) : 0;
+      const totalDailyEffectivePp = disabled ? 0 : engineDailyPp;
+      const unitsPerDay = (!disabled && recipe.pp > 0) ? (totalDailyEffectivePp / recipe.pp) : 0;
 
       // Storage holding capacity in units (exact warehouse size)
       const storageTier = STORAGE_UPGRADE_TIERS.find(t => t.level === comp.storageLevel) || STORAGE_UPGRADE_TIERS[0];
@@ -773,7 +774,8 @@ export default function CompanyPortfolio({
         totalDailyEffectivePp,
         unitsPerDay,
         currentStoredPp,
-        storedReadyUnits
+        storedReadyUnits,
+        isDisabled: disabled
       };
     });
   }, [companies, liveTick, ownerMgmtBonusPct]);
@@ -861,9 +863,10 @@ export default function CompanyPortfolio({
       // 24-Hour Enterprise Value Growth
       const itemPriceChange = priceChanges24h[comp.itemCode];
       const inventoryPriceDelta = (itemPriceChange?.changeDiff || 0) * (comp.storedReadyUnits || 0);
-      const growth24hCoins = comp.baseNetProfit + inventoryPriceDelta;
+      const disabledComp = isCompanyDisabled(comp);
+      const growth24hCoins = disabledComp ? 0 : (comp.baseNetProfit + inventoryPriceDelta);
       const baselineValuation = Math.max(1, totalCalculatedWorth - growth24hCoins);
-      const growth24hPct = (growth24hCoins / baselineValuation) * 100;
+      const growth24hPct = disabledComp ? 0 : ((growth24hCoins / baselineValuation) * 100);
 
       // Upgrades
       const maxEngineLevel = 5;
@@ -1208,9 +1211,9 @@ export default function CompanyPortfolio({
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
             
             {/* LEFT COLUMN (5 COLS): ASSET VALUATION BREAKDOWN & WAREHOUSE STORAGE */}
-            <div className="lg:col-span-5 space-y-4">
+            <div className="contents lg:flex lg:flex-col lg:col-span-5 lg:space-y-4">
             {/* LEFT COLUMN: COMPANY INTRODUCTION (ASSET VALUATION BREAKDOWN STRUCTURE) */}
-            <div className={`bg-white p-3.5 sm:p-4 border ${activeTheme.cardBorder} rounded-2xl shadow-xs space-y-2.5 relative overflow-hidden`}>
+            <div className={`order-1 lg:order-none bg-white p-3.5 sm:p-4 border ${activeTheme.cardBorder} rounded-2xl shadow-xs space-y-2.5 relative overflow-hidden`}>
               {/* Top Accent Strip */}
               <div className="absolute top-0 inset-x-0 h-1" style={{ backgroundColor: activeTheme.accentColor }} />
               
@@ -1223,6 +1226,11 @@ export default function CompanyPortfolio({
                   <div className="space-y-0.5 min-w-0">
                     <div className="flex items-center space-x-2 flex-wrap">
                       <h2 className="text-base font-extrabold text-slate-900 font-sans truncate">{activeCompany.name}</h2>
+                      {isCompanyDisabled(activeCompany) && (
+                        <span className="px-1.5 py-0.2 bg-slate-100 text-slate-500 border border-slate-300 text-[9px] font-mono font-bold uppercase rounded shrink-0">
+                          Disabled
+                        </span>
+                      )}
                       <span className={`px-1.5 py-0.2 text-[9px] font-mono font-bold uppercase rounded-sm ${activeTheme.pillTag}`}>
                         {activeCompany.itemCode}
                       </span>
@@ -1338,7 +1346,7 @@ export default function CompanyPortfolio({
             </div>
 
                         {/* FACILITY MANAGER SECTION (BETWEEN ASSET BREAKDOWN AND STORAGE) */}
-            <div className={`bg-white p-3 sm:p-3.5 border ${activeTheme.cardBorder} rounded-2xl shadow-xs relative overflow-hidden`}>
+            <div className={`order-2 lg:order-none bg-white p-3 sm:p-3.5 border ${activeTheme.cardBorder} rounded-2xl shadow-xs relative overflow-hidden`}>
               {/* Top Accent Strip */}
               <div className="absolute top-0 inset-x-0 h-1" style={{ backgroundColor: activeTheme.accentColor }} />
               
@@ -1408,8 +1416,8 @@ export default function CompanyPortfolio({
               )}
             </div>
 
-            {/* LEFT COLUMN: WAREHOUSE STORAGE (5 COLS) */}
-            <div className={`bg-white p-5 space-y-4 flex flex-col justify-between border ${activeTheme.cardBorder} rounded-2xl shadow-xs relative overflow-hidden`}>
+            {/* 4. WAREHOUSE STORAGE (Mobile Order 4) */}
+            <div className={`order-4 lg:order-none bg-white p-5 space-y-4 flex flex-col justify-between border ${activeTheme.cardBorder} rounded-2xl shadow-xs relative overflow-hidden`}>
               {/* Top Accent Strip */}
               <div className="absolute top-0 inset-x-0 h-1" style={{ backgroundColor: activeTheme.accentColor }} />
               
@@ -1483,9 +1491,9 @@ export default function CompanyPortfolio({
             </div>
 
             {/* RIGHT COLUMN (7 COLS): WORKFORCE ROSTER (FIFA CAROUSEL) & UNIT ECONOMICS */}
-            <div className="lg:col-span-7 space-y-4">
+            <div className="contents lg:flex lg:flex-col lg:col-span-7 lg:space-y-4">
             {/* RIGHT COLUMN: SLEEK FIFA-STYLE EMPLOYEE SHOWCASE (CLASSY MODERN LUXURY STADIUM THEME) */}
-            <div className={`bg-gradient-to-b from-slate-900 via-[#0a0f1d] to-slate-950 border ${activeTheme.accentBorder || 'border-slate-800'} rounded-2xl p-3.5 sm:p-4 space-y-2.5 flex flex-col justify-between text-white shadow-2xl relative overflow-hidden`}>
+            <div className={`order-3 lg:order-none bg-gradient-to-b from-slate-900 via-[#0a0f1d] to-slate-950 border ${activeTheme.accentBorder || 'border-slate-800'} rounded-2xl p-3.5 sm:p-4 space-y-2.5 flex flex-col justify-between text-white shadow-2xl relative overflow-hidden`}>
               
               {/* Ambient Top Radiance guided by company theme */}
               <div className={`absolute top-0 inset-x-0 h-48 ${activeTheme.stadiumGlow} pointer-events-none`} />
@@ -1526,8 +1534,8 @@ export default function CompanyPortfolio({
 
             </div>
 
-            {/* RIGHT COLUMN: UNIT ECONOMICS & HARDWARE UPGRADES (7 COLS) */}
-            <div className={`bg-white p-5 space-y-4 flex flex-col justify-between border ${activeTheme.cardBorder} rounded-2xl shadow-xs relative overflow-hidden`}>
+            {/* 5. UNIT ECONOMICS & HARDWARE UPGRADES (Mobile Order 5) */}
+            <div className={`order-5 lg:order-none bg-white p-5 space-y-4 flex flex-col justify-between border ${activeTheme.cardBorder} rounded-2xl shadow-xs relative overflow-hidden`}>
               {/* Top Accent Strip */}
               <div className="absolute top-0 inset-x-0 h-1" style={{ backgroundColor: activeTheme.accentColor }} />
               

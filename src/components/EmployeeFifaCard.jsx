@@ -38,11 +38,12 @@ export function AiRobotAvatar({ gender = 'male', className = "w-full h-full" }) 
       viewBox="0 0 100 120" 
       fill="none" 
       xmlns="http://www.w3.org/2000/svg"
+      shapeRendering="geometricPrecision"
     >
       <defs>
         {/* Gender-specific neon glow filter */}
         <filter id={`${idPrefix}_glow`} x="-20%" y="-20%" width="140%" height="140%">
-          <feGaussianBlur stdDeviation="2.2" result="blur" />
+          <feGaussianBlur stdDeviation="0.4" result="blur" />
           <feComposite in="SourceGraphic" in2="blur" operator="over" />
         </filter>
 
@@ -270,14 +271,14 @@ function TraitDropdownItem({
       >
         <div className="flex items-center gap-1.5 min-w-0">
           <span className="text-sm shrink-0">{synergy.icon}</span>
-          <span className="text-xs font-black text-[#261803] font-sans truncate">
+          <span className="text-xs font-black text-slate-950 font-sans truncate">
             {synergy.name}
           </span>
 
           {/* Small '?' icon moved to the left so as not to interfere with the dropdown */}
           <button
             type="button"
-            className="w-4 h-4 rounded-full flex items-center justify-center text-[#5c3e07] hover:text-black hover:bg-black/15 transition shrink-0 cursor-pointer"
+            className="w-4 h-4 rounded-full flex items-center justify-center text-amber-950 hover:text-black hover:bg-black/15 transition shrink-0 cursor-pointer"
             title="Explain Trait Rule"
             onClick={(e) => {
               e.stopPropagation();
@@ -288,19 +289,19 @@ function TraitDropdownItem({
           </button>
 
           {synergy.isTeamTrait && (
-            <span className="text-[8px] uppercase tracking-wider font-mono font-bold bg-[#875c12]/20 text-[#3b2704] px-1 py-0.5 rounded shrink-0">
+            <span className="text-[8px] uppercase tracking-wider font-mono font-bold bg-amber-950/20 text-amber-950 font-black px-1 py-0.5 rounded shrink-0">
               Team
             </span>
           )}
           {synergy.isNegative && (
-            <span className="text-[8px] uppercase tracking-wider font-mono font-bold bg-rose-500/20 text-rose-950 px-1 py-0.5 rounded shrink-0">
+            <span className="text-[8px] uppercase tracking-wider font-mono font-bold bg-rose-500/25 text-rose-950 font-black px-1 py-0.5 rounded shrink-0">
               Negative
             </span>
           )}
         </div>
 
         {/* Far right is ONLY the dropdown chevron */}
-        <div className="text-[#5c3e07] shrink-0 ml-2">
+        <div className="text-amber-950 shrink-0 ml-2 font-bold">
           {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
         </div>
       </div>
@@ -324,7 +325,7 @@ function TraitDropdownItem({
 
       {/* Inline Dropdown Details */}
       {isExpanded && (
-        <div className="mt-1 mx-1 p-2.5 rounded-lg bg-black/15 backdrop-blur-xs text-[#2c1d04] font-mono text-[11px] space-y-2 border border-[#875c12]/25 animate-in fade-in duration-150">
+        <div className="mt-1 mx-1 p-2.5 rounded-lg bg-amber-950/15 text-slate-950 font-mono text-[11px] space-y-2 border border-amber-900/30 animate-in fade-in duration-150">
           
           {/* 1. PERSONAL TRAIT: Show personal data only (no coworkers) */}
           {!synergy.isTeamTrait && synergy.personalData && (
@@ -696,16 +697,25 @@ export default function EmployeeFifaCard({
     : (worker.avatarUrl || null);
 
   return (
-    <div className={`relative max-w-[370px] w-full mx-auto select-none ${className}`}>
+    <div 
+      className={`relative max-w-[370px] w-full mx-auto select-none antialiased subpixel-antialiased ${className}`}
+      style={{
+        WebkitFontSmoothing: 'antialiased',
+        MozOsxFontSmoothing: 'grayscale',
+        textRendering: 'optimizeLegibility',
+        backfaceVisibility: 'hidden',
+        transform: 'translateZ(0)',
+      }}
+    >
       {/* 
         RECTANGULAR FIFA GOLD TRADING CARD
         - Clean straight top and bottom edges (not shield shape)
         - Authentic FIFA gold card color palette and metallic gradients
       */}
       <div 
-        className="relative rounded-2xl p-3 sm:p-3.5 border-2 border-[#fef08a] shadow-[0_10px_35px_rgba(202,138,4,0.4)] ring-1 ring-[#ca8a04] text-[#1c1202] transition-all duration-300 font-sans"
+        className="relative rounded-2xl p-3 sm:p-3.5 border-2 border-[#fde047] shadow-[0_15px_40px_rgba(202,138,4,0.45),0_0_20px_rgba(250,204,21,0.25)] ring-1 ring-[#eab308] text-slate-950 transition-all duration-300 font-sans"
         style={{
-          background: 'linear-gradient(165deg, #fffbeb 0%, #fef08a 12%, #fde047 28%, #facc15 50%, #eab308 75%, #ca8a04 100%)'
+          background: 'linear-gradient(165deg, #fffdf2 0%, #fef9c3 12%, #fef08a 28%, #fde047 50%, #facc15 75%, #eab308 100%)'
         }}
       >
         {/* Subtle FIFA Metallic Diagonal Ray / Ribbon Overlay */}
@@ -745,8 +755,8 @@ export default function EmployeeFifaCard({
           <div className="flex-1 flex flex-col justify-center space-y-2 max-w-[56%]">
             
             {/* Company: 'name and location flag' */}
-            <div className="p-2 rounded-lg bg-black/10 backdrop-blur-xs border border-[#8a6316]/30">
-              <div className="flex items-center gap-1.5 text-[11px] font-bold text-[#2d1e04] leading-tight">
+            <div className="p-2 rounded-lg bg-amber-950/10 border border-amber-900/30">
+              <div className="flex items-center gap-1.5 text-xs font-black text-slate-950 leading-tight">
                 <span className="text-sm shrink-0 drop-shadow-xs" title={`Location: ${companyCountryCode}`}>
                   {companyFlag}
                 </span>
@@ -754,7 +764,7 @@ export default function EmployeeFifaCard({
                   {companyName}
                 </span>
               </div>
-              <div className="text-[9px] font-mono text-[#5b3f09] font-bold flex items-center justify-between mt-1">
+              <div className="text-[9px] font-mono text-amber-950 font-black flex items-center justify-between mt-1">
                 <span className="uppercase tracking-wider">{company?.itemCode || 'Commodity'}</span>
                 <span>Facility</span>
               </div>
@@ -774,7 +784,7 @@ export default function EmployeeFifaCard({
                   <div className="flex items-center justify-between text-[11px] font-bold text-[#2a1a02]">
                     <div className="flex items-center gap-1 truncate">
                       <span className="text-xs">{toolDisplay?.symbol || '🔧'}</span>
-                      <span className="truncate font-mono font-black">{toolDisplay?.name || toolItem.code}</span>
+                      <span className="truncate font-mono font-black text-slate-950 text-xs">{toolDisplay?.name || toolItem.code}</span>
                     </div>
                   </div>
 
@@ -794,7 +804,7 @@ export default function EmployeeFifaCard({
                   </div>
                 </div>
               ) : (
-                <div className="flex items-center gap-1.5 text-[10px] font-mono py-0.5">
+                <div className="flex items-center gap-1.5 text-[10px] font-mono font-bold text-amber-950 py-0.5">
                   <Wrench className="w-3 h-3 text-[#694b12]" />
                   <span>No Tool Equipped</span>
                 </div>
@@ -819,7 +829,7 @@ export default function EmployeeFifaCard({
                 <img 
                   src={avatarUrl} 
                   alt={worker.name || worker.username} 
-                  className="w-full h-full object-cover rounded-[10px]"
+                  className="w-full h-full object-cover rounded-[10px]" style={{ imageRendering: '-webkit-optimize-contrast' }}
                   onError={(e) => { 
                     e.currentTarget.style.display = 'none'; 
                     const next = e.currentTarget.nextElementSibling;
@@ -862,12 +872,12 @@ export default function EmployeeFifaCard({
         */}
         <div className="relative z-10 my-1">
           <div 
-            className="py-1 px-3 rounded-lg shadow-inner border border-[#8a6316]/50 flex items-center justify-center"
+            className="py-1 px-3 rounded-lg shadow-xs border border-amber-500/70 flex items-center justify-center"
             style={{
-              background: 'linear-gradient(90deg, #dfb74a 0%, #faebb6 25%, #fdf5d3 50%, #faebb6 75%, #dfb74a 100%)'
+              background: 'linear-gradient(90deg, #eab308 0%, #fef08a 25%, #fffdf2 50%, #fef08a 75%, #eab308 100%)'
             }}
           >
-            <h3 className="text-sm sm:text-base font-black uppercase tracking-wider text-[#241703] drop-shadow-xs font-sans truncate text-center">
+            <h3 className="text-sm sm:text-base font-black uppercase tracking-wider text-slate-950 drop-shadow-xs font-sans truncate text-center">
               {worker.name || worker.username || 'AI Employee'}
             </h3>
           </div>
@@ -895,17 +905,17 @@ export default function EmployeeFifaCard({
               }`}
               onClick={() => setExpandedStat(expandedStat === 'prod' ? null : 'prod')}
             >
-              <span className="text-[14px] sm:text-[15px] font-black text-[#261803] tracking-tight tabular-nums shrink-0">
+              <span className="text-[15px] sm:text-[16px] font-black text-slate-950 tracking-tight tabular-nums shrink-0">
                 {totalProd}
               </span>
               <div className="flex items-center gap-1">
-                <span className="text-[10px] font-black text-[#52390a] uppercase tracking-wider font-sans">
+                <span className="text-[10px] font-black text-amber-950 uppercase tracking-wider font-sans">
                   PROD
                 </span>
                 {expandedStat === 'prod' ? (
-                  <ChevronUp className="w-3 h-3 text-[#52390a]" />
+                  <ChevronUp className="w-3 h-3 text-amber-950" />
                 ) : (
-                  <ChevronDown className="w-3 h-3 text-[#52390a]/70" />
+                  <ChevronDown className="w-3 h-3 text-amber-950/70" />
                 )}
               </div>
             </div>
@@ -917,17 +927,17 @@ export default function EmployeeFifaCard({
               }`}
               onClick={() => setExpandedStat(expandedStat === 'luck' ? null : 'luck')}
             >
-              <span className="text-[14px] sm:text-[15px] font-black text-[#261803] tracking-tight tabular-nums shrink-0">
+              <span className="text-[15px] sm:text-[16px] font-black text-slate-950 tracking-tight tabular-nums shrink-0">
                 {totalLuck}
               </span>
               <div className="flex items-center gap-1">
-                <span className="text-[10px] font-black text-[#52390a] uppercase tracking-wider font-sans">
+                <span className="text-[10px] font-black text-amber-950 uppercase tracking-wider font-sans">
                   LUCK
                 </span>
                 {expandedStat === 'luck' ? (
-                  <ChevronUp className="w-3 h-3 text-[#52390a]" />
+                  <ChevronUp className="w-3 h-3 text-amber-950" />
                 ) : (
-                  <ChevronDown className="w-3 h-3 text-[#52390a]/70" />
+                  <ChevronDown className="w-3 h-3 text-amber-950/70" />
                 )}
               </div>
             </div>
@@ -939,17 +949,17 @@ export default function EmployeeFifaCard({
               }`}
               onClick={() => setExpandedStat(expandedStat === 'hap' ? null : 'hap')}
             >
-              <span className="text-[14px] sm:text-[15px] font-black text-[#261803] tracking-tight tabular-nums shrink-0">
+              <span className="text-[15px] sm:text-[16px] font-black text-slate-950 tracking-tight tabular-nums shrink-0">
                 {happiness}%
               </span>
               <div className="flex items-center gap-1">
-                <span className="text-[10px] font-black text-[#52390a] uppercase tracking-wider font-sans">
+                <span className="text-[10px] font-black text-amber-950 uppercase tracking-wider font-sans">
                   HAP
                 </span>
                 {expandedStat === 'hap' ? (
-                  <ChevronUp className="w-3 h-3 text-[#52390a]" />
+                  <ChevronUp className="w-3 h-3 text-amber-950" />
                 ) : (
-                  <ChevronDown className="w-3 h-3 text-[#52390a]/70" />
+                  <ChevronDown className="w-3 h-3 text-amber-950/70" />
                 )}
               </div>
             </div>
@@ -962,17 +972,17 @@ export default function EmployeeFifaCard({
               onClick={() => setExpandedStat(expandedStat === 'bonus' ? null : 'bonus')}
               title="Production Bonus Breakdown"
             >
-              <span className="text-[14px] sm:text-[15px] font-black text-[#261803] tracking-tight tabular-nums shrink-0">
+              <span className="text-[15px] sm:text-[16px] font-black text-slate-950 tracking-tight tabular-nums shrink-0">
                 +{prodBonusTotal.toFixed(0)}%
               </span>
               <div className="flex items-center gap-1">
-                <span className="text-[10px] font-black text-[#52390a] uppercase tracking-wider font-sans">
+                <span className="text-[10px] font-black text-amber-950 uppercase tracking-wider font-sans">
                   BON
                 </span>
                 {expandedStat === 'bonus' ? (
-                  <ChevronUp className="w-3 h-3 text-[#52390a]" />
+                  <ChevronUp className="w-3 h-3 text-amber-950" />
                 ) : (
-                  <ChevronDown className="w-3 h-3 text-[#52390a]/70" />
+                  <ChevronDown className="w-3 h-3 text-amber-950/70" />
                 )}
               </div>
             </div>
@@ -984,17 +994,17 @@ export default function EmployeeFifaCard({
               }`}
               onClick={() => setExpandedStat(expandedStat === 'resp' ? null : 'resp')}
             >
-              <span className="text-[14px] sm:text-[15px] font-black text-[#261803] tracking-tight tabular-nums shrink-0">
+              <span className="text-[15px] sm:text-[16px] font-black text-slate-950 tracking-tight tabular-nums shrink-0">
                 {totalResp}
               </span>
               <div className="flex items-center gap-1">
-                <span className="text-[10px] font-black text-[#52390a] uppercase tracking-wider font-sans">
+                <span className="text-[10px] font-black text-amber-950 uppercase tracking-wider font-sans">
                   RESP
                 </span>
                 {expandedStat === 'resp' ? (
-                  <ChevronUp className="w-3 h-3 text-[#52390a]" />
+                  <ChevronUp className="w-3 h-3 text-amber-950" />
                 ) : (
-                  <ChevronDown className="w-3 h-3 text-[#52390a]/70" />
+                  <ChevronDown className="w-3 h-3 text-amber-950/70" />
                 )}
               </div>
             </div>
@@ -1006,17 +1016,17 @@ export default function EmployeeFifaCard({
               }`}
               onClick={() => setExpandedStat(expandedStat === 'pot' ? null : 'pot')}
             >
-              <span className="text-[14px] sm:text-[15px] font-black text-[#261803] tracking-tight tabular-nums shrink-0">
+              <span className="text-[15px] sm:text-[16px] font-black text-slate-950 tracking-tight tabular-nums shrink-0">
                 {potential}/{potentialMax || 8}
               </span>
               <div className="flex items-center gap-1">
-                <span className="text-[10px] font-black text-[#52390a] uppercase tracking-wider font-sans">
+                <span className="text-[10px] font-black text-amber-950 uppercase tracking-wider font-sans">
                   POT
                 </span>
                 {expandedStat === 'pot' ? (
-                  <ChevronUp className="w-3 h-3 text-[#52390a]" />
+                  <ChevronUp className="w-3 h-3 text-amber-950" />
                 ) : (
-                  <ChevronDown className="w-3 h-3 text-[#52390a]/70" />
+                  <ChevronDown className="w-3 h-3 text-amber-950/70" />
                 )}
               </div>
             </div>
@@ -1262,11 +1272,11 @@ export default function EmployeeFifaCard({
           */}
           <div className="mt-1 pt-1.5 border-t border-[#875c12]/35">
             <div className="flex items-center justify-between mb-1 px-1">
-              <span className="text-[9px] font-black uppercase tracking-widest text-[#52390a] font-sans flex items-center gap-1">
-                <Sparkles className="w-2.5 h-2.5 text-[#52390a]" />
+              <span className="text-[9px] font-black uppercase tracking-widest text-amber-950 font-sans flex items-center gap-1">
+                <Sparkles className="w-2.5 h-2.5 text-amber-950" />
                 <span>TRAITS & SYNERGIES</span>
               </span>
-              <span className="text-[9px] font-mono font-bold text-[#5e410b]">
+              <span className="text-[10px] font-mono font-black text-amber-950">
                 {traits.length} {traits.length === 1 ? 'Trait' : 'Traits'}
               </span>
             </div>

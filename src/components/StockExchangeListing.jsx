@@ -172,18 +172,19 @@ export default function StockExchangeListing({
   const marketOverview = useMemo(() => {
     const totalValuation = companies.reduce((sum, c) => sum + (c.totalCalculatedWorth || 0), 0);
 
-    // Direct ground-truth aggregations across active companies
-    const sumCompanyGrossRevenue = companies.reduce((sum, c) => sum + (c.dailyGrossRevenue ?? c.grossRevenue ?? 0), 0);
-    const sumCompanyWorkerExpense = companies.reduce((sum, c) => sum + (c.workersDailyWages ?? c.dailyLaborExpense ?? 0), 0);
-    const sumCompanyManagerExpense = companies.reduce((sum, c) => sum + (c.managerPay ?? 0), 0);
+    // Direct ground-truth aggregations across active companies (strictly excluding disabled companies from profit/loss & production)
+    const activeCompanies = companies.filter(c => !isCompanyDisabled(c));
+    const sumCompanyGrossRevenue = activeCompanies.reduce((sum, c) => sum + (c.dailyGrossRevenue ?? c.grossRevenue ?? 0), 0);
+    const sumCompanyWorkerExpense = activeCompanies.reduce((sum, c) => sum + (c.workersDailyWages ?? c.dailyLaborExpense ?? 0), 0);
+    const sumCompanyManagerExpense = activeCompanies.reduce((sum, c) => sum + (c.managerPay ?? 0), 0);
     const sumCompanyLaborExpense = sumCompanyWorkerExpense + sumCompanyManagerExpense;
-    const sumCompanyRawExpense = companies.reduce((sum, c) => sum + (c.dailyRawExpenseTotal ?? 0), 0);
+    const sumCompanyRawExpense = activeCompanies.reduce((sum, c) => sum + (c.dailyRawExpenseTotal ?? 0), 0);
     const sumCompanyNetProfit = sumCompanyGrossRevenue - sumCompanyLaborExpense - sumCompanyRawExpense;
-    const sumCompanyDailyUnits = companies.reduce((sum, c) => sum + (c.baseUnits ?? 0), 0);
-    const sumCompanyProducedPp = companies.reduce((sum, c) => sum + (c.companyProducedDailyPp ?? 0), 0);
-    const sumCompanyBasePp = companies.reduce((sum, c) => sum + (c.companyBaseDailyPp ?? c.companyProducedDailyPp ?? 0), 0);
-    const sumCompanyWorkers = companies.reduce((sum, c) => sum + (c.enrichedWorkers?.length || c.employees?.length || c.workers?.length || 0), 0);
-    const sumCompanyManagers = companies.reduce((sum, c) => sum + (c.hasManager ? 1 : 0), 0);
+    const sumCompanyDailyUnits = activeCompanies.reduce((sum, c) => sum + (c.baseUnits ?? 0), 0);
+    const sumCompanyProducedPp = activeCompanies.reduce((sum, c) => sum + (c.companyProducedDailyPp ?? 0), 0);
+    const sumCompanyBasePp = activeCompanies.reduce((sum, c) => sum + (c.companyBaseDailyPp ?? c.companyProducedDailyPp ?? 0), 0);
+    const sumCompanyWorkers = activeCompanies.reduce((sum, c) => sum + (c.enrichedWorkers?.length || c.employees?.length || c.workers?.length || 0), 0);
+    const sumCompanyManagers = activeCompanies.reduce((sum, c) => sum + (c.hasManager ? 1 : 0), 0);
 
     const totalWorkerWages = (typeof portfolioTotals?.totalWorkerWages === 'number')
       ? portfolioTotals.totalWorkerWages
@@ -881,6 +882,11 @@ export default function StockExchangeListing({
                               <span className="font-extrabold text-slate-900 group-hover:text-blue-700 transition font-sans text-sm truncate">
                                 {c.name}
                               </span>
+                              {isCompanyDisabled(c) && (
+                                <span className="px-1.5 py-0.2 bg-slate-100 text-slate-500 border border-slate-300 text-[8px] font-mono font-bold uppercase rounded shrink-0">
+                                  Disabled
+                                </span>
+                              )}
                               {c.isRealGameCompany && (
                                 <span className="inline-flex items-center text-emerald-700" title="Verified Game Facility">
                                   <CheckCircle2 className="w-3.5 h-3.5" />
@@ -932,9 +938,13 @@ export default function StockExchangeListing({
 
                       {/* Net Daily Profit */}
                       <td className="py-3.5 px-3 text-right whitespace-nowrap font-mono">
-                        <span className={`font-bold ${baseIncome > 0 ? 'text-emerald-500' : baseIncome < 0 ? 'text-red-500' : 'text-blue-500'}`}>
-                          {baseIncome >= 0 ? '+' : ''}{baseIncome.toFixed(2)}
-                        </span>
+                        {isCompanyDisabled(c) ? (
+                          <span className="font-bold text-slate-400 font-mono">0.00</span>
+                        ) : (
+                          <span className={`font-bold ${baseIncome > 0 ? 'text-emerald-500' : baseIncome < 0 ? 'text-red-500' : 'text-blue-500'}`}>
+                            {baseIncome >= 0 ? '+' : ''}{baseIncome.toFixed(2)}
+                          </span>
+                        )}
                       </td>
 
                       {/* Margin Column */}
