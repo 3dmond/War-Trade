@@ -1,3 +1,5 @@
+import { RECIPES, getBreakRoomCapacity } from './gameData.js';
+
 export function isCompanyDisabled(comp) {
   if (!comp) return false;
   return Boolean(
@@ -17,8 +19,161 @@ export function isCompanyDisabled(comp) {
   );
 }
 
+/**
+ * Resolves each employee's individual production output with their specific bonuses applied.
+ * Individual bonuses (tool, personal traits, individual morale, individual spec) are isolated to the worker
+ * and NOT applied globally to the company or engine.
+ * Facility global bonuses (Owner Mgmt, Facility Manager, Regional/Deposit) apply to workers as members of the facility.
+ */
+export function getWorkerIndividualBonusBreakdown(worker, company = {}, ownerMgmtBonusPct = 0) {
+  if (!worker) {
+    return {
+      totalBonus: 0,
+      baseProdStat: 0,
+      totalProdStat: 0,
+      baseHourlyPp: 0,
+      hourlyOutputPp: 0,
+      dailyOutputPp: 0,
+      toolBonus: 0,
+      traitBonus: 0,
+      hapBonus: 0,
+      specBonus: 0,
+      mgmtBonus: 0,
+      managerBonus: 0,
+      regionalBonus: 0,
+      activeModifiers: [],
+      contributions: []
+    };
+  }
+
+  const prodBonusObj = worker.productionBonusData || worker.productionBonus || worker._raw?.productionBonus || null;
+  const bonusBreakdownData = worker.productionBonusBreakdown || worker.productionBonusData || worker._raw?.productionBonusBreakdown || {};
+  const bonusContributions = Array.isArray(prodBonusObj?.contributions)
+    ? prodBonusObj.contributions
+    : (Array.isArray(bonusBreakdownData?.contributions) ? bonusBreakdownData.contributions : null);
+
+  // 1. Tool Bonus (worker specific)
+  const toolContrib = bonusContributions?.find(c => c.source === 'tool');
+  const toolBonus = toolContrib
+    ? toolContrib.percent
+    : (typeof bonusBreakdownData.tool === 'number'
+        ? bonusBreakdownData.tool
+        : (worker.toolStatus?.bonusPercent || worker.toolItem?.skills?.production || worker.tool?.skills?.production || 0));
+
+  // 2. Traits Bonus (worker specific)
+  const traitContribs = bonusContributions?.filter(c => !['management', 'manager', 'coreRegion', 'regional', 'deposit', 'happiness', 'tool', 'specialization'].includes(c.source)) || [];
+  let traitBonus = traitContribs.reduce((sum, c) => sum + (c.percent || 0), 0);
+  if (traitContribs.length === 0 && typeof bonusBreakdownData.traits === 'number') {
+    traitBonus = bonusBreakdownData.traits;
+  }
+
+  // 3. Happiness / Morale Bonus (worker specific)
+  const happinessContrib = bonusContributions?.find(c => c.source === 'happiness');
+  const hapBonus = happinessContrib
+    ? happinessContrib.percent
+    : (typeof bonusBreakdownData.happiness === 'number'
+        ? bonusBreakdownData.happiness
+        : (typeof worker.happiness === 'number' ? Math.round(worker.happiness - 50) : 0));
+
+  // 4. Specialization Bonus (worker specific)
+  const specializationContrib = bonusContributions?.find(c => c.source === 'specialization');
+  const specBonus = specializationContrib
+    ? specializationContrib.percent
+    : (typeof bonusBreakdownData.specialization === 'number'
+        ? bonusBreakdownData.specialization
+        : (worker.specializationBonus || 0));
+
+  // 5. Global Facility Modifiers (applied to worker as facility member):
+  // Owner Management
+  const ownerMgmtContrib = bonusContributions?.find(c => c.source === 'management');
+  const mgmtBonus = ownerMgmtContrib
+    ? ownerMgmtContrib.percent
+    : (typeof bonusBreakdownData.management === 'number' ? bonusBreakdownData.management : (ownerMgmtBonusPct || 0));
+
+  // Contracted Facility Manager
+  const facilityManagerContrib = bonusContributions?.find(c => c.source === 'manager');
+  const managerBonus = facilityManagerContrib
+    ? facilityManagerContrib.percent
+    : (typeof bonusBreakdownData.manager === 'number'
+        ? bonusBreakdownData.manager
+        : (company?.managerBonusPct || company?.manager?.productionBonusPercent || (company?.manager?.managementLevel ? company.manager.managementLevel * 2 : 0) || 0));
+
+  // Regional / Strategic Core / Deposit
+  const coreRegionContrib = bonusContributions?.find(c => c.source === 'coreRegion' || c.source === 'regional' || c.source === 'deposit');
+  const regionalBonus = coreRegionContrib
+    ? coreRegionContrib.percent
+    : (typeof bonusBreakdownData.coreRegion === 'number' ? bonusBreakdownData.coreRegion : (company?.regionalBonusPct || 0));
+
+  // Total Bonus Calculation:
+  // If authoritative total is specified by game engine / API, respect it; otherwise sum components
+  let totalBonus = 0;
+  if (typeof prodBonusObj?.total === 'number') {
+    totalBonus = prodBonusObj.total;
+  } else if (typeof worker.productionBonus === 'number') {
+    totalBonus = worker.productionBonus;
+  } else {
+    totalBonus = toolBonus + traitBonus + hapBonus + specBonus + mgmtBonus + managerBonus + regionalBonus;
+  }
+
+  // Base Production Stat Points (PROD)
+  const baseProd = worker.baseProduction ?? worker.base?.production ?? 0;
+  const trainedProd = worker.trainedProduction ?? worker.trained?.production ?? 0;
+  const traitProd = worker.traitProduction ?? 0;
+  let totalProdStat = worker.breakdown?.production?.total ?? (baseProd + trainedProd + traitProd);
+  if (totalProdStat === 0) {
+    totalProdStat = worker.totalProduction || worker.prod || worker.production || 0;
+  }
+  const baseProdStat = totalProdStat;
+
+  // Base Hourly PP before individual/global bonuses (1 PROD = 0.25 PP/h unboosted)
+  let baseHourlyPp = baseProdStat * 0.25;
+
+  // Effective Hourly PP calculated from Base PP/h and Total Bonus %:
+  let hourlyOutputPp = 0;
+  if (baseHourlyPp > 0) {
+    hourlyOutputPp = Number((baseHourlyPp * (1 + (totalBonus / 100))).toFixed(2));
+  } else if (typeof worker.hourlyOutputPp === 'number' && worker.hourlyOutputPp > 0) {
+    hourlyOutputPp = worker.hourlyOutputPp;
+    baseHourlyPp = totalBonus !== -100 ? Number((hourlyOutputPp / (1 + (totalBonus / 100))).toFixed(2)) : hourlyOutputPp;
+  } else if (typeof worker.estimate?.production === 'number' && worker.estimate.production > 0) {
+    hourlyOutputPp = worker.estimate.production;
+    baseHourlyPp = totalBonus !== -100 ? Number((hourlyOutputPp / (1 + (totalBonus / 100))).toFixed(2)) : hourlyOutputPp;
+  }
+
+  const dailyOutputPp = Number((hourlyOutputPp * 24).toFixed(2));
+
+  const toolName = worker.toolItem?.name || worker.toolItem?.code || worker.tool?.name || worker.toolStatus?.name || (toolBonus !== 0 ? 'Equipped Tool' : null);
+
+  const activeModifiers = [];
+  if (toolBonus !== 0) activeModifiers.push({ label: toolName ? `Tool (${toolName})` : 'Tool', percent: toolBonus, type: 'individual' });
+  if (traitBonus !== 0) activeModifiers.push({ label: 'Traits', percent: traitBonus, type: 'individual' });
+  if (hapBonus !== 0) activeModifiers.push({ label: `Morale (${typeof worker.happiness === 'number' ? worker.happiness : 50}%)`, percent: hapBonus, type: 'individual' });
+  if (specBonus !== 0) activeModifiers.push({ label: 'Specialization', percent: specBonus, type: 'individual' });
+  if (mgmtBonus !== 0) activeModifiers.push({ label: 'Owner Management', percent: mgmtBonus, type: 'global' });
+  if (managerBonus !== 0) activeModifiers.push({ label: 'Facility Manager', percent: managerBonus, type: 'global' });
+  if (regionalBonus !== 0) activeModifiers.push({ label: 'Regional Modifier', percent: regionalBonus, type: 'global' });
+
+  return {
+    totalBonus,
+    baseProdStat,
+    totalProdStat: baseProdStat,
+    baseHourlyPp,
+    hourlyOutputPp,
+    dailyOutputPp,
+    toolName,
+    toolBonus,
+    traitBonus,
+    hapBonus,
+    specBonus,
+    mgmtBonus,
+    managerBonus,
+    regionalBonus,
+    activeModifiers,
+    contributions: bonusContributions || []
+  };
+}
+
 // Mathematical utilities for WarEra Financial Market & TradingView Chart Engine
-import { RECIPES, getBreakRoomCapacity } from './gameData.js';
 
 /**
  * Generate mathematically rigorous, realistic OHLC candlestick data for TradingView Lightweight Charts.
@@ -497,19 +652,8 @@ export function calculateCompanyBaseEconomics(comp, prices = {}, insourceOverrid
   const rawList = comp.employees || comp.workers || comp.workersList || comp.employeesList || [];
 
   const employeesList = rawList.map((w, idx) => {
-    let hourlyOutputPp = typeof w.hourlyOutputPp === 'number' && w.hourlyOutputPp > 0
-      ? w.hourlyOutputPp
-      : (typeof w.estimate?.production === 'number' && w.estimate.production > 0 ? w.estimate.production : 0);
-
-    if (hourlyOutputPp === 0) {
-      const prodStat = (w.baseProduction ?? 0) + (w.trainedProduction ?? 0) + (w.traitProduction ?? 0);
-      if (prodStat > 0) {
-        const workerBonus = typeof w.productionBonus === 'number'
-          ? w.productionBonus
-          : (typeof w.productionBonusData?.total === 'number' ? w.productionBonusData.total : totalBonusPct);
-        hourlyOutputPp = (prodStat * 0.25) * (1 + (workerBonus / 100));
-      }
-    }
+    const bonusBreakdown = getWorkerIndividualBonusBreakdown(w, comp, totalBonusPct);
+    const hourlyOutputPp = bonusBreakdown.hourlyOutputPp;
 
     const hourlyWage = typeof w.wage === 'number'
       ? w.wage
@@ -536,48 +680,53 @@ export function calculateCompanyBaseEconomics(comp, prices = {}, insourceOverrid
       dailyWage,
       grossDailyWage: dailyWage,
       dailyProductionValue,
-      dailyProfit
+      dailyProfit,
+      individualBonusBreakdown: bonusBreakdown,
+      totalBonusPct: bonusBreakdown.totalBonus,
+      baseProdStat: bonusBreakdown.baseProdStat,
+      baseHourlyPp: bonusBreakdown.baseHourlyPp
     };
   });
 
   const disabled = isCompanyDisabled(comp);
 
-  const workersProducedDailyPp = disabled ? 0 : employeesList.reduce((sum, e) => sum + e.dailyOutputPp, 0);
+  // Within the company calculations remain true and exact
+  const workersProducedDailyPp = employeesList.reduce((sum, e) => sum + e.dailyOutputPp, 0);
   const workersBaseDailyPp = workersProducedDailyPp;
-  const workersDailyWages = disabled ? 0 : employeesList.reduce((sum, e) => sum + e.dailyWage, 0);
-  const workersDailyRevenue = disabled ? 0 : employeesList.reduce((sum, e) => sum + e.dailyProductionValue, 0);
-  const workersDailyProfit = disabled ? 0 : employeesList.reduce((sum, e) => sum + e.dailyProfit, 0);
+  const workersDailyWages = employeesList.reduce((sum, e) => sum + e.dailyWage, 0);
+  const workersDailyRevenue = employeesList.reduce((sum, e) => sum + e.dailyProductionValue, 0);
+  const workersDailyProfit = employeesList.reduce((sum, e) => sum + e.dailyProfit, 0);
 
   // Manager economics (v0.27+ paid manager role)
-  const managerDailyPay = disabled ? 0 : (typeof comp.manager?.dailyWage === 'number'
+  const managerDailyPay = typeof comp.manager?.dailyWage === 'number'
     ? comp.manager.dailyWage
-    : (typeof comp.managerPay === 'number' ? comp.managerPay : 0));
-  const hasManager = !disabled && (!!comp.manager || managerDailyPay > 0);
+    : (typeof comp.managerPay === 'number' ? comp.managerPay : 0);
+  const hasManager = !!comp.manager || managerDailyPay > 0;
   const managerCount = hasManager ? 1 : 0;
 
   // Automated engine metrics (accounting for engine production bonuses)
   const engineBasePph = comp.engineTier?.ppPerHour || (comp.engineLevel || 1);
-  const effectiveEnginePph = disabled ? 0 : (typeof comp.effectiveEnginePph === 'number'
+  const effectiveEnginePph = typeof comp.effectiveEnginePph === 'number'
     ? comp.effectiveEnginePph
-    : (engineBasePph * bonusMultiplier));
-  const engineBaseDailyPp = disabled ? 0 : (engineBasePph * 24);
-  const engineProducedDailyPp = disabled ? 0 : (effectiveEnginePph * 24);
+    : (engineBasePph * bonusMultiplier);
+  const engineBaseDailyPp = engineBasePph * 24;
+  const engineProducedDailyPp = effectiveEnginePph * 24;
 
   const companyBaseDailyPp = workersProducedDailyPp;
   const companyProducedDailyPp = workersProducedDailyPp;
 
-  // Base Production in units per day (strictly 0 for disabled companies)
-  const baseUnits = (!disabled && recipe.pp > 0) ? (companyProducedDailyPp / recipe.pp) : 0;
-  const grossRevenue = disabled ? 0 : workersDailyRevenue;
-  const dailyLaborExpense = disabled ? 0 : (workersDailyWages + managerDailyPay);
+  // Base Production in units per day
+  const baseUnits = recipe.pp > 0 ? (companyProducedDailyPp / recipe.pp) : 0;
+  const grossRevenue = workersDailyRevenue;
+  const dailyLaborExpense = workersDailyWages + managerDailyPay;
   const dailyRawExpenseTotal = 0;
 
-  // Base Net Profit directly reflects live in-game employee generation minus worker wages and manager pay (0 for disabled companies)
-  const baseNetProfit = disabled ? 0 : (grossRevenue - dailyLaborExpense);
-  const baseLaborCostPerUnit = (!disabled && baseUnits > 0) ? (dailyLaborExpense / baseUnits) : 0;
+  // Base Net Profit directly reflects live in-game employee generation minus worker wages and manager pay
+  const baseNetProfit = grossRevenue - dailyLaborExpense;
+  const baseLaborCostPerUnit = baseUnits > 0 ? (dailyLaborExpense / baseUnits) : 0;
   const baseRawCostPerUnit = 0;
-  const baseNetProfitPerUnit = (!disabled && baseUnits > 0) ? (baseNetProfit / baseUnits) : 0;
-  const baseNetMarginPct = (!disabled && grossRevenue > 0) ? (baseNetProfit / grossRevenue) * 100 : 0;
+  const baseNetProfitPerUnit = baseUnits > 0 ? (baseNetProfit / baseUnits) : 0;
+  const baseNetMarginPct = grossRevenue > 0 ? (baseNetProfit / grossRevenue) * 100 : 0;
 
   return {
     ...comp,
@@ -679,8 +828,8 @@ export function calculatePortfolioOverview({
       totalInclusiveBasePp: totalCompanyProducedPp,
       currentReadySelfWorkPp: 0,
       totalBaseProductionUnits,
-      totalRawBaseUnits: baseCalculated.filter(c => c.isRaw).reduce((sum, c) => sum + c.baseUnits, 0),
-      totalFinishedBaseUnits: baseCalculated.filter(c => !c.isRaw).reduce((sum, c) => sum + c.baseUnits, 0),
+      totalRawBaseUnits: activeCompanies.filter(c => c.isRaw).reduce((sum, c) => sum + c.baseUnits, 0),
+      totalFinishedBaseUnits: activeCompanies.filter(c => !c.isRaw).reduce((sum, c) => sum + c.baseUnits, 0),
       totalBaseGrossRevenue,
       totalBaseRawExpense: 0,
       totalWorkerWages,

@@ -23,8 +23,7 @@ import ItemIcon from './ItemIcon';
 import MetricBreakdownModal from './MetricBreakdownModal';
 import { api } from '../services/wareraApi';
 import { RECIPES } from '../data/gameData';
-import { getCountryFlag } from './CompanyPortfolio';
-import { getCountryName } from '../data/traitSynergyEngine';
+import { getCountryFlag, getCountryName } from '../data/wareraCountries';
 import { getCompanyTheme } from '../data/companyThemes';
 import CountryFlagBadge from './CountryFlagBadge';
 import { isCompanyDisabled } from '../data/marketMath';
@@ -641,8 +640,10 @@ export default function StockExchangeListing({
                 Breakdown <ExternalLink className="w-2.5 h-2.5" />
               </span>
             </div>
-            <div className="text-base sm:text-lg font-black font-mono text-emerald-500">
-              +{marketOverview.totalBaseGrossRevenue.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
+            <div className={`text-base sm:text-lg font-black font-mono ${
+              marketOverview.totalBaseGrossRevenue > 0 ? 'text-emerald-500' : marketOverview.totalBaseGrossRevenue < 0 ? 'text-red-500' : 'text-blue-500'
+            }`}>
+              {marketOverview.totalBaseGrossRevenue > 0 ? '+' : ''}{marketOverview.totalBaseGrossRevenue.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
               <span className="text-[10px] font-normal text-slate-400 ml-1">/day</span>
             </div>
             <div className="text-[10px] text-slate-500 font-sans flex items-center justify-between">
@@ -884,8 +885,9 @@ export default function StockExchangeListing({
                                 {c.name}
                               </span>
                               {isCompanyDisabled(c) && (
-                                <span className="px-1.5 py-0.2 bg-slate-100 text-slate-500 border border-slate-300 text-[8px] font-mono font-bold uppercase rounded shrink-0">
-                                  Disabled
+                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-rose-50 border border-rose-300 text-rose-700 text-[9px] font-mono font-bold uppercase rounded shrink-0" title="Company Disabled">
+                                  <AlertTriangle className="w-3 h-3 text-rose-600 shrink-0" />
+                                  <span>Disabled</span>
                                 </span>
                               )}
                               {c.isRealGameCompany && (
@@ -926,8 +928,10 @@ export default function StockExchangeListing({
                       </td>
 
                       {/* Daily Gross Revenue */}
-                      <td className="py-3.5 px-3 text-right whitespace-nowrap font-bold text-emerald-600 font-mono">
-                        +{(c.grossRevenue ?? 0).toFixed(2)}
+                      <td className={`py-3.5 px-3 text-right whitespace-nowrap font-bold font-mono ${
+                        (c.grossRevenue ?? 0) > 0 ? 'text-emerald-600' : (c.grossRevenue ?? 0) < 0 ? 'text-red-600' : 'text-blue-600'
+                      }`}>
+                        {(c.grossRevenue ?? 0) > 0 ? '+' : ''}{(c.grossRevenue ?? 0).toFixed(2)}
                       </td>
 
                       {/* Base Salaries Paid Out */}
@@ -939,13 +943,9 @@ export default function StockExchangeListing({
 
                       {/* Net Daily Profit */}
                       <td className="py-3.5 px-3 text-right whitespace-nowrap font-mono">
-                        {isCompanyDisabled(c) ? (
-                          <span className="font-bold text-slate-400 font-mono">0.00</span>
-                        ) : (
-                          <span className={`font-bold ${baseIncome > 0 ? 'text-emerald-500' : baseIncome < 0 ? 'text-red-500' : 'text-blue-500'}`}>
-                            {baseIncome >= 0 ? '+' : ''}{baseIncome.toFixed(2)}
-                          </span>
-                        )}
+                        <span className={`font-bold ${baseIncome > 0 ? 'text-emerald-500' : baseIncome < 0 ? 'text-red-500' : 'text-blue-500'}`}>
+                          {baseIncome >= 0 ? '+' : ''}{baseIncome.toFixed(2)}
+                        </span>
                       </td>
 
                       {/* Margin Column */}

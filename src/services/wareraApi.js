@@ -1,5 +1,6 @@
 // WarEra tRPC API Client — updated for v0.27+ employee system
 import { getItemValuePerPp } from '../data/marketMath.js';
+import { resolveCountry, registerCountry, getCountryFlag, getCountryName } from '../data/wareraCountries.js';
 
 const DEFAULT_TOKEN = 'wae_7152c6d478d157069e449cf27f377458bafc5133686f8c222252af4b8828f09e';
 
@@ -338,17 +339,43 @@ export class WarEraService {
 
   async getCountryById(countryId) {
     if (!countryId) return null;
+    const staticResolved = resolveCountry(countryId);
+    if (staticResolved && staticResolved.code !== 'HQ') {
+      return {
+        _id: staticResolved.id || countryId,
+        name: staticResolved.name,
+        code: staticResolved.code.toLowerCase()
+      };
+    }
     if (this._countryCache && this._countryCache.has(countryId)) {
       return this._countryCache.get(countryId);
     }
     try {
       const data = await this.callTrpc('country.getCountryById', { countryId });
       if (data) {
+        registerCountry(data);
         if (!this._countryCache) this._countryCache = new Map();
         this._countryCache.set(countryId, data);
       }
       return data;
     } catch (e) {
+      return null;
+    }
+  }
+
+  async getAllCountries() {
+    try {
+      const data = await this.callTrpc('country.getAllCountries', {});
+      if (Array.isArray(data)) {
+        if (!this._countryCache) this._countryCache = new Map();
+        data.forEach(c => {
+          registerCountry(c);
+          if (c._id) this._countryCache.set(c._id, c);
+        });
+      }
+      return data;
+    } catch (e) {
+      console.warn('Failed to fetch all countries:', e.message);
       return null;
     }
   }
@@ -431,6 +458,13 @@ export class WarEraService {
       const luck = (e.base?.luck ?? 0) + (e.trained?.luck ?? 0);
       const resp = (e.base?.responsibility ?? 0) + (e.trained?.responsibility ?? 0);
 
+      // Resolve exact worker country and flag from real nationality MongoDB ObjectId
+      const rawNat = e.nationality || e.country || e.countryCode || e.nationalityCode || null;
+      const countryResolved = resolveCountry(rawNat);
+      const workerCountryCode = countryResolved?.code && countryResolved.code !== 'HQ' ? countryResolved.code : null;
+      const workerCountryName = countryResolved?.name && countryResolved.code !== 'HQ' ? countryResolved.name : null;
+      const flagEmoji = countryResolved?.flag || (workerCountryCode ? getCountryFlag(workerCountryCode) : '🌐');
+
       return {
         id: e._id || `emp-${idx}`,
         _id: e._id,
@@ -474,7 +508,13 @@ export class WarEraService {
         specializations: e.specializations || {},
         eventModifiers: e.eventModifiers || [],
         trainingHistory: e.trainingHistory || [],
-        nationality: e.nationality || null,
+        nationality: rawNat,
+        nationalityId: typeof rawNat === 'string' && rawNat.length === 24 ? rawNat : (countryResolved?.id || null),
+        countryCode: workerCountryCode,
+        countryName: workerCountryName,
+        nationalityCode: workerCountryCode,
+        nationalityName: workerCountryName,
+        flagEmoji,
 
         // Context
         companyId: companyContext.id || e.company || null,

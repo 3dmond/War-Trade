@@ -16,11 +16,10 @@ import {
   Info,
   CheckCircle2
 } from 'lucide-react';
-import { getCountryFlag } from './CompanyPortfolio';
+import { resolveCountry, getCountryFlag, getCountryName } from '../data/wareraCountries';
 import { getTraitInfo } from '../data/employeeTraits';
-import { getItemValuePerPp } from '../data/marketMath';
-import { evaluateTraitSynergy, getCountryName } from '../data/traitSynergyEngine';
-import CountryFlagBadge from './CountryFlagBadge';
+import { getItemValuePerPp, getWorkerIndividualBonusBreakdown } from '../data/marketMath';
+import { getCountryFlagTheme } from '../data/countryFlagColors';
 
 /**
  * Sleek Futuristic AI Robot Avatar Component
@@ -238,279 +237,6 @@ export function AiRobotAvatar({ gender = 'male', className = "w-full h-full" }) 
 }
 
 /**
- * Trait Dropdown List Item
- * - Replaces popup modal and ugly pill borders with clean unbordered list rows.
- * - Tap/click row or chevron to toggle dropdown details.
- * - Small '?' icon on right explains official trait rule.
- * - For personal traits (anchor, handy, etc.): shows personal data/status only.
- * - For team traits:
- *     a) On workers in this company
- *     b) Across all workers in portfolio, listed in descending order
- */
-function TraitDropdownItem({
-  traitInput,
-  worker,
-  company,
-  portfolioWorkers,
-  portfolioCompanies,
-  ratePerPp,
-  isExpanded,
-  onToggle,
-  onSelectCompany
-}) {
-  const [showHelp, setShowHelp] = useState(false);
-  const safeRatePerPp = typeof ratePerPp === 'number' && !isNaN(ratePerPp) ? ratePerPp : 0.06;
-  const synergy = evaluateTraitSynergy(traitInput, worker, company, portfolioWorkers, safeRatePerPp, portfolioCompanies);
-
-  return (
-    <div className="py-1 border-b border-[#875c12]/20 last:border-none">
-      {/* Header Row */}
-      <div 
-        className="flex items-center justify-between py-1 px-1.5 rounded-md hover:bg-black/10 cursor-pointer transition select-none"
-        onClick={onToggle}
-      >
-        <div className="flex items-center gap-1.5 min-w-0">
-          <span className="text-sm shrink-0">{synergy.icon}</span>
-          <span className="text-xs font-black text-slate-950 font-sans truncate">
-            {synergy.name}
-          </span>
-
-          {/* Small '?' icon moved to the left so as not to interfere with the dropdown */}
-          <button
-            type="button"
-            className="w-4 h-4 rounded-full flex items-center justify-center text-amber-950 hover:text-black hover:bg-black/15 transition shrink-0 cursor-pointer"
-            title="Explain Trait Rule"
-            onClick={(e) => {
-              e.stopPropagation();
-              setShowHelp(prev => !prev);
-            }}
-          >
-            <HelpCircle className="w-3.5 h-3.5" />
-          </button>
-
-          {synergy.isTeamTrait && (
-            <span className="text-[8px] uppercase tracking-wider font-mono font-bold bg-amber-950/20 text-amber-950 font-black px-1 py-0.5 rounded shrink-0">
-              Team
-            </span>
-          )}
-          {synergy.isNegative && (
-            <span className="text-[8px] uppercase tracking-wider font-mono font-bold bg-rose-500/25 text-rose-950 font-black px-1 py-0.5 rounded shrink-0">
-              Negative
-            </span>
-          )}
-        </div>
-
-        {/* Far right is ONLY the dropdown chevron */}
-        <div className="text-amber-950 shrink-0 ml-2 font-bold">
-          {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-        </div>
-      </div>
-
-      {/* Trait Definition Help Note */}
-      {showHelp && (
-        <div className="mx-1 my-1 p-2 rounded-lg bg-slate-900 text-slate-200 text-[10px] font-sans leading-relaxed shadow-lg border border-amber-400/40 animate-in fade-in duration-150">
-          <div className="flex items-center justify-between text-amber-300 font-bold mb-0.5">
-            <span>{synergy.name} Rule:</span>
-            <button 
-              type="button"
-              className="text-slate-400 hover:text-white text-[9px] px-1"
-              onClick={() => setShowHelp(false)}
-            >
-              ✕
-            </button>
-          </div>
-          <p>{synergy.description}</p>
-        </div>
-      )}
-
-      {/* Inline Dropdown Details */}
-      {isExpanded && (
-        <div className="mt-1 mx-1 p-2.5 rounded-lg bg-amber-950/15 text-slate-950 font-mono text-[11px] space-y-2 border border-amber-900/30 animate-in fade-in duration-150">
-          
-          {/* 1. PERSONAL TRAIT: Show personal data only (no coworkers) */}
-          {!synergy.isTeamTrait && synergy.personalData && (
-            <div className="space-y-1">
-              <div className="text-[10px] font-bold text-[#4a3206] uppercase tracking-wide font-sans">
-                Personal Effect:
-              </div>
-              <p className="text-[11px] text-[#241703] font-sans font-medium leading-snug">
-                {synergy.personalData.summary}
-              </p>
-              <div className="flex items-center gap-1 text-[10px] text-[#543907] pt-1 border-t border-[#875c12]/20 font-mono">
-                <span className="font-bold">Status:</span>
-                <span className="font-semibold text-emerald-950 bg-emerald-400/25 px-1.5 py-0.5 rounded">
-                  {synergy.personalData.status}
-                </span>
-              </div>
-            </div>
-          )}
-
-          {/* 2. TEAM TRAIT: a) on workers in the company, b) across all workers in descending order */}
-          {synergy.isTeamTrait && (
-            <div className="space-y-2">
-              
-              {/* a) on workers in the company */}
-              <div className="space-y-1">
-                <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-wider text-[#472f05] font-sans">
-                  <span>{synergy.companySectionTitle || 'a) In This Company:'}</span>
-                  <span className="text-[9px] font-mono text-[#5c3e07]">
-                    {synergy.companyWorkers?.length || 0} active
-                  </span>
-                </div>
-
-                {synergy.companyWorkers && synergy.companyWorkers.length > 0 ? (
-                  <div className="space-y-0.5 bg-black/10 rounded p-1.5">
-                    {synergy.companyWorkers.map((cw, i) => (
-                      <div 
-                        key={i} 
-                        className={`flex items-center justify-between py-1 px-1.5 rounded transition text-[10px] ${
-                          cw.isNegativeConflict 
-                            ? 'bg-rose-950/20 border border-rose-600/40 text-rose-950 font-bold' 
-                            : 'border-b border-black/5 last:border-none'
-                        }`}
-                      >
-                        <div className="flex items-center gap-1.5 truncate max-w-[55%]">
-                          {cw.isNegativeConflict && (
-                            <span className="text-rose-600 font-black text-xs shrink-0" title="Negative interaction: switch coworker">
-                              ✕
-                            </span>
-                          )}
-                          <span className={`truncate font-sans font-bold ${cw.isNegativeConflict ? 'text-rose-950' : 'text-[#1f1402]'}`}>
-                            {cw.name}
-                          </span>
-                        </div>
-                        {cw.wageData ? (
-                          <div className="flex items-center gap-1 font-mono text-[9px] shrink-0 text-right">
-                            <span className="text-[#5c3e07]">{cw.wageData.basePay}</span>
-                            <span className="text-[#8c5e11]">/</span>
-                            <span className={`px-1 py-0.5 rounded font-black ${cw.wageData.colorClass}`}>
-                              {cw.wageData.totalPay} BTC/h
-                            </span>
-                          </div>
-                        ) : cw.companyId && onSelectCompany ? (
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onSelectCompany(cw.companyId);
-                            }}
-                            className="font-mono font-bold underline hover:text-amber-900 transition cursor-pointer text-[10px] shrink-0 text-right truncate max-w-[120px]"
-                            title={`Switch to ${cw.changeText}`}
-                          >
-                            {cw.changeText}
-                          </button>
-                        ) : (
-                          <span className="font-mono font-bold text-[#2e1d03] shrink-0 text-right">
-                            {cw.changeText}
-                          </span>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="text-[10px] text-[#5c3e07] italic px-1">
-                    {synergy.code === 'mentor' && 'No weaker coworkers in facility.'}
-                    {synergy.code === 'cosmopolitan' && 'No foreign coworkers in this company.'}
-                    {synergy.code === 'nationalist' && 'No compatriots in this company.'}
-                    {synergy.code === 'oldFriends' && 'No assigned friend in this company.'}
-                    {synergy.code === 'sweethearts' && 'No assigned sweetheart in this company.'}
-                    {!['mentor', 'cosmopolitan', 'nationalist', 'oldFriends', 'sweethearts'].includes(synergy.code) && 'No active coworkers in this company.'}
-                  </div>
-                )}
-              </div>
-
-              {/* b) across all workers */}
-              <div className="space-y-1 pt-1.5 border-t border-[#875c12]/20">
-                <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-wider text-[#472f05] font-sans">
-                  <span>{synergy.allSectionTitle || (synergy.isRanked !== false ? 'b) Across All Workers (Ranked):' : 'b) Across All Workers:')}</span>
-                  <span className="text-[9px] font-mono text-[#5c3e07]">
-                    {synergy.allWorkers?.length || 0} total
-                  </span>
-                </div>
-
-                {synergy.allWorkers && synergy.allWorkers.length > 0 ? (
-                  <div className="space-y-0.5 max-h-36 overflow-y-auto pr-0.5 bg-black/10 rounded p-1.5">
-                    {synergy.allWorkers.map((aw, i) => (
-                      <div 
-                        key={i} 
-                        className={`flex items-center justify-between py-1 px-1.5 rounded transition text-[10px] ${
-                          aw.isNegativeConflict 
-                            ? 'bg-rose-950/20 border border-rose-600/40 text-rose-950 font-bold' 
-                            : 'border-b border-black/5 last:border-none'
-                        }`}
-                      >
-                        <div className="flex items-center gap-1.5 truncate max-w-[55%]">
-                          {synergy.isRanked !== false && (
-                            <span className="text-[10px] font-mono font-bold text-[#5c3e07] shrink-0 w-3 text-right">
-                              {aw.rank || (i + 1)}
-                            </span>
-                          )}
-                          {aw.isNegativeConflict && (
-                            <span className="text-rose-600 font-black text-xs shrink-0" title="Should not work with">
-                              ✕
-                            </span>
-                          )}
-                          <span className={`truncate font-sans font-bold ${aw.isNegativeConflict ? 'text-rose-950' : 'text-[#1f1402]'}`} title={aw.name}>
-                            {aw.name}
-                          </span>
-                        </div>
-                        {aw.wageData ? (
-                          <div className="flex items-center gap-1 font-mono text-[9px] shrink-0 text-right">
-                            <span className="text-[#5c3e07]">{aw.wageData.basePay}</span>
-                            <span className="text-[#8c5e11]">/</span>
-                            <span className={`px-1 py-0.5 rounded font-black ${aw.wageData.colorClass}`}>
-                              {aw.wageData.totalPay} BTC/h
-                            </span>
-                          </div>
-                        ) : aw.companyId && onSelectCompany ? (
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onSelectCompany(aw.companyId);
-                            }}
-                            className="font-mono font-bold underline hover:text-amber-900 transition cursor-pointer text-[10px] shrink-0 text-right truncate max-w-[130px]"
-                            title={`Switch to ${aw.changeText}`}
-                          >
-                            {aw.changeText}
-                          </button>
-                        ) : (
-                          <span className="font-mono font-bold text-[#2e1d03] text-[10px] shrink-0 text-right">
-                            {aw.changeText}
-                          </span>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="text-[10px] text-[#5c3e07] italic px-1">
-                    {synergy.code === 'mentor' && 'No weaker candidates in portfolio.'}
-                    {synergy.code === 'cosmopolitan' && 'No foreign workers in portfolio.'}
-                    {synergy.code === 'nationalist' && 'No compatriots across portfolio.'}
-                    {synergy.code === 'oldFriends' && 'No assigned friend found in portfolio.'}
-                    {synergy.code === 'sweethearts' && 'No assigned sweetheart found in portfolio.'}
-                    {synergy.code === 'loner' && 'No empty facility in portfolio.'}
-                    {synergy.code === 'expat' && 'No foreign companies in portfolio.'}
-                    {synergy.code === 'homesick' && 'No homeland facilities found in portfolio.'}
-                    {synergy.code === 'sociable' && 'No companies with 2+ workers in portfolio.'}
-                    {synergy.code === 'rival' && 'No workers out-produce him in portfolio.'}
-                    {(synergy.code === 'envious' || synergy.code === 'primaDonna') && 'No workers earning less than him in portfolio.'}
-                    {(synergy.code === 'misandrist' || synergy.code === 'misogynist') && 'No replacements needed.'}
-                    {!['mentor', 'cosmopolitan', 'nationalist', 'oldFriends', 'sweethearts', 'loner', 'expat', 'homesick', 'sociable', 'rival', 'envious', 'primaDonna', 'misandrist', 'misogynist'].includes(synergy.code) && 'No qualifying candidates in portfolio.'}
-                  </div>
-                )}
-              </div>
-
-            </div>
-          )}
-
-        </div>
-      )}
-    </div>
-  );
-}
-
-/**
  * Rectangular FIFA-Style Gold Employee Card
  * Features:
  * - Clean rectangular card shape (not FIFA shield shape)
@@ -539,7 +265,6 @@ export default function EmployeeFifaCard({
   className = ''
 }) {
   const [expandedStat, setExpandedStat] = useState(null);
-  const [expandedTraitIdx, setExpandedTraitIdx] = useState(null);
 
   if (!worker) return null;
 
@@ -552,14 +277,23 @@ export default function EmployeeFifaCard({
     (company?.manager && (company.manager.userId === worker.userId || company.manager.id === worker.id))
   );
 
-  // Nationality / Country Code & Full Country Name
-  const countryCode = worker.countryCode || 
+  // Nationality / Country Code & Full Country Name (Strictly worker's real citizenship, NOT facility location!)
+  const resolvedCountry = resolveCountry(
+    worker.nationality || 
     worker.nationalityCode || 
-    (typeof worker.nationality === 'string' && worker.nationality.length === 2 ? worker.nationality : null) || 
-    company?.countryCode || 
-    'HQ';
-  const flagEmoji = getCountryFlag(countryCode);
-  const countryName = getCountryName(countryCode);
+    worker.nationalityId || 
+    worker.countryCode || 
+    worker.country ||
+    (isManager ? (company?.countryCode || null) : null)
+  );
+  const countryCode = resolvedCountry?.code && resolvedCountry.code !== 'HQ' 
+    ? resolvedCountry.code 
+    : (isManager ? (company?.countryCode || 'HQ') : 'HQ');
+  const countryName = resolvedCountry?.name && resolvedCountry.code !== 'HQ' 
+    ? resolvedCountry.name 
+    : (isManager ? getCountryName(company?.countryCode || 'HQ') : 'Global HQ');
+  const flagEmoji = resolvedCountry?.flag || getCountryFlag(countryCode);
+  const flagTheme = getCountryFlagTheme(countryCode);
 
   // Company location flag & company name
   const companyCountryCode = company?.countryCode || 'HQ';
@@ -742,55 +476,31 @@ export default function EmployeeFifaCard({
 
         {/* 
           1. TOP SECTION:
-          - Left column:
-              - Company: 'name and location flag' (no repeated prod bonus)
-              - Tool: 'Symbol, name, state, prod' (no repeated prod bonus)
-          - Right column:
-              - Manager profile picture or Robot placeholder for AI workers
-              - Below profile picture: Country name in FULL
+          - Left: Tool equipped (facility name container removed as redundant)
+          - Right: Worker profile picture (no worker tag across DP, no redundant country under DP)
         */}
-        <div className="relative z-10 flex items-stretch justify-between gap-2.5 mb-1.5">
+        <div className="relative z-10 flex items-center justify-between gap-3 mb-2">
           
-          {/* Left Column Stack: Company and Tool only (no repetitive numbers/country above company) */}
-          <div className="flex-1 flex flex-col justify-center space-y-2 max-w-[56%]">
-            
-            {/* Company: 'name and location flag' */}
-            <div className="p-2 rounded-lg bg-amber-950/10 border border-amber-900/30">
-              <div className="flex items-center gap-1.5 text-xs font-black text-slate-950 leading-tight">
-                <span className="text-sm shrink-0 drop-shadow-xs" title={`Location: ${companyCountryCode}`}>
-                  {companyFlag}
-                </span>
-                <span className="truncate font-sans font-black tracking-tight" title={companyName}>
-                  {companyName}
-                </span>
-              </div>
-              <div className="text-[9px] font-mono text-amber-950 font-black flex items-center justify-between mt-1">
-                <span className="uppercase tracking-wider">{company?.itemCode || 'Commodity'}</span>
-                <span>Facility</span>
-              </div>
-            </div>
-
-            {/* Tool: 'Symbol, name, state, prod' */}
+          {/* Left: Tool Equipped */}
+          <div className="flex-1">
             <div 
-              className={`p-2 rounded-lg border ${
+              className={`p-2.5 sm:p-3 rounded-xl border ${
                 toolItem 
-                  ? 'bg-gradient-to-r from-black/15 to-black/10 border-[#8a6316]/40' 
+                  ? 'bg-gradient-to-r from-black/15 to-black/10 border-[#8a6316]/40 shadow-xs' 
                   : 'bg-black/5 border-dashed border-[#8a6316]/30 text-[#694b12]'
               }`}
             >
               {toolItem ? (
-                <div className="space-y-1">
+                <div className="space-y-1.5">
                   {/* Tool Symbol & Name */}
-                  <div className="flex items-center justify-between text-[11px] font-bold text-[#2a1a02]">
-                    <div className="flex items-center gap-1 truncate">
-                      <span className="text-xs">{toolDisplay?.symbol || '🔧'}</span>
-                      <span className="truncate font-mono font-black text-slate-950 text-xs">{toolDisplay?.name || toolItem.code}</span>
-                    </div>
+                  <div className="flex items-center gap-1.5 truncate text-[11px] sm:text-xs font-bold text-[#2a1a02]">
+                    <span className="text-base">{toolDisplay?.symbol || '🔧'}</span>
+                    <span className="truncate font-mono font-black text-slate-950 text-xs sm:text-sm">{toolDisplay?.name || toolItem.code}</span>
                   </div>
 
                   {/* Tool Durability State */}
-                  <div className="flex items-center gap-1.5">
-                    <div className="flex-1 bg-[#473007]/20 h-1.5 rounded-full overflow-hidden">
+                  <div className="flex items-center gap-1.5 pt-0.5">
+                    <div className="flex-1 bg-[#473007]/20 h-2 rounded-full overflow-hidden">
                       <div 
                         className={`h-full rounded-full transition-all ${
                           toolState > 50 ? 'bg-emerald-700' : (toolState > 20 ? 'bg-amber-700' : 'bg-red-700')
@@ -798,22 +508,21 @@ export default function EmployeeFifaCard({
                         style={{ width: `${Math.min(100, Math.max(0, (toolState / toolMaxState) * 100))}%` }}
                       />
                     </div>
-                    <span className="text-[9px] font-mono font-bold text-[#4a3307] shrink-0">
+                    <span className="text-[10px] font-mono font-bold text-[#4a3307] shrink-0">
                       {toolState?.toFixed(0)}/{toolMaxState}
                     </span>
                   </div>
                 </div>
               ) : (
-                <div className="flex items-center gap-1.5 text-[10px] font-mono font-bold text-amber-950 py-0.5">
-                  <Wrench className="w-3 h-3 text-[#694b12]" />
+                <div className="flex items-center justify-center gap-1.5 text-xs font-mono font-bold text-amber-950 py-3">
+                  <Wrench className="w-4 h-4 text-[#694b12]" />
                   <span>No Tool Equipped</span>
                 </div>
               )}
             </div>
-
           </div>
 
-          {/* Right Column: Worker / Manager Picture + Full Country Name Below Picture */}
+          {/* Right: Worker / Manager Picture */}
           <div className="flex flex-col items-center justify-center shrink-0">
             <div 
               className="relative w-24 h-28 sm:w-28 sm:h-32 rounded-xl overflow-hidden p-0.5 shadow-md border border-[#8a6316]/50 transition hover:scale-[1.02]"
@@ -843,41 +552,47 @@ export default function EmployeeFifaCard({
                 <AiRobotAvatar gender={worker.gender} className="w-full h-full" />
               </div>
 
-              {/* Role / Age Badge overlay at bottom of photo */}
-              <div className="absolute bottom-1 inset-x-1 px-1 py-0.5 rounded bg-black/75 backdrop-blur-xs text-[9px] font-mono font-bold text-white flex items-center justify-between border border-white/10">
+              {/* Age / Gender overlay at bottom of photo (worker tag removed!) */}
+              <div className="absolute bottom-1 inset-x-1 px-1.5 py-0.5 rounded bg-black/75 backdrop-blur-xs text-[9px] font-mono font-bold text-white flex items-center justify-between border border-white/10">
                 <span className={worker.gender === 'female' ? 'text-pink-300' : 'text-sky-300'}>
                   {worker.gender === 'female' ? '♀' : '♂'} {worker.age ? `${worker.age}y` : ''}
                 </span>
-                <span className="text-amber-300 font-sans uppercase tracking-wider text-[8px]">
-                  {isManager ? 'MANAGER' : 'WORKER'}
-                </span>
+                {isManager && (
+                  <span className="text-amber-300 font-sans uppercase tracking-wider text-[8px]">
+                    MANAGER
+                  </span>
+                )}
               </div>
             </div>
-
-            {/* Below their profile picture: WRITE their country name in FULL with waving flag colors */}
-            <CountryFlagBadge
-              countryCode={countryCode}
-              countryFlag={flagEmoji}
-              countryName={countryName}
-              className="mt-1.5 w-full"
-            />
           </div>
 
         </div>
 
         {/* 
-          2. NAME BANNER:
-          "Name: 'as placed'"
-          Placed exactly across the card width where "NAME HERE" is in the FIFA card!
+          2. NAME BANNER WITH COUNTRY FLAG THEME:
+          Flag theme applied to worker name banner to represent their country (like user profile card)!
         */}
-        <div className="relative z-10 my-1">
+        <div className="relative z-10 my-1.5">
           <div 
-            className="py-1 px-3 rounded-lg shadow-xs border border-amber-500/70 flex items-center justify-center"
+            className="relative overflow-hidden py-1 px-3 rounded-lg shadow-xs border flex items-center justify-center gap-2 animate-flag-wave transition-all duration-300"
             style={{
-              background: 'linear-gradient(90deg, #eab308 0%, #fef08a 25%, #fffdf2 50%, #fef08a 75%, #eab308 100%)'
+              background: flagTheme.gradient,
+              borderColor: flagTheme.borderColor,
             }}
+            title={`Worker: ${worker.name || worker.username || 'Employee'} • Country: ${countryName} (${countryCode})`}
           >
-            <h3 className="text-sm sm:text-base font-black uppercase tracking-wider text-slate-950 drop-shadow-xs font-sans truncate text-center">
+            {/* Silk fabric sheen wave ripple */}
+            <div className="animate-flag-sheen" />
+
+            {/* Flag Emoji with gentle wind flutter */}
+            {flagEmoji && (
+              <span className="text-sm sm:text-base shrink-0 leading-none animate-flag-flutter drop-shadow-xs relative z-10">
+                {flagEmoji}
+              </span>
+            )}
+
+            {/* Worker Name */}
+            <h3 className="text-sm sm:text-base font-black uppercase tracking-wider text-[#1a1102] drop-shadow-[0_1px_1px_rgba(255,255,255,0.7)] font-sans truncate text-center relative z-10">
               {worker.name || worker.username || 'AI Employee'}
             </h3>
           </div>
@@ -1267,14 +982,13 @@ export default function EmployeeFifaCard({
 
           {/* 
             TRAITS SECTION:
-            "remove the ugly borders around the traits and synergies and instead make them lists with dropdowns instead."
-            Clean unbordered list of traits with dropdown arrows and simple clear details!
+            Clean simple list of traits without expandable clutter or wordy descriptions.
           */}
-          <div className="mt-1 pt-1.5 border-t border-[#875c12]/35">
+          <div className="mt-1.5 pt-1.5 border-t border-[#875c12]/35">
             <div className="flex items-center justify-between mb-1 px-1">
               <span className="text-[9px] font-black uppercase tracking-widest text-amber-950 font-sans flex items-center gap-1">
                 <Sparkles className="w-2.5 h-2.5 text-amber-950" />
-                <span>TRAITS & SYNERGIES</span>
+                <span>TRAITS</span>
               </span>
               <span className="text-[10px] font-mono font-black text-amber-950">
                 {traits.length} {traits.length === 1 ? 'Trait' : 'Traits'}
@@ -1282,25 +996,33 @@ export default function EmployeeFifaCard({
             </div>
 
             {traits.length > 0 ? (
-              <div className="space-y-0.5 max-h-[105px] overflow-y-auto pr-1">
-                {traits.map((t, idx) => (
-                  <TraitDropdownItem 
-                    key={idx}
-                    traitInput={t}
-                    worker={worker}
-                    company={company}
-                    portfolioWorkers={portfolioWorkers}
-                    portfolioCompanies={portfolioCompanies}
-                    ratePerPp={ratePerPp}
-                    isExpanded={expandedTraitIdx === idx}
-                    onToggle={() => setExpandedTraitIdx(expandedTraitIdx === idx ? null : idx)}
-                    onSelectCompany={onSelectCompany}
-                  />
-                ))}
+              <div className="flex flex-wrap gap-1.5 py-0.5">
+                {traits.map((t, idx) => {
+                  const info = getTraitInfo(t);
+                  return (
+                    <span 
+                      key={idx}
+                      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-sans font-bold border shadow-xs select-none ${
+                        info.isNegative 
+                          ? 'bg-rose-500/20 text-rose-950 border-rose-500/40' 
+                          : 'bg-black/10 text-slate-950 border-[#875c12]/30'
+                      }`}
+                      title={info.description || info.name}
+                    >
+                      <span className="text-xs">{info.icon || '✨'}</span>
+                      <span className="truncate">{info.name}</span>
+                      {info.isNegative && (
+                        <span className="text-[8px] uppercase tracking-wider font-mono text-rose-900 ml-0.5 font-black">
+                          NEG
+                        </span>
+                      )}
+                    </span>
+                  );
+                })}
               </div>
             ) : (
-              <div className="text-center py-1.5 text-[10px] font-mono text-[#5b3f09] italic">
-                No active personality traits or modifiers.
+              <div className="text-center py-1 text-[10px] font-mono text-[#5b3f09] italic">
+                No active personality traits.
               </div>
             )}
           </div>
@@ -1324,9 +1046,22 @@ export function EmployeeFifaCardMini({
 }) {
   if (!worker) return null;
   const isManager = Boolean(worker.isManager || worker.role === 'Manager' || worker.role === 'manager');
-  const countryCode = worker.countryCode || company?.countryCode || 'HQ';
-  const flagEmoji = getCountryFlag(countryCode);
-  const countryName = getCountryName(countryCode);
+  const resolvedCountry = resolveCountry(
+    worker.nationality || 
+    worker.nationalityCode || 
+    worker.nationalityId || 
+    worker.countryCode || 
+    worker.country ||
+    (isManager ? (company?.countryCode || null) : null)
+  );
+  const countryCode = resolvedCountry?.code && resolvedCountry.code !== 'HQ' 
+    ? resolvedCountry.code 
+    : (isManager ? (company?.countryCode || 'HQ') : 'HQ');
+  const flagEmoji = resolvedCountry?.flag || getCountryFlag(countryCode);
+  const countryName = resolvedCountry?.name && resolvedCountry.code !== 'HQ' 
+    ? resolvedCountry.name 
+    : (isManager ? getCountryName(company?.countryCode || 'HQ') : 'Global HQ');
+  const flagTheme = getCountryFlagTheme(countryCode);
   const totalProd = worker.breakdown?.production?.total ?? (worker.baseProduction ?? worker.production ?? 99);
   const totalLuck = worker.breakdown?.luck?.total ?? (worker.luck ?? 1);
   const avatarUrl = isManager ? (worker.avatarUrl || null) : null;
@@ -1347,26 +1082,34 @@ export function EmployeeFifaCardMini({
         ) : (
           <AiRobotAvatar gender={worker.gender} className="w-full h-full" />
         )}
-        <div className="absolute bottom-1 inset-x-1 px-1 py-0.5 rounded bg-black/75 text-[8px] font-mono font-bold text-white flex items-center justify-between border border-white/10">
+        <div className="absolute bottom-1 inset-x-1 px-1.5 py-0.5 rounded bg-black/75 text-[8px] font-mono font-bold text-white flex items-center justify-between border border-white/10">
           <span className={worker.gender === 'female' ? 'text-pink-300' : 'text-sky-300'}>
             {worker.gender === 'female' ? '♀' : '♂'}
           </span>
-          <span className="text-amber-300 uppercase tracking-wider">
-            {isManager ? 'MGR' : 'WRK'}
-          </span>
+          {isManager && (
+            <span className="text-amber-300 uppercase tracking-wider">
+              MGR
+            </span>
+          )}
         </div>
       </div>
 
-      {/* Below picture: full country name with flag and waving flag colors */}
-      <CountryFlagBadge
-        countryCode={countryCode}
-        countryFlag={flagEmoji}
-        countryName={countryName}
-        className="mx-auto w-full max-w-[150px] my-2"
-      />
-
-      <div className="py-1 px-2 rounded-md bg-white/40 border border-[#8a6316]/30 text-center my-1 shadow-inner">
-        <span className="text-xs font-black uppercase text-[#241703] truncate block font-sans">
+      {/* Worker Name with Country Flag Theme */}
+      <div 
+        className="relative overflow-hidden py-1 px-2 rounded-md border text-center my-2 shadow-xs flex items-center justify-center gap-1.5 animate-flag-wave select-none"
+        style={{
+          background: flagTheme.gradient,
+          borderColor: flagTheme.borderColor,
+        }}
+        title={`${worker.name || worker.username} (${countryName})`}
+      >
+        <div className="animate-flag-sheen" />
+        {flagEmoji && (
+          <span className="text-xs shrink-0 leading-none animate-flag-flutter relative z-10">
+            {flagEmoji}
+          </span>
+        )}
+        <span className="text-xs font-black uppercase text-[#1a1102] truncate block font-sans relative z-10 drop-shadow-[0_1px_1px_rgba(255,255,255,0.7)]">
           {worker.name || worker.username || 'Employee'}
         </span>
       </div>
@@ -1553,31 +1296,95 @@ export function EmployeeProductionBreakdown({
       {expandedMetric && (
         <div className="p-3 rounded-lg bg-slate-900/95 border border-amber-400/50 shadow-2xl text-xs space-y-1.5 animate-in fade-in duration-150">
           
-          {expandedMetric === 'output' && (
-            <div className="space-y-1 font-mono text-[11px]">
-              <div className="flex items-center justify-between text-amber-300 font-sans font-bold pb-1 border-b border-slate-800">
-                <span>⛏️ Hourly Output Breakdown</span>
-                <span className="font-mono">{hourlyOutputPp.toFixed(3)} PP/hr</span>
+          {expandedMetric === 'output' && (() => {
+            const b = worker.individualBonusBreakdown || getWorkerIndividualBonusBreakdown(worker, company);
+            const effHourlyPp = b.hourlyOutputPp || hourlyOutputPp;
+            const effDailyPp = b.dailyOutputPp || Number((effHourlyPp * 24).toFixed(1));
+
+            return (
+              <div className="space-y-1 font-mono text-[11px]">
+                <div className="flex items-center justify-between text-amber-300 font-sans font-bold pb-1 border-b border-slate-800">
+                  <span>Hourly Output Breakdown</span>
+                  <span className="font-mono">+{effHourlyPp.toFixed(2)} PP/h</span>
+                </div>
+                <div className="flex justify-between text-slate-300">
+                  <span>Base Production:</span>
+                  <strong className="text-white">{b.baseProdStat} PROD ({b.baseHourlyPp.toFixed(2)} PP/h)</strong>
+                </div>
+                {b.toolBonus !== 0 && (
+                  <div className="flex justify-between text-slate-300">
+                    <span>Tool ({b.toolName || worker.toolItem?.code || 'Equipped'}):</span>
+                    <strong className={b.toolBonus > 0 ? 'text-emerald-400' : 'text-rose-400'}>
+                      {b.toolBonus > 0 ? `+${b.toolBonus}%` : `${b.toolBonus}%`}
+                    </strong>
+                  </div>
+                )}
+                {b.traitBonus !== 0 && (
+                  <div className="flex justify-between text-slate-300">
+                    <span>Traits:</span>
+                    <strong className={b.traitBonus > 0 ? 'text-emerald-400' : 'text-rose-400'}>
+                      {b.traitBonus > 0 ? `+${b.traitBonus}%` : `${b.traitBonus}%`}
+                    </strong>
+                  </div>
+                )}
+                {b.hapBonus !== 0 && (
+                  <div className="flex justify-between text-slate-300">
+                    <span>Morale ({typeof worker.happiness === 'number' ? worker.happiness : 50}%):</span>
+                    <strong className={b.hapBonus > 0 ? 'text-emerald-400' : 'text-rose-400'}>
+                      {b.hapBonus > 0 ? `+${b.hapBonus}%` : `${b.hapBonus}%`}
+                    </strong>
+                  </div>
+                )}
+                {b.specBonus !== 0 && (
+                  <div className="flex justify-between text-slate-300">
+                    <span>Specialization:</span>
+                    <strong className={b.specBonus > 0 ? 'text-emerald-400' : 'text-rose-400'}>
+                      {b.specBonus > 0 ? `+${b.specBonus}%` : `${b.specBonus}%`}
+                    </strong>
+                  </div>
+                )}
+                {b.mgmtBonus !== 0 && (
+                  <div className="flex justify-between text-slate-300">
+                    <span>Owner Management:</span>
+                    <strong className={b.mgmtBonus > 0 ? 'text-emerald-400' : 'text-rose-400'}>
+                      {b.mgmtBonus > 0 ? `+${b.mgmtBonus}%` : `${b.mgmtBonus}%`}
+                    </strong>
+                  </div>
+                )}
+                {b.managerBonus !== 0 && (
+                  <div className="flex justify-between text-slate-300">
+                    <span>Facility Manager:</span>
+                    <strong className={b.managerBonus > 0 ? 'text-emerald-400' : 'text-rose-400'}>
+                      {b.managerBonus > 0 ? `+${b.managerBonus}%` : `${b.managerBonus}%`}
+                    </strong>
+                  </div>
+                )}
+                {b.regionalBonus !== 0 && (
+                  <div className="flex justify-between text-slate-300">
+                    <span>Regional Modifier:</span>
+                    <strong className={b.regionalBonus > 0 ? 'text-emerald-400' : 'text-rose-400'}>
+                      {b.regionalBonus > 0 ? `+${b.regionalBonus}%` : `${b.regionalBonus}%`}
+                    </strong>
+                  </div>
+                )}
+                <div className="flex justify-between text-slate-400 text-[10px] pt-1 border-t border-dashed border-slate-800">
+                  <span># Calculation:</span>
+                  <span className="text-slate-300 font-mono">
+                    {b.baseHourlyPp.toFixed(2)} PP/h × (1 {b.totalBonus >= 0 ? '+' : '-'} {Math.abs(b.totalBonus)}%) = {effHourlyPp.toFixed(2)} PP/h
+                  </span>
+                </div>
+                <div className="flex justify-between text-slate-300 pt-1 border-t border-slate-800 font-bold">
+                  <span>Total Output:</span>
+                  <span className="text-emerald-400">+{effHourlyPp.toFixed(2)} PP/h ({effDailyPp.toFixed(1)} daily)</span>
+                </div>
               </div>
-              <div className="flex justify-between text-slate-300">
-                <span>Base Production:</span>
-                <strong>{worker.baseProduction ?? 3} PP</strong>
-              </div>
-              <div className="flex justify-between text-slate-300">
-                <span>Trained Production:</span>
-                <strong className="text-emerald-400">+{worker.trainedProduction ?? 0} PP</strong>
-              </div>
-              <div className="flex justify-between text-slate-300 pt-1 border-t border-slate-800 font-bold">
-                <span>Effective Output:</span>
-                <span className="text-amber-200">{hourlyOutputPp.toFixed(3)} PP/hr ({(hourlyOutputPp * 24).toFixed(1)} daily)</span>
-              </div>
-            </div>
-          )}
+            );
+          })()}
 
           {expandedMetric === 'wage' && (
             <div className="space-y-1 font-mono text-[11px]">
               <div className="flex items-center justify-between text-amber-300 font-sans font-bold pb-1 border-b border-slate-800">
-                <span>💰 Payroll & Wage Breakdown</span>
+                <span>Payroll & Wage Breakdown</span>
                 <span className="font-mono text-rose-400">-{hourlyWage.toFixed(4)} BTC/hr</span>
               </div>
               <div className="flex justify-between text-slate-300">
@@ -1602,7 +1409,7 @@ export function EmployeeProductionBreakdown({
           {expandedMetric === 'revenue' && (
             <div className="space-y-1 font-mono text-[11px]">
               <div className="flex items-center justify-between text-amber-300 font-sans font-bold pb-1 border-b border-slate-800">
-                <span>📈 Gross Revenue Breakdown</span>
+                <span>Gross Revenue Breakdown</span>
                 <span className="font-mono text-emerald-400">+{dailyRevenue.toFixed(3)} BTC/d</span>
               </div>
               <div className="flex justify-between text-slate-300">
@@ -1623,7 +1430,7 @@ export function EmployeeProductionBreakdown({
           {expandedMetric === 'profit' && (
             <div className="space-y-1 font-mono text-[11px]">
               <div className="flex items-center justify-between text-amber-300 font-sans font-bold pb-1 border-b border-slate-800">
-                <span>⚖️ Daily Net Profit Equation</span>
+                <span>Daily Net Profit Equation</span>
                 <span className={`font-mono font-bold ${dailyProfit >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
                   {dailyProfit >= 0 ? '+' : ''}{dailyProfit.toFixed(3)} BTC/d
                 </span>

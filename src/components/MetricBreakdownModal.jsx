@@ -412,6 +412,7 @@ export default function MetricBreakdownModal({
     companies.forEach(c => {
       const isRaw = c.isRaw === true || c.recipe?.type === 'raw';
       const inputs = getCompanyRawInputs(c);
+      const disabled = isCompanyDisabled(c);
       if (isRaw || inputs.length === 0) return; // Do not list raw companies
 
       const unitsProduced = c.baseUnits !== undefined ? c.baseUnits : (c.unitsPerDay || 0);
@@ -423,12 +424,16 @@ export default function MetricBreakdownModal({
         const rawPrice = getRawMaterialPrice(inp.id, prices);
         const dailyRawCost = rawUnitsNeeded * rawPrice;
 
-        totalDailyExpense += dailyRawCost;
-        totalRawUnits += rawUnitsNeeded;
+        // Sum operational ability across active companies only
+        if (!disabled) {
+          totalDailyExpense += dailyRawCost;
+          totalRawUnits += rawUnitsNeeded;
+        }
 
         items.push({
           companyId: c.id || c._id,
           companyName: c.name,
+          disabled,
           theme,
           itemCode: c.itemCode,
           outputName: c.recipe?.name || c.itemCode,
@@ -447,7 +452,7 @@ export default function MetricBreakdownModal({
       items,
       totalDailyExpense,
       totalRawUnits,
-      mfgCount: new Set(items.map(i => i.companyId)).size
+      mfgCount: new Set(items.filter(i => !i.disabled).map(i => i.companyId)).size
     };
   }, [companies, prices]);
 
@@ -475,8 +480,9 @@ export default function MetricBreakdownModal({
       rawDemandMap[code] = { totalUnits: 0, consumers: [] };
     });
 
-    // 1. Gather all raw material supply from player's extraction facilities
+    // 1. Gather all raw material supply from player's active extraction facilities (excluding disabled)
     companies.forEach(c => {
+      if (isCompanyDisabled(c)) return;
       const isRaw = c.isRaw === true || c.recipe?.type === 'raw' || ALL_RAW_CODES.includes(c.itemCode);
       const units = c.baseUnits !== undefined ? c.baseUnits : (c.unitsPerDay || 0);
 
@@ -496,8 +502,9 @@ export default function MetricBreakdownModal({
       }
     });
 
-    // 2. Gather all raw material demand from player's manufacturing facilities
+    // 2. Gather all raw material demand from player's active manufacturing facilities (excluding disabled)
     companies.forEach(c => {
+      if (isCompanyDisabled(c)) return;
       const isRaw = c.isRaw === true || c.recipe?.type === 'raw';
       const inputs = getCompanyRawInputs(c);
       if (isRaw || inputs.length === 0) return;
@@ -851,8 +858,10 @@ export default function MetricBreakdownModal({
                   <div className="text-[11px] font-mono font-bold uppercase text-slate-500">
                     Total Base Daily Revenue
                   </div>
-                  <div className="text-2xl sm:text-3xl font-black font-mono text-slate-900">
-                    +{marketOverview.totalBaseGrossRevenue.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
+                  <div className={`text-2xl sm:text-3xl font-black font-mono ${
+                    marketOverview.totalBaseGrossRevenue > 0 ? 'text-emerald-600' : marketOverview.totalBaseGrossRevenue < 0 ? 'text-red-600' : 'text-blue-600'
+                  }`}>
+                    {marketOverview.totalBaseGrossRevenue > 0 ? '+' : ''}{marketOverview.totalBaseGrossRevenue.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
                     <span className="text-xs font-normal text-slate-500 ml-1.5">BTC/day</span>
                   </div>
                 </div>
@@ -876,30 +885,35 @@ export default function MetricBreakdownModal({
                     <thead>
                       <tr className="border-b border-slate-200 bg-slate-50 font-mono text-[11px] text-slate-600">
                         <th className="py-2.5 px-4 font-bold">Company</th>
-                        <th className="py-2.5 px-3 font-bold">Sector</th>
                         <th className="py-2.5 px-3 font-bold">Commodity</th>
-                        <th className="py-2.5 px-3 font-bold text-right">Spot Price</th>
+                        <th className="py-2.5 px-3 font-bold text-right">Spot Price (BTC)</th>
                         <th className="py-2.5 px-3 font-bold text-right">Base Output</th>
-                        <th className="py-2.5 px-3 font-bold text-right">Gross Daily Revenue</th>
+                        <th className="py-2.5 px-3 font-bold text-right">Gross Daily Revenue (/day)</th>
                         <th className="py-2.5 px-4 font-bold text-right">Revenue Share</th>
                       </tr>
                     </thead>
                     <tbody className="font-mono">
                       {companies.map(c => {
                         const theme = getCompanyTheme(c);
+                        const disabled = isCompanyDisabled(c);
                         const spotPrice = c.spotPrice || prices[c.itemCode] || 1.0;
                         const units = c.baseUnits || 0;
                         const grossRev = c.grossRevenue || (units * spotPrice);
-                        const sharePct = marketOverview.totalBaseGrossRevenue > 0 ? (grossRev / marketOverview.totalBaseGrossRevenue) * 100 : 0;
+                        // Operational revenue share excludes disabled facilities
+                        const sharePct = !disabled && marketOverview.totalBaseGrossRevenue > 0 ? (grossRev / marketOverview.totalBaseGrossRevenue) * 100 : 0;
+                        const revColor = grossRev > 0 ? 'text-emerald-600' : grossRev < 0 ? 'text-red-600' : 'text-blue-600';
                         return (
                           <tr key={c.id || c._id} className={`transition-colors ${theme.rowGradient}`}>
                             <td className="py-2.5 px-4 font-bold text-slate-900 font-sans">
-                              {c.name}
-                            </td>
-                            <td className="py-2.5 px-3">
-                              <span className={`px-2 py-0.5 text-[10px] font-mono font-bold rounded ${c.isRaw ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-800'}`}>
-                                {c.isRaw ? 'Raw Extraction' : 'Manufactured'}
-                              </span>
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span>{c.name}</span>
+                                {disabled && (
+                                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-rose-50 border border-rose-300 text-rose-700 text-[9px] font-mono font-bold uppercase rounded shrink-0" title="Company Disabled">
+                                    <AlertTriangle className="w-3 h-3 text-rose-600 shrink-0" />
+                                    <span>Disabled</span>
+                                  </span>
+                                )}
+                              </div>
                             </td>
                             <td className="py-2.5 px-3">
                               <span className={`px-2 py-0.5 rounded text-[10px] font-mono uppercase font-bold shadow-xs ${theme.pillTag}`}>
@@ -907,16 +921,20 @@ export default function MetricBreakdownModal({
                               </span>
                             </td>
                             <td className="py-2.5 px-3 text-right text-slate-600">
-                              {spotPrice.toFixed(3)} BTC
+                              {spotPrice.toFixed(3)}
                             </td>
                             <td className="py-2.5 px-3 text-right font-bold text-slate-800">
                               {units.toFixed(1)} /day
                             </td>
-                            <td className="py-2.5 px-3 text-right font-black text-slate-900">
-                              +{grossRev.toFixed(1)} BTC
+                            <td className={`py-2.5 px-3 text-right font-black ${revColor}`}>
+                              {grossRev > 0 ? `+${grossRev.toFixed(1)}` : grossRev < 0 ? grossRev.toFixed(1) : '0.0'}
                             </td>
                             <td className="py-2.5 px-4 text-right font-bold text-slate-800">
-                              {sharePct.toFixed(1)}%
+                              {disabled ? (
+                                <span className="text-slate-400 font-mono text-[11px]" title="Disabled company excluded from operational revenue share">0.0%</span>
+                              ) : (
+                                `${sharePct.toFixed(1)}%`
+                              )}
                             </td>
                           </tr>
                         );
@@ -924,14 +942,16 @@ export default function MetricBreakdownModal({
                     </tbody>
                     <tfoot>
                       <tr className="border-t-2 border-slate-300 bg-slate-50 font-mono font-black text-slate-900">
-                        <td className="py-3 px-4" colSpan={4}>
+                        <td className="py-3 px-4" colSpan={3}>
                           TOTAL BASE DAILY REVENUE
                         </td>
                         <td className="py-3 px-3 text-right text-slate-800">
                           {marketOverview.totalBaseDailyUnits.toFixed(1)} /day
                         </td>
-                        <td className="py-3 px-3 text-right text-slate-900 text-sm">
-                          +{marketOverview.totalBaseGrossRevenue.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })} BTC
+                        <td className={`py-3 px-3 text-right text-sm ${
+                          marketOverview.totalBaseGrossRevenue > 0 ? 'text-emerald-600' : marketOverview.totalBaseGrossRevenue < 0 ? 'text-red-600' : 'text-blue-600'
+                        }`}>
+                          {marketOverview.totalBaseGrossRevenue > 0 ? '+' : ''}{marketOverview.totalBaseGrossRevenue.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
                         </td>
                         <td className="py-3 px-4 text-right">
                           100.0%
@@ -1003,14 +1023,22 @@ export default function MetricBreakdownModal({
                         </tr>
                       ) : (
                         rawCostsBreakdown.items.map((item, idx) => {
-                          const costSharePct = rawCostsBreakdown.totalDailyExpense > 0
+                          const costSharePct = !item.disabled && rawCostsBreakdown.totalDailyExpense > 0
                             ? (item.dailyRawCost / rawCostsBreakdown.totalDailyExpense) * 100
                             : 0;
 
                           return (
                             <tr key={`${item.companyId}_${item.rawId}_${idx}`} className={`transition-colors ${item.theme.rowGradient}`}>
                               <td className="py-2.5 px-4 font-bold text-slate-900 font-sans">
-                                {item.companyName}
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <span>{item.companyName}</span>
+                                  {item.disabled && (
+                                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-rose-50 border border-rose-300 text-rose-700 text-[9px] font-mono font-bold uppercase rounded shrink-0" title="Company Disabled">
+                                      <AlertTriangle className="w-3 h-3 text-rose-600 shrink-0" />
+                                      <span>Disabled</span>
+                                    </span>
+                                  )}
+                                </div>
                               </td>
                               <td className="py-2.5 px-3 capitalize text-slate-700">
                                 <span className={`px-2 py-0.5 rounded text-[10px] font-mono uppercase font-bold ${item.theme.pillTag}`}>
@@ -1033,7 +1061,11 @@ export default function MetricBreakdownModal({
                                 -{item.dailyRawCost.toFixed(2)} BTC
                               </td>
                               <td className="py-2.5 px-4 text-right font-bold text-slate-800">
-                                {costSharePct.toFixed(1)}%
+                                {item.disabled ? (
+                                  <span className="text-slate-400 font-mono text-[11px]" title="Disabled company excluded from operational cost share">0.0%</span>
+                                ) : (
+                                  `${costSharePct.toFixed(1)}%`
+                                )}
                               </td>
                             </tr>
                           );
@@ -1065,30 +1097,7 @@ export default function MetricBreakdownModal({
                 </div>
               </div>
 
-              {/* Quick jump to Raw Material Supply & Deficits */}
-              <div 
-                onClick={() => onChangeMetric('rawSupply')}
-                className="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 text-white p-4 border border-slate-700 flex items-center justify-between cursor-pointer group hover:border-amber-400 transition-all shadow-sm"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded bg-white/10 flex items-center justify-center text-amber-400">
-                    <Layers className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <div className="text-xs font-bold font-mono uppercase tracking-wide text-amber-400 flex items-center gap-1.5">
-                      <span>Raw Material Supply & Deficit Analysis</span>
-                      <span className="text-[10px] px-1.5 py-0.2 bg-amber-400/20 text-amber-300 rounded font-normal">Economic Intelligence</span>
-                    </div>
-                    <div className="text-[11px] text-slate-300 font-sans">
-                      Compare raw materials produced vs. needed • Deficit costs • Lost production from supply bottlenecks
-                    </div>
-                  </div>
-                </div>
-                <div className="flex items-center gap-1.5 text-xs font-mono font-bold text-amber-400 group-hover:translate-x-1 transition-transform">
-                  <span>Open Supply Analysis</span>
-                  <ArrowRight className="w-4 h-4" />
-                </div>
-              </div>
+
             </div>
           )}
 
@@ -1569,12 +1578,12 @@ export default function MetricBreakdownModal({
                       <tr className="border-b border-slate-200 bg-slate-50 font-mono text-[11px] text-slate-600">
                         <th className="py-2.5 px-4 font-bold">Employee</th>
                         <th className="py-2.5 px-3 font-bold">Company</th>
-                        <th className="py-2.5 px-3 font-bold text-right">Hourly Yield</th>
-                        <th className="py-2.5 px-3 font-bold text-right">Hourly Salary</th>
-                        <th className="py-2.5 px-3 font-bold text-right">Daily PP (24h)</th>
-                        <th className="py-2.5 px-3 font-bold text-right">Payable Salary / Day</th>
-                        <th className="py-2.5 px-3 font-bold text-right">Daily Revenue</th>
-                        <th className="py-2.5 px-4 font-bold text-right">Net Profit / Day</th>
+                        <th className="py-2.5 px-3 font-bold text-right">Hourly Yield (PP/h)</th>
+                        <th className="py-2.5 px-3 font-bold text-right">Hourly Salary (BTC/h)</th>
+                        <th className="py-2.5 px-3 font-bold text-right">Daily PP</th>
+                        <th className="py-2.5 px-3 font-bold text-right">Payable Salary/Day (BTC)</th>
+                        <th className="py-2.5 px-3 font-bold text-right">Daily Revenue (BTC)</th>
+                        <th className="py-2.5 px-4 font-bold text-right">Net Profit / Day (BTC)</th>
                       </tr>
                     </thead>
                     <tbody className="font-mono">
@@ -1623,6 +1632,12 @@ export default function MetricBreakdownModal({
                                     {w.companyItemCode || 'Product'}
                                   </span>
                                   <span className="font-semibold text-slate-900 font-sans">{w.companyName}</span>
+                                  {isCompanyDisabled(w.company) && (
+                                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-rose-50 border border-rose-300 text-rose-700 text-[9px] font-mono font-bold uppercase rounded shrink-0" title="Company Disabled">
+                                      <AlertTriangle className="w-3 h-3 text-rose-600 shrink-0" />
+                                      <span>Disabled</span>
+                                    </span>
+                                  )}
                                 </div>
                                 {compBonus > 0 && (
                                   <div className={`text-[10px] font-mono font-bold mt-0.5 ${theme.accentText}`}>
@@ -1631,23 +1646,23 @@ export default function MetricBreakdownModal({
                                 )}
                               </td>
                               <td className={`py-2.5 px-3 text-right font-bold ${theme.accentText}`}>
-                                {hourlyYield.toFixed(2)} PP/h
+                                {hourlyYield.toFixed(2)}
                               </td>
                               <td className="py-2.5 px-3 text-right font-bold text-red-600">
-                                -{hourlyWage.toFixed(4)} BTC/h
+                                -{hourlyWage.toFixed(4)}
                               </td>
                               <td className="py-2.5 px-3 text-right font-black text-slate-900">
-                                {dailyPp.toFixed(1)} PP
+                                {dailyPp.toFixed(1)}
                               </td>
                               <td className="py-2.5 px-3 text-right font-black text-red-500">
-                                -{dailyWage.toFixed(2)} BTC
+                                -{dailyWage.toFixed(2)}
                               </td>
-                              <td className="py-2.5 px-3 text-right font-bold text-emerald-600">
-                                +{dailyRev.toFixed(2)} BTC
+                              <td className={`py-2.5 px-3 text-right font-bold ${dailyRev > 0 ? 'text-emerald-600' : dailyRev < 0 ? 'text-red-600' : 'text-blue-600'}`}>
+                                {dailyRev > 0 ? `+${dailyRev.toFixed(2)}` : dailyRev < 0 ? dailyRev.toFixed(2) : '0.00'}
                               </td>
                               <td className="py-2.5 px-4 text-right font-black">
-                                <span className={dailyNet >= 0 ? 'text-emerald-700' : 'text-red-600'}>
-                                  {dailyNet >= 0 ? '+' : ''}{dailyNet.toFixed(2)} BTC
+                                <span className={dailyNet > 0 ? 'text-emerald-700' : dailyNet < 0 ? 'text-red-600' : 'text-blue-600'}>
+                                  {dailyNet > 0 ? '+' : ''}{dailyNet.toFixed(2)}
                                 </span>
                               </td>
                             </tr>
@@ -1655,7 +1670,7 @@ export default function MetricBreakdownModal({
                             {/* Inline Expandable Math Audit Card */}
                             {isExpanded && (
                               <tr className={`border-b-2 ${theme.accentBorder}`}>
-                                <td colSpan={8} className="p-3.5 sm:p-5">
+                                <td colSpan={9} className="p-3.5 sm:p-5">
                                   <div className={`bg-white border ${theme.cardBorder} p-4 sm:p-5 space-y-4 shadow-sm relative overflow-hidden rounded-xl`}>
                                     {/* Top Product Theme Accent Strip */}
                                     <div className="absolute top-0 inset-x-0 h-1.5" style={{ backgroundColor: theme.accentColor }} />
@@ -1796,20 +1811,22 @@ export default function MetricBreakdownModal({
                     <tfoot>
                       <tr className="border-t-2 border-slate-300 bg-slate-50 font-mono font-black text-slate-900">
                         <td className="py-3 px-4" colSpan={4}>
-                          TOTAL BASE SALARIES PAID ({allWorkers.length} EMPLOYEES)
+                          TOTAL BASE SALARIES PAID ({allWorkers.filter(w => !isCompanyDisabled(w.company)).length} EMPLOYEES)
                         </td>
                         <td className="py-3 px-3 text-right text-slate-900">
-                          {allWorkers.reduce((s, w) => s + (w.dailyOutputPp || 0), 0).toFixed(1)} PP
+                          {allWorkers.filter(w => !isCompanyDisabled(w.company)).reduce((s, w) => s + (w.dailyOutputPp || 0), 0).toFixed(1)}
                         </td>
                         <td className="py-3 px-3 text-right text-red-500 text-sm">
-                          -{marketOverview.totalWorkerWages.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} BTC
+                          -{marketOverview.totalWorkerWages.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </td>
-                        <td className="py-3 px-3 text-right text-emerald-600 text-sm">
-                          +{allWorkers.reduce((s, w) => s + (w.dailyProductionValue || 0), 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} BTC
+                        <td className={`py-3 px-3 text-right text-sm ${
+                          allWorkers.filter(w => !isCompanyDisabled(w.company)).reduce((s, w) => s + (w.dailyProductionValue || 0), 0) > 0 ? 'text-emerald-600' : allWorkers.filter(w => !isCompanyDisabled(w.company)).reduce((s, w) => s + (w.dailyProductionValue || 0), 0) < 0 ? 'text-red-600' : 'text-blue-600'
+                        }`}>
+                          +{allWorkers.filter(w => !isCompanyDisabled(w.company)).reduce((s, w) => s + (w.dailyProductionValue || 0), 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </td>
                         <td className="py-3 px-4 text-right text-sm">
-                          <span className={marketOverview.baseDailyProfit >= 0 ? 'text-emerald-700' : 'text-red-600'}>
-                            {marketOverview.baseDailyProfit >= 0 ? '+' : ''}{marketOverview.baseDailyProfit.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} BTC
+                          <span className={marketOverview.baseDailyProfit > 0 ? 'text-emerald-700' : marketOverview.baseDailyProfit < 0 ? 'text-red-600' : 'text-blue-600'}>
+                            {marketOverview.baseDailyProfit >= 0 ? '+' : ''}{marketOverview.baseDailyProfit.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                           </span>
                         </td>
                       </tr>
@@ -1851,6 +1868,12 @@ export default function MetricBreakdownModal({
                                     {m.itemCode || 'Product'}
                                   </span>
                                   <span>{m.companyName}</span>
+                                  {isCompanyDisabled(m.company) && (
+                                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-rose-50 border border-rose-300 text-rose-700 text-[9px] font-mono font-bold uppercase rounded shrink-0" title="Company Disabled">
+                                      <AlertTriangle className="w-3 h-3 text-rose-600 shrink-0" />
+                                      <span>Disabled</span>
+                                    </span>
+                                  )}
                                 </div>
                               </td>
                               <td className="py-2.5 px-3">
@@ -1912,8 +1935,10 @@ export default function MetricBreakdownModal({
                   <div className="text-[11px] font-mono font-bold uppercase text-slate-500">
                     Gross Daily Revenue
                   </div>
-                  <div className="text-2xl font-black font-mono text-emerald-600">
-                    +{marketOverview.totalBaseGrossRevenue.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
+                  <div className={`text-2xl font-black font-mono ${
+                    marketOverview.totalBaseGrossRevenue > 0 ? 'text-emerald-600' : marketOverview.totalBaseGrossRevenue < 0 ? 'text-red-600' : 'text-blue-600'
+                  }`}>
+                    {marketOverview.totalBaseGrossRevenue > 0 ? '+' : ''}{marketOverview.totalBaseGrossRevenue.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
                     <span className="text-xs font-normal text-slate-500 ml-1">BTC/d</span>
                   </div>
                   <div className="text-[11px] font-mono text-slate-500 mt-1">
@@ -1966,11 +1991,12 @@ export default function MetricBreakdownModal({
                       <tr className="border-b border-slate-200 bg-slate-50 font-mono text-[11px] text-slate-600">
                         <th className="py-2.5 px-4 font-bold">Company</th>
                         <th className="py-2.5 px-3 font-bold">Commodity</th>
-                        <th className="py-2.5 px-3 font-bold text-right">Finished Yield</th>
-                        <th className="py-2.5 px-3 font-bold text-right">Gross Revenue (+)</th>
-                        <th className="py-2.5 px-3 font-bold text-right">Raw Costs (-)</th>
-                        <th className="py-2.5 px-3 font-bold text-right">Salaries (-)</th>
-                        <th className="py-2.5 px-3 font-bold text-right">Net Profit / Day</th>
+                        <th className="py-2.5 px-3 font-bold text-right">Finished Yield (units/day)</th>
+                        <th className="py-2.5 px-3 font-bold text-right">Gross Revenue (BTC)</th>
+                        <th className="py-2.5 px-3 font-bold text-right">Raw Costs (BTC)</th>
+                        <th className="py-2.5 px-3 font-bold text-right">Salaries (BTC)</th>
+                        <th className="py-2.5 px-3 font-bold text-center">Employees</th>
+                        <th className="py-2.5 px-3 font-bold text-right">Net Profit / Day (BTC)</th>
                         <th className="py-2.5 px-4 font-bold text-right">Net Margin %</th>
                       </tr>
                     </thead>
@@ -1982,9 +2008,10 @@ export default function MetricBreakdownModal({
                         const inputs = getCompanyRawInputs(c);
                         const isRaw = c.isRaw === true || c.recipe?.type === 'raw' || inputs.length === 0;
                         const disabled = isCompanyDisabled(c);
-                        const units = disabled ? 0 : (c.baseUnits !== undefined ? c.baseUnits : (c.unitsPerDay || 0));
+                        // Within the company calculations remain true and exact
+                        const units = (c.baseUnits !== undefined ? c.baseUnits : (c.unitsPerDay || 0));
                         const finishedSpot = c.spotPrice || prices[c.itemCode] || 1.0;
-                        const rev = disabled ? 0 : (c.grossRevenue || (units * finishedSpot));
+                        const rev = (c.grossRevenue || (units * finishedSpot));
 
                         // Raw cost calculations for this facility
                         const rawDetails = inputs.map(inp => {
@@ -2004,9 +2031,9 @@ export default function MetricBreakdownModal({
                           };
                         });
                         const rawCost = isRaw ? 0 : (c.dailyRawExpenseTotal !== undefined ? c.dailyRawExpenseTotal : rawDetails.reduce((s, r) => s + r.cost, 0));
-                        const sal = disabled ? 0 : (c.dailyLaborExpense || 0);
-                        const net = disabled ? 0 : (c.baseNetProfit !== undefined ? c.baseNetProfit : (rev - rawCost - sal));
-                        const margin = (!disabled && rev > 0) ? (net / rev) * 100 : 0;
+                        const sal = (c.dailyLaborExpense || 0);
+                        const net = (c.baseNetProfit !== undefined ? c.baseNetProfit : (rev - rawCost - sal));
+                        const margin = rev > 0 ? (net / rev) * 100 : 0;
                         const workersCount = (c.workersList || c.workers || c.employees || []).length;
 
                         return (
@@ -2022,6 +2049,12 @@ export default function MetricBreakdownModal({
                                     ▶
                                   </span>
                                   <span className="hover:underline">{c.name}</span>
+                                  {disabled && (
+                                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-rose-50 border border-rose-300 text-rose-700 text-[9px] font-mono font-bold uppercase rounded shrink-0" title="Company Disabled">
+                                      <AlertTriangle className="w-3 h-3 text-rose-600 shrink-0" />
+                                      <span>Disabled</span>
+                                    </span>
+                                  )}
                                 </div>
                               </td>
                               <td className="py-2.5 px-3">
@@ -2030,11 +2063,11 @@ export default function MetricBreakdownModal({
                                 </span>
                               </td>
                               <td className="py-2.5 px-3 text-right font-black text-slate-800">
-                                {units.toFixed(1)} u/d
+                                {units.toFixed(1)}
                               </td>
                               <td className="py-2.5 px-3 text-right">
-                                <div className="font-bold text-emerald-600 font-mono">
-                                  +{rev.toFixed(1)} BTC
+                                <div className={`font-bold font-mono ${rev > 0 ? 'text-emerald-600' : rev < 0 ? 'text-red-600' : 'text-blue-600'}`}>
+                                  {rev > 0 ? `+${rev.toFixed(1)}` : rev < 0 ? rev.toFixed(1) : '0.0'}
                                 </div>
                                 <div className="text-[10px] text-slate-500 font-mono">
                                   @{finishedSpot.toFixed(3)} BTC
@@ -2042,14 +2075,11 @@ export default function MetricBreakdownModal({
                               </td>
                               <td className="py-2.5 px-3 text-right">
                                 {isRaw ? (
-                                  <div>
-                                    <span className="font-bold text-slate-400 font-mono">0.0 BTC</span>
-                                    <span className="text-[9px] text-slate-400 block font-sans">Raw Extraction</span>
-                                  </div>
+                                  <span className="font-bold text-slate-400 font-mono">—</span>
                                 ) : (
                                   <div>
                                     <div className="font-bold text-red-500 font-mono">
-                                      -{rawCost.toFixed(1)} BTC
+                                      {rawCost > 0 ? `-${rawCost.toFixed(1)}` : '0.0'}
                                     </div>
                                     <div className="text-[10px] text-slate-500 font-mono">
                                       {rawDetails.map(r => `${r.rawUnits.toFixed(1)} ${r.rawName} @ ${r.rawPrice.toFixed(3)}`).join(' + ')}
@@ -2058,20 +2088,20 @@ export default function MetricBreakdownModal({
                                 )}
                               </td>
                               <td className="py-2.5 px-3 text-right">
-                                <div className="font-bold text-red-500 font-mono">
-                                  {sal > 0 ? `-${sal.toFixed(1)} BTC` : '0.0 BTC'}
-                                </div>
-                                <div className="text-[10px] text-slate-500 font-mono">
-                                  {workersCount} emps{c.hasManager ? ' + mgr' : ''}
+                                <div className={`font-bold font-mono ${sal > 0 ? 'text-red-500' : 'text-blue-500'}`}>
+                                  {sal > 0 ? `-${sal.toFixed(1)}` : '0.0'}
                                 </div>
                               </td>
+                              <td className="py-2.5 px-3 text-center font-bold font-mono text-slate-800">
+                                {workersCount + (c.hasManager ? 1 : 0)}
+                              </td>
                               <td className="py-2.5 px-3 text-right font-black">
-                                <span className={net >= 0 ? 'text-emerald-700' : 'text-red-600'}>
-                                  {net >= 0 ? '+' : ''}{net.toFixed(1)} BTC
+                                <span className={net > 0 ? 'text-emerald-700' : net < 0 ? 'text-red-600' : 'text-blue-600'}>
+                                  {net > 0 ? `+${net.toFixed(1)}` : net < 0 ? net.toFixed(1) : '0.0'}
                                 </span>
                               </td>
                               <td className="py-2.5 px-4 text-right font-bold">
-                                <span className={margin >= 0 ? 'text-emerald-700' : 'text-red-600'}>
+                                <span className={margin > 0 ? 'text-emerald-700' : margin < 0 ? 'text-red-600' : 'text-blue-600'}>
                                   {margin.toFixed(1)}%
                                 </span>
                               </td>
@@ -2247,19 +2277,28 @@ export default function MetricBreakdownModal({
                         <td className="py-3 px-4" colSpan={3}>
                           TOTAL BASE DAILY PROFIT
                         </td>
-                        <td className="py-3 px-3 text-right text-emerald-600 font-bold">
-                          +{marketOverview.totalBaseGrossRevenue.toFixed(1)} BTC
+                        <td className={`py-3 px-3 text-right font-bold ${
+                          marketOverview.totalBaseGrossRevenue > 0 ? 'text-emerald-600' : marketOverview.totalBaseGrossRevenue < 0 ? 'text-red-600' : 'text-blue-600'
+                        }`}>
+                          {marketOverview.totalBaseGrossRevenue > 0 ? `+${marketOverview.totalBaseGrossRevenue.toFixed(1)}` : '0.0'}
                         </td>
                         <td className={`py-3 px-3 text-right font-bold ${marketOverview.totalBaseRawExpense > 0 ? 'text-red-500' : 'text-blue-500'}`}>
-                          -{marketOverview.totalBaseRawExpense.toFixed(1)} BTC
+                          {marketOverview.totalBaseRawExpense > 0 ? `-${marketOverview.totalBaseRawExpense.toFixed(1)}` : '0.0'}
                         </td>
                         <td className={`py-3 px-3 text-right font-bold ${marketOverview.totalBaseLaborExpense > 0 ? 'text-red-500' : 'text-blue-500'}`}>
-                          -{marketOverview.totalBaseLaborExpense.toFixed(1)} BTC
+                          {marketOverview.totalBaseLaborExpense > 0 ? `-${marketOverview.totalBaseLaborExpense.toFixed(1)}` : '0.0'}
                         </td>
-                        <td className={`py-3 px-3 text-right text-sm font-black ${marketOverview.baseDailyProfit >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>
-                          {marketOverview.baseDailyProfit >= 0 ? '+' : ''}{marketOverview.baseDailyProfit.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })} BTC
+                        <td className="py-3 px-3 text-center text-slate-800 font-bold">
+                          {allWorkers.length + allManagers.length}
                         </td>
-                        <td className={`py-3 px-4 text-right font-bold ${marketOverview.baseNetMarginPct >= 0 ? 'text-emerald-700' : 'text-blue-500'}`}>
+                        <td className={`py-3 px-3 text-right text-sm font-black ${
+                          marketOverview.baseDailyProfit > 0 ? 'text-emerald-700' : marketOverview.baseDailyProfit < 0 ? 'text-red-600' : 'text-blue-600'
+                        }`}>
+                          {marketOverview.baseDailyProfit >= 0 ? '+' : ''}{marketOverview.baseDailyProfit.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
+                        </td>
+                        <td className={`py-3 px-4 text-right font-bold ${
+                          marketOverview.baseNetMarginPct > 0 ? 'text-emerald-700' : marketOverview.baseNetMarginPct < 0 ? 'text-red-600' : 'text-blue-600'
+                        }`}>
                           {marketOverview.baseNetMarginPct.toFixed(1)}%
                         </td>
                       </tr>
@@ -2403,30 +2442,34 @@ export default function MetricBreakdownModal({
                     <thead>
                       <tr className="border-b border-slate-200 bg-slate-50 font-mono text-[11px] text-slate-600">
                         <th className="py-2.5 px-4 font-bold">Company</th>
-                        <th className="py-2.5 px-3 font-bold">Sector</th>
                         <th className="py-2.5 px-3 font-bold">Commodity</th>
                         <th className="py-2.5 px-3 font-bold text-center">Recipe PP</th>
-                        <th className="py-2.5 px-3 font-bold text-right">Base PP / Day</th>
-                        <th className="py-2.5 px-3 font-bold text-right">Daily Units Produced</th>
+                        <th className="py-2.5 px-3 font-bold text-right">Base PP/Day</th>
+                        <th className="py-2.5 px-3 font-bold text-right">Daily Units Produced/Day</th>
                         <th className="py-2.5 px-4 font-bold text-right">Output Share</th>
                       </tr>
                     </thead>
                     <tbody className="font-mono">
                       {companies.map(c => {
                         const theme = getCompanyTheme(c);
+                        const disabled = isCompanyDisabled(c);
                         const recipePp = c.recipe?.pp || 1;
                         const basePp = c.companyBaseDailyPp || 0;
                         const units = c.baseUnits || 0;
-                        const sharePct = marketOverview.totalBaseDailyUnits > 0 ? (units / marketOverview.totalBaseDailyUnits) * 100 : 0;
+                        // Operational output share excludes disabled facilities
+                        const sharePct = !disabled && marketOverview.totalBaseDailyUnits > 0 ? (units / marketOverview.totalBaseDailyUnits) * 100 : 0;
                         return (
                           <tr key={c.id || c._id} className={`transition-colors ${theme.rowGradient}`}>
                             <td className="py-2.5 px-4 font-bold text-slate-900 font-sans">
-                              {c.name}
-                            </td>
-                            <td className="py-2.5 px-3">
-                              <span className={`px-2 py-0.5 text-[10px] font-mono font-bold rounded ${c.isRaw ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-800'}`}>
-                                {c.isRaw ? 'Raw Resource' : 'Finished'}
-                              </span>
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span>{c.name}</span>
+                                {disabled && (
+                                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-rose-50 border border-rose-300 text-rose-700 text-[9px] font-mono font-bold uppercase rounded shrink-0" title="Company Disabled">
+                                    <AlertTriangle className="w-3 h-3 text-rose-600 shrink-0" />
+                                    <span>Disabled</span>
+                                  </span>
+                                )}
+                              </div>
                             </td>
                             <td className="py-2.5 px-3">
                               <span className={`px-2 py-0.5 rounded text-[10px] font-mono uppercase font-bold shadow-xs ${theme.pillTag}`}>
@@ -2437,13 +2480,17 @@ export default function MetricBreakdownModal({
                               {recipePp} PP
                             </td>
                             <td className="py-2.5 px-3 text-right font-bold text-slate-800">
-                              {basePp.toFixed(1)} PP
+                              {basePp.toFixed(1)}
                             </td>
                             <td className="py-2.5 px-3 text-right font-black text-slate-900">
-                              {units.toFixed(1)} /day
+                              {units.toFixed(1)}
                             </td>
                             <td className="py-2.5 px-4 text-right font-bold text-slate-800">
-                              {sharePct.toFixed(1)}%
+                              {disabled ? (
+                                <span className="text-slate-400 font-mono text-[11px]" title="Disabled company excluded from operational output share">0.0%</span>
+                              ) : (
+                                `${sharePct.toFixed(1)}%`
+                              )}
                             </td>
                           </tr>
                         );
@@ -2451,11 +2498,11 @@ export default function MetricBreakdownModal({
                     </tbody>
                     <tfoot>
                       <tr className="border-t-2 border-slate-300 bg-slate-50 font-mono font-black text-slate-900">
-                        <td className="py-3 px-4" colSpan={5}>
+                        <td className="py-3 px-4" colSpan={4}>
                           TOTAL BASE DAILY PRODUCTION
                         </td>
                         <td className="py-3 px-3 text-right text-slate-900 text-sm">
-                          {marketOverview.totalBaseDailyUnits.toFixed(1)} /day
+                          {marketOverview.totalBaseDailyUnits.toFixed(1)}
                         </td>
                         <td className="py-3 px-4 text-right">
                           100.0%
@@ -2524,6 +2571,12 @@ export default function MetricBreakdownModal({
                                   {c.recipe?.name || c.itemCode}
                                 </span>
                                 <span>{c.name}</span>
+                                {isCompanyDisabled(c) && (
+                                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-rose-50 border border-rose-300 text-rose-700 text-[9px] font-mono font-bold uppercase rounded shrink-0" title="Company Disabled">
+                                    <AlertTriangle className="w-3 h-3 text-rose-600 shrink-0" />
+                                    <span>Disabled</span>
+                                  </span>
+                                )}
                               </div>
                             </td>
                             <td className="py-2.5 px-3 text-center text-slate-700">Lv.{c.engineLevel || 1}</td>
@@ -2537,8 +2590,8 @@ export default function MetricBreakdownModal({
                     <tfoot>
                       <tr className="border-t-2 border-slate-300 bg-slate-50 font-mono font-bold text-slate-900">
                         <td className="py-3 px-4" colSpan={3}>Automated Engines Subtotal</td>
-                        <td className="py-3 px-3 text-right">{companies.reduce((s, c) => s + (c.engineBaseDailyPp || ((c.engineTier?.ppPerHour || 1) * 24)), 0).toFixed(1)} PP</td>
-                        <td className="py-3 px-4 text-right text-slate-900 font-black">{companies.reduce((s, c) => s + (c.engineProducedDailyPp || 0), 0).toFixed(1)} PP</td>
+                        <td className="py-3 px-3 text-right">{companies.filter(c => !isCompanyDisabled(c)).reduce((s, c) => s + (c.engineBaseDailyPp || ((c.engineTier?.ppPerHour || 1) * 24)), 0).toFixed(1)} PP</td>
+                        <td className="py-3 px-4 text-right text-slate-900 font-black">{companies.filter(c => !isCompanyDisabled(c)).reduce((s, c) => s + (c.engineProducedDailyPp || 0), 0).toFixed(1)} PP</td>
                       </tr>
                     </tfoot>
                   </table>
@@ -2549,7 +2602,7 @@ export default function MetricBreakdownModal({
               <div className="bg-white border border-slate-200 overflow-hidden">
                 <div className="px-4 py-2.5 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
                   <span className="text-xs font-bold font-mono text-slate-700 uppercase">
-                    2. Hired Workforce PP Generation ({allWorkers.length} Employees)
+                    2. Hired Workforce PP Generation ({allWorkers.filter(w => !isCompanyDisabled(w.company)).length} Active Employees)
                   </span>
                   <span className="text-[11px] font-mono text-slate-500">
                     24h stamina capacity work sessions
@@ -2579,6 +2632,12 @@ export default function MetricBreakdownModal({
                                   {c.recipe?.name || c.itemCode}
                                 </span>
                                 <span>{c.name}</span>
+                                {isCompanyDisabled(c) && (
+                                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-rose-50 border border-rose-300 text-rose-700 text-[9px] font-mono font-bold uppercase rounded shrink-0" title="Company Disabled">
+                                    <AlertTriangle className="w-3 h-3 text-rose-600 shrink-0" />
+                                    <span>Disabled</span>
+                                  </span>
+                                )}
                               </div>
                             </td>
                             <td className="py-2.5 px-3 text-center text-slate-700 font-bold">{count} workers</td>
@@ -2590,9 +2649,9 @@ export default function MetricBreakdownModal({
                     </tbody>
                     <tfoot>
                       <tr className="border-t-2 border-slate-300 bg-slate-50 font-mono font-bold text-slate-900">
-                        <td className="py-3 px-4" colSpan={2}>Hired Labor Subtotal ({allWorkers.length} workers)</td>
-                        <td className="py-3 px-3 text-right">{companies.reduce((s, c) => s + (c.workersBaseDailyPp || 0), 0).toFixed(1)} PP</td>
-                        <td className="py-3 px-4 text-right text-slate-900 font-black">{companies.reduce((s, c) => s + (c.workersProducedDailyPp || 0), 0).toFixed(1)} PP</td>
+                        <td className="py-3 px-4" colSpan={2}>Hired Labor Subtotal ({allWorkers.filter(w => !isCompanyDisabled(w.company)).length} active workers)</td>
+                        <td className="py-3 px-3 text-right">{companies.filter(c => !isCompanyDisabled(c)).reduce((s, c) => s + (c.workersBaseDailyPp || 0), 0).toFixed(1)} PP</td>
+                        <td className="py-3 px-4 text-right text-slate-900 font-black">{companies.filter(c => !isCompanyDisabled(c)).reduce((s, c) => s + (c.workersProducedDailyPp || 0), 0).toFixed(1)} PP</td>
                       </tr>
                     </tfoot>
                   </table>
@@ -2663,6 +2722,12 @@ export default function MetricBreakdownModal({
                                   {c.recipe?.name || c.itemCode}
                                 </span>
                                 <span>{c.name}</span>
+                                {isCompanyDisabled(c) && (
+                                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-rose-50 border border-rose-300 text-rose-700 text-[9px] font-mono font-bold uppercase rounded shrink-0" title="Company Disabled">
+                                    <AlertTriangle className="w-3 h-3 text-rose-600 shrink-0" />
+                                    <span>Disabled</span>
+                                  </span>
+                                )}
                               </div>
                             </td>
                             <td className="py-2.5 px-3 text-center">

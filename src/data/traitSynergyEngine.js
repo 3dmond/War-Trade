@@ -3,31 +3,23 @@
 
 import { getTraitInfo } from './employeeTraits.js';
 import { getItemValuePerPp } from './marketMath.js';
+import { resolveCountry, getCountryName as getWareraCountryName, getCountryFlag } from './wareraCountries.js';
 
 export function getCountryName(code) {
-  if (!code || typeof code !== 'string') return '';
-  const clean = code.trim().toUpperCase();
-  try {
-    const regionNames = new Intl.DisplayNames(['en'], { type: 'region' });
-    const name = regionNames.of(clean);
-    if (name) return name;
-  } catch {}
-  const map = {
-    'IL': 'Israel', 'EC': 'Ecuador', 'ES': 'Spain', 'US': 'United States',
-    'DE': 'Germany', 'FR': 'France', 'GB': 'United Kingdom', 'UK': 'United Kingdom',
-    'SG': 'Singapore', 'CN': 'China', 'BR': 'Brazil', 'JP': 'Japan',
-    'KR': 'South Korea', 'CA': 'Canada', 'AU': 'Australia', 'MX': 'Mexico',
-    'IT': 'Italy', 'PL': 'Poland', 'UA': 'Ukraine', 'IN': 'India',
-    'RU': 'Russia', 'NL': 'Netherlands', 'SE': 'Sweden', 'NO': 'Norway'
-  };
-  return map[clean] || clean;
+  if (!code) return '';
+  const resolved = resolveCountry(code);
+  if (resolved?.name) return resolved.name;
+  return getWareraCountryName(code) || String(code);
 }
 
 function getWorkerCountry(worker, fallback = 'HQ') {
   if (!worker) return fallback;
+  const resolved = resolveCountry(worker);
+  if (resolved?.code && resolved.code !== 'HQ') {
+    return resolved.code;
+  }
   if (worker.countryCode && typeof worker.countryCode === 'string') return worker.countryCode.toUpperCase();
   if (worker.nationalityCode && typeof worker.nationalityCode === 'string') return worker.nationalityCode.toUpperCase();
-  if (typeof worker.nationality === 'string' && worker.nationality.length === 2) return worker.nationality.toUpperCase();
   return fallback;
 }
 

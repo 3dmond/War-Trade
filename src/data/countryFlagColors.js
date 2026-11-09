@@ -1,3 +1,5 @@
+import { resolveCountry } from './wareraCountries.js';
+
 /**
  * Country Flag Color Mapping & Flag Motion Engine
  * 
@@ -63,6 +65,26 @@ export const COUNTRY_FLAG_COLORS = {
   'CZ': { name: 'Czechia', colors: ['#ffffff', '#d7141a', '#11457e'], border: '#11457e', direction: '135deg' },
   'RO': { name: 'Romania', colors: ['#002b7f', '#fcd116', '#ce1126'], border: '#002b7f', direction: '90deg' },
   'HU': { name: 'Hungary', colors: ['#ce2939', '#ffffff', '#477050'], border: '#ce2939', direction: '180deg' },
+  'BG': { name: 'Bulgaria', colors: ['#ffffff', '#00966e', '#d62612'], border: '#00966e', direction: '180deg' },
+  'RW': { name: 'Rwanda', colors: ['#00a1de', '#fad201', '#20603d'], border: '#00a1de', direction: '180deg' },
+  'UY': { name: 'Uruguay', colors: ['#0038a8', '#ffffff', '#0038a8'], border: '#0038a8', direction: '180deg' },
+  'PR': { name: 'Puerto Rico', colors: ['#ed0000', '#ffffff', '#00247d'], border: '#00247d', direction: '135deg' },
+  'FJ': { name: 'Fiji', colors: ['#68bfe5', '#ffffff', '#ce1126'], border: '#68bfe5', direction: '135deg' },
+  'LU': { name: 'Luxembourg', colors: ['#ea141d', '#ffffff', '#51adfa'], border: '#ea141d', direction: '180deg' },
+  'CM': { name: 'Cameroon', colors: ['#007a5e', '#ce1126', '#fcd116'], border: '#007a5e', direction: '90deg' },
+  'HN': { name: 'Honduras', colors: ['#0073cf', '#ffffff', '#0073cf'], border: '#0073cf', direction: '180deg' },
+  'MZ': { name: 'Mozambique', colors: ['#007168', '#000000', '#ffde00', '#d1103a'], border: '#007168', direction: '135deg' },
+  'AM': { name: 'Armenia', colors: ['#d90012', '#0033a0', '#f2a800'], border: '#d90012', direction: '180deg' },
+  'ER': { name: 'Eritrea', colors: ['#00a3dd', '#eb1c24', '#12ad2b'], border: '#eb1c24', direction: '135deg' },
+  'AO': { name: 'Angola', colors: ['#cc092f', '#000000', '#ffcb00'], border: '#cc092f', direction: '180deg' },
+  'BO': { name: 'Bolivia', colors: ['#d52b1e', '#fcd116', '#007934'], border: '#007934', direction: '180deg' },
+  'TW': { name: 'Taiwan', colors: ['#00247d', '#ffffff', '#de2910'], border: '#00247d', direction: '135deg' },
+  'TT': { name: 'Trinidad and Tobago', colors: ['#ce1126', '#ffffff', '#000000'], border: '#ce1126', direction: '135deg' },
+  'PA': { name: 'Panama', colors: ['#003893', '#ffffff', '#d21034'], border: '#003893', direction: '135deg' },
+  'BZ': { name: 'Belize', colors: ['#003893', '#d21034', '#003893'], border: '#003893', direction: '180deg' },
+  'HT': { name: 'Haiti', colors: ['#00209f', '#d21034'], border: '#00209f', direction: '180deg' },
+  'BD': { name: 'Bangladesh', colors: ['#006a4e', '#f42a41'], border: '#006a4e', direction: '135deg' },
+  'JO': { name: 'Jordan', colors: ['#000000', '#ffffff', '#007a3d', '#ce1126'], border: '#007a3d', direction: '180deg' },
   'HQ': { name: 'Global HQ', colors: ['#009edb', '#f59e0b', '#ffffff'], border: '#009edb', direction: '135deg' }
 };
 
@@ -112,7 +134,8 @@ function getFallbackFlagColors(code) {
  * Opacity is kept gentle (0.28 - 0.40) so dark country text remains 100% legible.
  */
 export function getCountryFlagTheme(countryCode) {
-  const code = (countryCode || 'HQ').trim().toUpperCase();
+  const resolved = resolveCountry(countryCode);
+  const code = (resolved?.code || (typeof countryCode === 'string' ? countryCode.trim().toUpperCase() : 'HQ'));
   const entry = COUNTRY_FLAG_COLORS[code] || getFallbackFlagColors(code);
 
   const colors = entry.colors || ['#ffffff', '#0038b8'];
