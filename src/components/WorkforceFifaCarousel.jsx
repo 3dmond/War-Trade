@@ -1,18 +1,17 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { X, ChevronLeft, ChevronRight, Eye } from 'lucide-react';
 import EmployeeFifaCard from './EmployeeFifaCard';
 
 /**
  * WorkforceFifaCarousel
  * 
- * Delivers a continuous, smooth 3D cylinder carousel motion:
- * - Persistent card rendering in DOM (zero unmounting/remounting, zero layout jumps).
- * - Exact mathematical 3D centering (translate3d with -50%, -50% so cards are never sunk or offset).
- * - Responsive side offsets so peeking cards stay within stage bounds without clipping.
+ * Delivers a continuous, smooth 3D cylinder showcase window display:
+ * - Scaled window display on mobile so side cards peek clearly within screen bounds.
  * - Hardware-accelerated CSS 3D transforms (600ms cubic-bezier).
- * - Transparent click-shield on side cards to make whole peeking cards one-click navigable.
- * - No arrow buttons on the cards.
- * - Clickable employee name indicators, generously spaced on tablet & desktop.
- * - Mobile view hides text names to conserve vertical screen space.
+ * - Touch swipe / sliding gestures to seamlessly flip between workers.
+ * - Front-push popup view on click with close 'X' button.
+ * - One-click switch on side peeking cards.
+ * - Clickable employee name indicators on desktop, sleek dot pills on mobile.
  */
 export default function WorkforceFifaCarousel({
   workers = [],
@@ -38,7 +37,11 @@ export default function WorkforceFifaCarousel({
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [shineKey, setShineKey] = useState(0);
   const [windowWidth, setWindowWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1024);
+  const [popupWorker, setPopupWorker] = useState(null);
+  
   const animTimerRef = useRef(null);
+  const touchStartXRef = useRef(0);
+  const touchStartYRef = useRef(0);
 
   // Track window resize for responsive card spacing
   useEffect(() => {
@@ -105,27 +108,51 @@ export default function WorkforceFifaCarousel({
     }
   }, [totalWorkers, isTransitioning, currentIndex, handleSelectWorker]);
 
+  // Touch Swipe Handlers for mobile sliding
+  const handleTouchStart = (e) => {
+    if (e.touches && e.touches[0]) {
+      touchStartXRef.current = e.touches[0].clientX;
+      touchStartYRef.current = e.touches[0].clientY;
+    }
+  };
+
+  const handleTouchEnd = (e) => {
+    if (!e.changedTouches || !e.changedTouches[0] || totalWorkers <= 1 || isTransitioning) return;
+    const deltaX = e.changedTouches[0].clientX - touchStartXRef.current;
+    const deltaY = e.changedTouches[0].clientY - touchStartYRef.current;
+
+    // Minimum swipe threshold 38px, predominantly horizontal
+    if (Math.abs(deltaX) > 38 && Math.abs(deltaX) > Math.abs(deltaY) * 1.2) {
+      if (deltaX < 0) {
+        // Swipe Left -> next worker
+        handleSelectWorker((currentIndex + 1) % totalWorkers);
+      } else {
+        // Swipe Right -> previous worker
+        handleSelectWorker((currentIndex - 1 + totalWorkers) % totalWorkers);
+      }
+    }
+  };
+
   if (totalWorkers === 0) {
     return null;
   }
 
-  // Responsive geometry calculations
+  // Responsive geometry calculations:
+  // On mobile (<640px), pushed further back in the screen like a window display so adjacent cards peek clearly!
   const isMobile = windowWidth < 640;
   const isTablet = windowWidth >= 640 && windowWidth < 1024;
-  const sideX = isMobile ? 120 : isTablet ? 145 : 160;
-  const centerScale = 1.0;
-  const sideScale = isMobile ? 0.78 : 0.82;
+  const sideX = isMobile ? 88 : isTablet ? 145 : 160;
+  const centerScale = isMobile ? 0.82 : 1.0;
+  const sideScale = isMobile ? 0.65 : 0.82;
 
   /**
    * Computes 3D transform & visual properties for each worker card.
-   * - High visibility: center card has brightness(1.05), side cards have brightness(0.96) so they are never muddy or dark!
-   * - Strict vertical boundary: cards are centered in the stage with plenty of room above the selector pills.
    */
   const getCardTransform = (index) => {
     // Single card
     if (totalWorkers === 1) {
       return {
-        transform: 'translate3d(-50%, -50%, 0) scale(1)',
+        transform: `translate3d(-50%, -50%, 0) scale(${centerScale})`,
         zIndex: 30,
         opacity: 1,
         pointerEvents: 'auto'
@@ -137,7 +164,7 @@ export default function WorkforceFifaCarousel({
       const isCenter = index === currentIndex;
       if (isCenter) {
         return {
-          transform: 'translate3d(-50%, -50%, 0) scale(1) rotateY(0deg)',
+          transform: `translate3d(-50%, -50%, 0) scale(${centerScale}) rotateY(0deg)`,
           zIndex: 30,
           opacity: 1,
           pointerEvents: 'auto'
@@ -158,10 +185,10 @@ export default function WorkforceFifaCarousel({
     let slot = (index - currentIndex) % totalWorkers;
     if (slot < 0) slot += totalWorkers;
 
-    // Slot 0: Front Center Stage (100% native 1:1 scale for crystal-clear razor-sharp rendering)
+    // Slot 0: Front Center Stage
     if (slot === 0) {
       return {
-        transform: 'translate3d(-50%, -50%, 0) scale(1) rotateY(0deg)',
+        transform: `translate3d(-50%, -50%, 0) scale(${centerScale}) rotateY(0deg)`,
         zIndex: isTransitioning && animatingToIdx === index ? 35 : 30,
         opacity: 1,
         pointerEvents: 'auto'
@@ -178,7 +205,7 @@ export default function WorkforceFifaCarousel({
       };
     }
 
-    // Last Slot (e.g. Slot 2 for N=3): Left peeking card
+    // Last Slot: Left peeking card
     if (slot === totalWorkers - 1) {
       return {
         transform: `translate3d(calc(-50% - ${sideX}px), -50%, -40px) scale(${sideScale}) rotateY(-12deg)`,
@@ -188,9 +215,9 @@ export default function WorkforceFifaCarousel({
       };
     }
 
-    // Any extra workers (N > 3): hidden in the deep background
+    // Any extra workers: hidden in the deep background
     return {
-      transform: 'translate3d(-50%, -50%, -180px) scale(0.60)',
+      transform: 'translate3d(-50%, -50%, -180px) scale(0.55)',
       zIndex: 5,
       opacity: 0,
       pointerEvents: 'none'
@@ -202,10 +229,12 @@ export default function WorkforceFifaCarousel({
       className="relative w-full select-none focus:outline-hidden"
       tabIndex={0}
       onKeyDown={handleKeyDown}
+      onTouchStart={handleTouchStart}
+      onTouchEnd={handleTouchEnd}
     >
-      {/* 3D Perspective Card Stage with calibrated height for complete vertical clearance */}
+      {/* 3D Perspective Card Stage (Window Display) */}
       <div 
-        className="fifa-card-perspective-stage relative w-full h-[425px] sm:h-[445px] flex items-center justify-center isolate overflow-visible my-1"
+        className="fifa-card-perspective-stage relative w-full h-[375px] xs:h-[395px] sm:h-[445px] flex items-center justify-center isolate overflow-visible my-1"
         style={{ perspective: '1100px', transformStyle: 'preserve-3d' }}
       >
         {/* Render each worker persistently in DOM with smooth cylinder positioning */}
@@ -216,10 +245,17 @@ export default function WorkforceFifaCarousel({
           return (
             <div
               key={worker.userId || worker.id || idx}
-              className={`absolute left-1/2 top-1/2 origin-center transition-all duration-[600ms] ease-[cubic-bezier(0.25,1,0.5,1)] w-[295px] xs:w-[315px] sm:w-[330px] ${isTransitioning ? 'will-change-transform' : ''}`}
+              className={`absolute left-1/2 top-1/2 origin-center transition-all duration-[600ms] ease-[cubic-bezier(0.25,1,0.5,1)] w-[280px] xs:w-[305px] sm:w-[330px] ${isTransitioning ? 'will-change-transform' : ''}`}
               style={cardStyle}
             >
-              <div className="relative rounded-2xl overflow-hidden drop-shadow-[0_20px_45px_rgba(0,0,0,0.85)]">
+              <div 
+                className={`relative rounded-2xl overflow-hidden drop-shadow-[0_20px_45px_rgba(0,0,0,0.85)] ${isCenter ? 'cursor-pointer hover:brightness-105 active:scale-[0.99] transition-transform' : ''}`}
+                onClick={() => {
+                  if (isCenter) {
+                    setPopupWorker(worker);
+                  }
+                }}
+              >
                 {/* FIFA Metallic Gold Light Beam Sweep across active center card */}
                 {isCenter && shineKey > 0 && (
                   <div key={shineKey} className="animate-fifa-shine" />
@@ -232,6 +268,14 @@ export default function WorkforceFifaCarousel({
                   portfolioCompanies={portfolioCompanies}
                   onSelectCompany={onSelectCompany}
                 />
+
+                {/* Center card click hint (mobile & desktop) */}
+                {isCenter && (
+                  <div className="absolute top-2 right-2 z-40 bg-black/60 backdrop-blur-xs text-amber-300 px-2 py-0.5 rounded-full text-[9px] font-mono font-bold border border-amber-400/30 flex items-center gap-1 shadow-sm">
+                    <Eye className="w-2.5 h-2.5" />
+                    <span>Inspect</span>
+                  </div>
+                )}
 
                 {/* Click shield for side cards: one-tap switch into center */}
                 {!isCenter && (
@@ -250,25 +294,30 @@ export default function WorkforceFifaCarousel({
         })}
       </div>
 
-      {/* Roster Quick Selector Indicator Bar (Guaranteed clearance below card stage) */}
+      {/* Roster Quick Selector Indicator Bar */}
       {totalWorkers > 1 && (
-        <div className="mt-4 sm:mt-5 pb-1">
-          {/* Mobile view: Minimal sleek dot indicators (no names) */}
-          <div className="flex sm:hidden items-center justify-center gap-2.5 px-4">
-            {workers.map((w, idx) => (
-              <button
-                key={w.id || w.userId || idx}
-                type="button"
-                onClick={() => handleSelectWorker(idx)}
-                disabled={isTransitioning}
-                className={`h-2 rounded-full transition-all duration-300 cursor-pointer ${
-                  idx === currentIndex 
-                    ? 'w-7 bg-amber-400 shadow-[0_0_8px_rgba(245,158,11,0.6)]' 
-                    : 'w-2 bg-slate-700 hover:bg-slate-500'
-                }`}
-                aria-label={`Select Employee ${idx + 1}`}
-              />
-            ))}
+        <div className="mt-3 sm:mt-5 pb-1">
+          {/* Mobile view: Minimal sleek dot indicators with swipe hint */}
+          <div className="flex sm:hidden flex-col items-center justify-center gap-1.5 px-4">
+            <div className="flex items-center justify-center gap-2.5">
+              {workers.map((w, idx) => (
+                <button
+                  key={w.id || w.userId || idx}
+                  type="button"
+                  onClick={() => handleSelectWorker(idx)}
+                  disabled={isTransitioning}
+                  className={`h-2 rounded-full transition-all duration-300 cursor-pointer ${
+                    idx === currentIndex 
+                      ? 'w-7 bg-amber-400 shadow-[0_0_8px_rgba(245,158,11,0.6)]' 
+                      : 'w-2 bg-slate-700 hover:bg-slate-500'
+                  }`}
+                  aria-label={`Select Employee ${idx + 1}`}
+                />
+              ))}
+            </div>
+            <span className="text-[10px] font-mono text-slate-400">
+              Swipe left/right to slide • Tap card to inspect
+            </span>
           </div>
 
           {/* Tablet & Desktop: Clickable names, well spaced */}
@@ -304,6 +353,78 @@ export default function WorkforceFifaCarousel({
           </div>
         </div>
       )}
+
+      {/* FRONT PUSH MODAL POPUP VIEW (ON CLICK CENTER CARD) */}
+      {popupWorker && (
+        <div 
+          className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-3 sm:p-5 overflow-y-auto animate-in fade-in duration-200"
+          onClick={() => setPopupWorker(null)}
+        >
+          <div 
+            className="relative max-w-[370px] w-full my-auto animate-in zoom-in-95 duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Top Close 'X' Button */}
+            <button
+              type="button"
+              onClick={() => setPopupWorker(null)}
+              className="absolute -top-3.5 -right-3.5 z-50 w-9 h-9 rounded-full bg-slate-900 border-2 border-amber-400 text-white shadow-2xl flex items-center justify-center cursor-pointer hover:bg-slate-800 active:scale-90 transition"
+              title="Close worker view"
+              aria-label="Close"
+            >
+              <X className="w-5 h-5 text-amber-300" />
+            </button>
+
+            {/* Front 1:1 Full-scale FIFA Card */}
+            <EmployeeFifaCard
+              worker={popupWorker}
+              company={company}
+              portfolioWorkers={portfolioWorkers}
+              portfolioCompanies={portfolioCompanies}
+              onSelectCompany={(compId) => {
+                setPopupWorker(null);
+                onSelectCompany?.(compId);
+              }}
+            />
+
+            {/* Navigator inside popup when multiple workers */}
+            {totalWorkers > 1 && (
+              <div className="flex items-center justify-between pt-3 px-1 text-xs font-mono">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const prevIdx = (currentIndex - 1 + totalWorkers) % totalWorkers;
+                    handleSelectWorker(prevIdx);
+                    setPopupWorker(workers[prevIdx]);
+                  }}
+                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-slate-900 border border-amber-500/40 text-amber-300 font-bold hover:bg-slate-800 active:scale-95 transition cursor-pointer"
+                >
+                  <ChevronLeft className="w-3.5 h-3.5" />
+                  <span>Prev</span>
+                </button>
+
+                <span className="text-slate-300 font-bold">
+                  {currentIndex + 1} / {totalWorkers}
+                </span>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    const nextIdx = (currentIndex + 1) % totalWorkers;
+                    handleSelectWorker(nextIdx);
+                    setPopupWorker(workers[nextIdx]);
+                  }}
+                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-slate-900 border border-amber-500/40 text-amber-300 font-bold hover:bg-slate-800 active:scale-95 transition cursor-pointer"
+                >
+                  <span>Next</span>
+                  <ChevronRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

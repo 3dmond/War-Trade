@@ -1481,8 +1481,21 @@ export default function CompanyPortfolio({
                   )}
                 </div>
 
-                {/* Quick Summary Pill Bar */}
-                <div className="flex items-center justify-between text-[11px] font-mono bg-white/70 backdrop-blur-xs px-2.5 py-1.5 rounded-lg border border-slate-200/60 text-slate-700">
+                {/* Quick Summary Flow: Mobile 2-column flow vs Desktop inline pill */}
+                <div className="sm:hidden grid grid-cols-2 gap-1.5 text-[11px] font-mono">
+                  <div className="bg-white/80 p-2 rounded-lg border border-slate-200/60">
+                    <span className="text-[10px] text-slate-500 block font-sans">Production Speed:</span>
+                    <strong className="text-slate-900 font-bold">+{(activeCompany.totalCombinedPph || 0).toFixed(2)} PP/h</strong>
+                    <span className="text-[10px] text-slate-500 ml-1">({((activeCompany.totalCombinedPph || 0) * 24).toFixed(1)}/d)</span>
+                  </div>
+                  <div className="bg-white/80 p-2 rounded-lg border border-slate-200/60">
+                    <span className="text-[10px] text-slate-500 block font-sans">Remaining Space:</span>
+                    <strong className="text-slate-900 font-bold">{(activeCompany.remainingPpToFull ?? Math.max(0, activeCompany.storageCapacity - activeCompany.currentStoredPp)).toFixed(1)} PP</strong>
+                    <span className="text-[10px] text-slate-500 ml-1">/ {activeCompany.storageCapacity} PP</span>
+                  </div>
+                </div>
+
+                <div className="hidden sm:flex items-center justify-between text-[11px] font-mono bg-white/70 backdrop-blur-xs px-2.5 py-1.5 rounded-lg border border-slate-200/60 text-slate-700">
                   <span>
                     Speed: <strong className="text-slate-900">+{(activeCompany.totalCombinedPph || 0).toFixed(2)} PP/h</strong>
                     <span className="text-[10px] text-slate-500 ml-1">({((activeCompany.totalCombinedPph || 0) * 24).toFixed(1)}/d)</span>
@@ -1867,18 +1880,52 @@ export default function CompanyPortfolio({
                 </div>
               </div>
 
-              {/* HARDWARE UPGRADES IN PLAIN ENGLISH */}
+              {/* HARDWARE UPGRADES */}
               {activeCompany.nextEngineTier && (
-                <div className={`p-3.5 rounded-xl space-y-1 ${activeTheme.cardHeaderBg} border ${activeTheme.cardBorder}`}>
+                <div className={`p-3.5 rounded-xl space-y-2 ${activeTheme.cardHeaderBg} border ${activeTheme.cardBorder}`}>
                   <div className="flex items-center justify-between text-slate-800 font-bold text-xs">
                     <span>Next Automated Engine Level (Lv.{activeCompany.engineLevel + 1})</span>
                     <span className={`font-mono font-bold ${activeTheme.accentText}`}>+24 PP / day</span>
                   </div>
-                  <p className="text-xs text-slate-600 font-sans">
-                    Upgrading costs <strong>{activeCompany.engineUpgradeSteel} Steel</strong> ({activeCompany.engineUpgradeCoins.toFixed(1)} BTC). Gives you +1 PP/hour (+24 PP/day), generating <strong className={activeTheme.accentText}>+{activeCompany.engineExtraProfitDaily.toFixed(1)} BTC/day</strong> extra net profit.
-                  </p>
-                  <div className={`text-[11px] font-mono font-bold pt-0.5 ${activeTheme.accentText}`}>
-                    Recoups its upgrade cost in {activeCompany.enginePaybackDays.toFixed(0)} days.
+
+                  {/* Mobile Flow View (Clean, non-wordy analytical 2x2 grid) */}
+                  <div className="grid grid-cols-2 gap-2 pt-1 font-mono sm:hidden">
+                    <div className="bg-white/80 p-2 rounded-lg border border-slate-200/60 flex flex-col justify-between">
+                      <span className="text-[10px] text-slate-500 font-sans font-medium">Hardware Cost</span>
+                      <strong className="text-slate-900 text-xs font-bold mt-0.5">
+                        {activeCompany.engineUpgradeSteel} Steel
+                        <span className="block text-[10px] font-normal text-slate-500">({activeCompany.engineUpgradeCoins.toFixed(1)} BTC)</span>
+                      </strong>
+                    </div>
+                    <div className="bg-white/80 p-2 rounded-lg border border-slate-200/60 flex flex-col justify-between">
+                      <span className="text-[10px] text-slate-500 font-sans font-medium">Speed Boost</span>
+                      <strong className="text-amber-700 text-xs font-bold mt-0.5">
+                        +1.0 PP/h
+                        <span className="block text-[10px] font-normal text-slate-500">(+24 PP/day)</span>
+                      </strong>
+                    </div>
+                    <div className="bg-white/80 p-2 rounded-lg border border-slate-200/60 flex flex-col justify-between">
+                      <span className="text-[10px] text-slate-500 font-sans font-medium">Extra Net Profit</span>
+                      <strong className="text-emerald-600 text-xs font-bold mt-0.5">
+                        +{activeCompany.engineExtraProfitDaily.toFixed(1)} BTC/d
+                      </strong>
+                    </div>
+                    <div className="bg-white/80 p-2 rounded-lg border border-slate-200/60 flex flex-col justify-between">
+                      <span className="text-[10px] text-slate-500 font-sans font-medium">Payback Horizon</span>
+                      <strong className="text-slate-900 text-xs font-bold mt-0.5">
+                        {activeCompany.enginePaybackDays.toFixed(0)} days
+                      </strong>
+                    </div>
+                  </div>
+
+                  {/* Desktop Narrative Paragraph (Preserved 100% on PC view) */}
+                  <div className="hidden sm:block space-y-1">
+                    <p className="text-xs text-slate-600 font-sans">
+                      Upgrading costs <strong>{activeCompany.engineUpgradeSteel} Steel</strong> ({activeCompany.engineUpgradeCoins.toFixed(1)} BTC). Gives you +1 PP/hour (+24 PP/day), generating <strong className={activeTheme.accentText}>+{activeCompany.engineExtraProfitDaily.toFixed(1)} BTC/day</strong> extra net profit.
+                    </p>
+                    <div className={`text-[11px] font-mono font-bold pt-0.5 ${activeTheme.accentText}`}>
+                      Recoups its upgrade cost in {activeCompany.enginePaybackDays.toFixed(0)} days.
+                    </div>
                   </div>
                 </div>
               )}

@@ -13,14 +13,14 @@ export function getCountryName(code) {
 }
 
 function getWorkerCountry(worker, fallback = 'HQ') {
-  if (!worker) return fallback;
+  if (!worker) return 'HQ';
   const resolved = resolveCountry(worker);
   if (resolved?.code && resolved.code !== 'HQ') {
     return resolved.code;
   }
-  if (worker.countryCode && typeof worker.countryCode === 'string') return worker.countryCode.toUpperCase();
-  if (worker.nationalityCode && typeof worker.nationalityCode === 'string') return worker.nationalityCode.toUpperCase();
-  return fallback;
+  if (worker.countryCode && typeof worker.countryCode === 'string' && worker.countryCode !== 'HQ') return worker.countryCode.toUpperCase();
+  if (worker.nationalityCode && typeof worker.nationalityCode === 'string' && worker.nationalityCode !== 'HQ') return worker.nationalityCode.toUpperCase();
+  return 'HQ';
 }
 
 export function getWorkerHourlyWages(w) {
@@ -199,7 +199,7 @@ export function evaluateTraitSynergy(
           .map(w => [w.companyId, { id: w.companyId, name: w.companyName, countryCode: w.countryCode }])
       ).values());
 
-  const workerCountry = getWorkerCountry(worker, company.countryCode || 'HQ');
+  const workerCountry = getWorkerCountry(worker, 'HQ');
   const workerProd = worker.baseProduction ?? worker.production ?? 3;
   const workerHappiness = worker.happiness ?? 50;
 

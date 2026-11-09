@@ -30,7 +30,10 @@ Object.values(staticCountries).forEach(c => {
     name: c.name,
     code: c.code.toUpperCase()
   };
-  if (normalized.id) countriesById.set(normalized.id, normalized);
+  if (normalized.id) {
+    countriesById.set(normalized.id, normalized);
+    countriesById.set(String(normalized.id).toLowerCase(), normalized);
+  }
   countriesByCode.set(normalized.code, normalized);
   if (normalized.name) countriesByName.set(normalized.name.toLowerCase().trim(), normalized);
 });
@@ -59,16 +62,16 @@ export function resolveCountry(input) {
         flag: codeToFlag(code)
       };
     }
-    // For workers, prioritize authentic citizenship/nationality over employer facility location
+    // For workers, strictly prioritize authentic citizenship/nationality
     const candidate = 
       input.nationality || 
-      input.nationalityCode || 
-      input.nationalityId || 
       input.citizenship || 
+      input.nationalityId || 
+      input.nationalityCode || 
+      input.homeland ||
+      input.origin ||
       input.countryCode || 
-      input.country || 
-      input.id || 
-      input._id;
+      input.country;
     if (candidate && candidate !== input) {
       const res = resolveCountry(candidate);
       if (res && res.code !== 'HQ') return res;
@@ -79,9 +82,14 @@ export function resolveCountry(input) {
   const clean = input.trim();
   if (!clean) return null;
 
-  // 2. Exact match in countriesById (MongoDB ObjectId lookup)
+  // 2. Exact match in countriesById (MongoDB ObjectId lookup - case insensitive)
+  const lowerClean = clean.toLowerCase();
   if (countriesById.has(clean)) {
     const c = countriesById.get(clean);
+    return { ...c, flag: codeToFlag(c.code) };
+  }
+  if (countriesById.has(lowerClean)) {
+    const c = countriesById.get(lowerClean);
     return { ...c, flag: codeToFlag(c.code) };
   }
 
