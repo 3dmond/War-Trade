@@ -2,7 +2,21 @@ import { RECIPES, getBreakRoomCapacity } from './gameData.js';
 
 export function isCompanyDisabled(comp) {
   if (!comp) return false;
+
+  // If a worker/employee was passed directly
+  if (comp.companyDisabled === true || comp._raw?.companyDisabled === true || comp.isCompanyDisabled === true) {
+    return true;
+  }
+  if (comp.company && typeof comp.company === 'object' && isCompanyDisabled(comp.company)) {
+    return true;
+  }
+
   return Boolean(
+    comp.disabledAt ||
+    comp._raw?.disabledAt ||
+    comp.companyDisabled === true ||
+    comp._raw?.companyDisabled === true ||
+    comp.isCompanyDisabled === true ||
     comp.disabled === true ||
     comp.isDisabled === true ||
     comp.isClosed === true ||
@@ -15,7 +29,11 @@ export function isCompanyDisabled(comp) {
     comp.status === 'disabled' ||
     comp.status === 'inactive' ||
     comp.status === 'closed' ||
-    comp.status === 'paused'
+    comp.status === 'paused' ||
+    (Array.isArray(comp.employees) && comp.employees.some(e => e?.companyDisabled === true || e?._raw?.companyDisabled === true)) ||
+    (Array.isArray(comp.workers) && comp.workers.some(e => e?.companyDisabled === true || e?._raw?.companyDisabled === true)) ||
+    (Array.isArray(comp.workersList) && comp.workersList.some(e => e?.companyDisabled === true || e?._raw?.companyDisabled === true)) ||
+    (Array.isArray(comp.employeesList) && comp.employeesList.some(e => e?.companyDisabled === true || e?._raw?.companyDisabled === true))
   );
 }
 
@@ -647,6 +665,8 @@ export function calculateCompanyBaseEconomics(comp, prices = {}, insourceOverrid
   const totalBonusPct = typeof comp.totalBonusPct === 'number' ? comp.totalBonusPct : 0;
   const bonusMultiplier = 1 + (totalBonusPct / 100);
 
+  const disabled = isCompanyDisabled(comp);
+
   // In-game dynamic commodity rate per PP (authoritative game-engine baseline)
   const ratePerPp = getItemValuePerPp(comp.itemCode);
   const rawList = comp.employees || comp.workers || comp.workersList || comp.employeesList || [];
@@ -684,11 +704,11 @@ export function calculateCompanyBaseEconomics(comp, prices = {}, insourceOverrid
       individualBonusBreakdown: bonusBreakdown,
       totalBonusPct: bonusBreakdown.totalBonus,
       baseProdStat: bonusBreakdown.baseProdStat,
-      baseHourlyPp: bonusBreakdown.baseHourlyPp
+      baseHourlyPp: bonusBreakdown.baseHourlyPp,
+      companyDisabled: disabled || Boolean(w.companyDisabled || w._raw?.companyDisabled),
+      isCompanyDisabled: disabled || Boolean(w.isCompanyDisabled || w._raw?.companyDisabled)
     };
   });
-
-  const disabled = isCompanyDisabled(comp);
 
   // Within the company calculations remain true and exact
   const workersProducedDailyPp = employeesList.reduce((sum, e) => sum + e.dailyOutputPp, 0);
@@ -767,7 +787,11 @@ export function calculateCompanyBaseEconomics(comp, prices = {}, insourceOverrid
     dailyLaborExpense,
     baseNetProfit,
     dailyNetProfit: baseNetProfit,
+    disabled: disabled,
     isDisabled: disabled,
+    companyDisabled: disabled,
+    isCompanyDisabled: disabled,
+    disabledAt: comp.disabledAt || comp._raw?.disabledAt || null,
     baseLaborCostPerUnit: baseUnits > 0 ? (dailyLaborExpense / baseUnits) : 0,
     baseRawCostPerUnit: 0,
     baseNetProfitPerUnit: baseUnits > 0 ? (baseNetProfit / baseUnits) : 0,

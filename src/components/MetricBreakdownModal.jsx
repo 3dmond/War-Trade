@@ -155,6 +155,7 @@ export default function MetricBreakdownModal({
             ? comp.productionBonus
             : (typeof comp.productionBonusData?.total === 'number' ? comp.productionBonusData.total : 0));
       const workers = comp.workersList || comp.workers || comp.employees || [];
+      const disabled = isCompanyDisabled(comp);
       workers.forEach((w, wIdx) => {
         const hourlyOutputPp = typeof w.hourlyOutputPp === 'number'
           ? w.hourlyOutputPp
@@ -202,6 +203,8 @@ export default function MetricBreakdownModal({
           companyItemCode: comp.itemCode,
           companyTotalBonusPct: compBonus,
           company: comp,
+          companyDisabled: disabled || Boolean(w.companyDisabled || w._raw?.companyDisabled),
+          isCompanyDisabled: disabled || Boolean(w.isCompanyDisabled || w._raw?.companyDisabled),
           isRaw: comp.isRaw,
           recipe,
           spotPrice,
@@ -235,6 +238,7 @@ export default function MetricBreakdownModal({
   const allManagers = useMemo(() => {
     const list = [];
     companies.forEach(comp => {
+      const disabled = isCompanyDisabled(comp);
       if (comp.manager || comp.hasManager || (typeof comp.managerPay === 'number' && comp.managerPay > 0)) {
         const m = comp.manager || {};
         const hourlyWage = typeof m.hourlyWage === 'number'
@@ -249,6 +253,8 @@ export default function MetricBreakdownModal({
           companyName: comp.name || 'Company',
           itemCode: comp.itemCode,
           company: comp,
+          companyDisabled: disabled,
+          isCompanyDisabled: disabled,
           isRaw: comp.isRaw,
           managementLevel: m.managementLevel || 1,
           productionBonusPercent: m.productionBonusPercent || 0,
@@ -260,6 +266,15 @@ export default function MetricBreakdownModal({
     });
     return list;
   }, [companies]);
+
+  // Active employees & managers strictly excluding disabled facilities
+  const activeWorkers = useMemo(() => {
+    return allWorkers.filter(w => !isCompanyDisabled(w.company) && !w.companyDisabled && !w.isCompanyDisabled);
+  }, [allWorkers]);
+
+  const activeManagers = useMemo(() => {
+    return allManagers.filter(m => !isCompanyDisabled(m.company) && !m.companyDisabled && !m.isCompanyDisabled);
+  }, [allManagers]);
 
   // Steel and Concrete Capital Influence Math
   const constructionMetrics = useMemo(() => {
@@ -897,19 +912,20 @@ export default function MetricBreakdownModal({
                         const theme = getCompanyTheme(c);
                         const disabled = isCompanyDisabled(c);
                         const spotPrice = c.spotPrice || prices[c.itemCode] || 1.0;
-                        const units = c.baseUnits || 0;
-                        const grossRev = c.grossRevenue || (units * spotPrice);
+                        const units = disabled ? 0 : (c.baseUnits || 0);
+                        const grossRev = disabled ? 0 : (c.grossRevenue || (units * spotPrice));
                         // Operational revenue share excludes disabled facilities
                         const sharePct = !disabled && marketOverview.totalBaseGrossRevenue > 0 ? (grossRev / marketOverview.totalBaseGrossRevenue) * 100 : 0;
                         const revColor = grossRev > 0 ? 'text-emerald-600' : grossRev < 0 ? 'text-red-600' : 'text-blue-600';
                         return (
-                          <tr key={c.id || c._id} className={`transition-colors ${theme.rowGradient}`}>
+                          <tr key={c.id || c._id} className={`transition-colors ${disabled ? 'opacity-60 saturate-40 bg-slate-100/90 text-slate-500 shadow-[inset_0_1px_2px_rgba(0,0,0,0.06)]' : theme.rowGradient}`}>
                             <td className="py-2.5 px-4 font-bold text-slate-900 font-sans">
                               <div className="flex items-center gap-1.5 flex-wrap">
+                                {disabled && <span className="text-xs shrink-0 select-none" title="Company Disabled">💔</span>}
                                 <span>{c.name}</span>
                                 {disabled && (
-                                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-rose-50 border border-rose-300 text-rose-700 text-[9px] font-mono font-bold uppercase rounded shrink-0" title="Company Disabled">
-                                    <AlertTriangle className="w-3 h-3 text-rose-600 shrink-0" />
+                                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-slate-200 border border-slate-300 text-slate-800 text-[9px] font-mono font-bold uppercase rounded shrink-0 shadow-2xs" title="Company Disabled">
+                                    <span>💔</span>
                                     <span>Disabled</span>
                                   </span>
                                 )}
@@ -924,10 +940,10 @@ export default function MetricBreakdownModal({
                               {spotPrice.toFixed(3)}
                             </td>
                             <td className="py-2.5 px-3 text-right font-bold text-slate-800">
-                              {units.toFixed(1)} /day
+                              {disabled ? '0.0 /day' : `${units.toFixed(1)} /day`}
                             </td>
                             <td className={`py-2.5 px-3 text-right font-black ${revColor}`}>
-                              {grossRev > 0 ? `+${grossRev.toFixed(1)}` : grossRev < 0 ? grossRev.toFixed(1) : '0.0'}
+                              {disabled ? '0.0' : (grossRev > 0 ? `+${grossRev.toFixed(1)}` : grossRev < 0 ? grossRev.toFixed(1) : '0.0')}
                             </td>
                             <td className="py-2.5 px-4 text-right font-bold text-slate-800">
                               {disabled ? (
@@ -1028,13 +1044,14 @@ export default function MetricBreakdownModal({
                             : 0;
 
                           return (
-                            <tr key={`${item.companyId}_${item.rawId}_${idx}`} className={`transition-colors ${item.theme.rowGradient}`}>
+                            <tr key={`${item.companyId}_${item.rawId}_${idx}`} className={`transition-colors ${item.disabled ? 'opacity-60 saturate-40 bg-slate-100/90 text-slate-500 shadow-[inset_0_1px_2px_rgba(0,0,0,0.06)]' : item.theme.rowGradient}`}>
                               <td className="py-2.5 px-4 font-bold text-slate-900 font-sans">
                                 <div className="flex items-center gap-1.5 flex-wrap">
+                                  {item.disabled && <span className="text-xs shrink-0 select-none" title="Company Disabled">💔</span>}
                                   <span>{item.companyName}</span>
                                   {item.disabled && (
-                                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-rose-50 border border-rose-300 text-rose-700 text-[9px] font-mono font-bold uppercase rounded shrink-0" title="Company Disabled">
-                                      <AlertTriangle className="w-3 h-3 text-rose-600 shrink-0" />
+                                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-slate-200 border border-slate-300 text-slate-800 text-[9px] font-mono font-bold uppercase rounded shrink-0 shadow-2xs" title="Company Disabled">
+                                      <span>💔</span>
                                       <span>Disabled</span>
                                     </span>
                                   )}
@@ -1046,19 +1063,19 @@ export default function MetricBreakdownModal({
                                 </span>
                               </td>
                               <td className="py-2.5 px-3 text-right font-bold text-slate-800">
-                                {item.unitsProduced.toFixed(1)} <span className="text-[10px] text-slate-400 font-normal">units/d</span>
+                                {item.disabled ? '0.0' : item.unitsProduced.toFixed(1)} <span className="text-[10px] text-slate-400 font-normal">units/d</span>
                               </td>
                               <td className="py-2.5 px-3 capitalize font-bold text-slate-800">
                                 {item.rawName} <span className="text-[10px] text-slate-400 font-normal">({item.qtyPerUnit}x/unit)</span>
                               </td>
                               <td className="py-2.5 px-3 text-right font-bold text-slate-900">
-                                {item.rawUnitsNeeded.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
+                                {item.disabled ? '0.0' : item.rawUnitsNeeded.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
                               </td>
                               <td className="py-2.5 px-3 text-right text-slate-700">
                                 {item.rawPrice.toFixed(3)} BTC
                               </td>
                               <td className="py-2.5 px-3 text-right font-black text-rose-600">
-                                -{item.dailyRawCost.toFixed(2)} BTC
+                                {item.disabled ? '0.00 BTC' : `-${item.dailyRawCost.toFixed(2)} BTC`}
                               </td>
                               <td className="py-2.5 px-4 text-right font-bold text-slate-800">
                                 {item.disabled ? (
@@ -1557,7 +1574,7 @@ export default function MetricBreakdownModal({
                   </div>
                 </div>
                 <div className="text-left sm:text-right text-xs font-mono text-slate-600">
-                  <div>Hired Workforce: <span className="font-bold text-slate-900">{allWorkers.length} workers</span> • Managers: <span className="font-bold text-amber-800">{allManagers.length} hired</span></div>
+                  <div>Hired Workforce: <span className="font-bold text-slate-900">{activeWorkers.length} active workers</span>{allWorkers.length > activeWorkers.length ? ` (${allWorkers.length} total)` : ''} • Managers: <span className="font-bold text-amber-800">{activeManagers.length} hired</span></div>
                   <div>Worker Wages: <span className="font-bold text-red-600">-{marketOverview.totalWorkerWages.toFixed(2)} BTC</span> • Manager Pay: <span className="font-bold text-red-600">-{marketOverview.totalManagerCost.toFixed(2)} BTC</span></div>
                   <div className="text-[10px] text-slate-400">Continuous 24-hour shift schedule</div>
                 </div>
@@ -1566,7 +1583,7 @@ export default function MetricBreakdownModal({
               <div className="bg-white border border-slate-200 overflow-hidden">
                 <div className="px-4 py-2.5 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
                   <span className="text-xs font-bold font-mono text-slate-700 uppercase">
-                    AI Employee Wage & Production Details ({allWorkers.length} Workers)
+                    AI Employee Wage & Production Details ({activeWorkers.length} Active Workers{allWorkers.length > activeWorkers.length ? ` • ${allWorkers.length - activeWorkers.length} in disabled facilities` : ''})
                   </span>
                   <span className="text-[11px] font-mono text-slate-500">
                     Daily Salary = Hourly Rate * 24 Hours • Click any employee to inspect breakdown
@@ -1600,11 +1617,13 @@ export default function MetricBreakdownModal({
                         const theme = getCompanyTheme(w.company || w.companyItemCode || w.itemCode || w.companyName);
                         const isFemale = w.gender === 'female';
 
+                        const isCompDisabled = isCompanyDisabled(w.company) || w.companyDisabled || w.isCompanyDisabled;
+
                         return (
                           <React.Fragment key={workerKey}>
                             <tr 
                               onClick={() => setExpandedWorkerId(isExpanded ? null : workerKey)}
-                              className={`cursor-pointer transition-colors ${theme.rowGradient} ${isExpanded ? 'font-semibold' : ''}`}
+                              className={`cursor-pointer transition-colors ${isCompDisabled ? 'opacity-60 saturate-40 bg-slate-100/90 text-slate-500' : theme.rowGradient} ${isExpanded ? 'font-semibold' : ''}`}
                               title="Click to view detailed mathematical breakdown"
                             >
                               <td className="py-2.5 px-4 font-bold text-slate-900 font-sans">
@@ -1631,38 +1650,39 @@ export default function MetricBreakdownModal({
                                   <span className={`px-2 py-0.5 rounded text-[10px] font-mono uppercase font-bold shadow-xs ${theme.pillTag}`}>
                                     {w.companyItemCode || 'Product'}
                                   </span>
+                                  {isCompDisabled && <span className="text-xs shrink-0 select-none" title="Company Disabled">💔</span>}
                                   <span className="font-semibold text-slate-900 font-sans">{w.companyName}</span>
-                                  {isCompanyDisabled(w.company) && (
-                                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-rose-50 border border-rose-300 text-rose-700 text-[9px] font-mono font-bold uppercase rounded shrink-0" title="Company Disabled">
-                                      <AlertTriangle className="w-3 h-3 text-rose-600 shrink-0" />
+                                  {isCompDisabled && (
+                                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-slate-200 border border-slate-300 text-slate-800 text-[9px] font-mono font-bold uppercase rounded shrink-0 shadow-2xs" title="Company Disabled">
+                                      <span>💔</span>
                                       <span>Disabled</span>
                                     </span>
                                   )}
                                 </div>
-                                {compBonus > 0 && (
+                                {!isCompDisabled && compBonus > 0 && (
                                   <div className={`text-[10px] font-mono font-bold mt-0.5 ${theme.accentText}`}>
                                     +{compBonus.toFixed(1)}% bonus
                                   </div>
                                 )}
                               </td>
                               <td className={`py-2.5 px-3 text-right font-bold ${theme.accentText}`}>
-                                {hourlyYield.toFixed(2)}
+                                {isCompDisabled ? '0.00' : hourlyYield.toFixed(2)}
                               </td>
                               <td className="py-2.5 px-3 text-right font-bold text-red-600">
-                                -{hourlyWage.toFixed(4)}
+                                {isCompDisabled ? '-0.0000' : `-${hourlyWage.toFixed(4)}`}
                               </td>
                               <td className="py-2.5 px-3 text-right font-black text-slate-900">
-                                {dailyPp.toFixed(1)}
+                                {isCompDisabled ? '0.0' : dailyPp.toFixed(1)}
                               </td>
                               <td className="py-2.5 px-3 text-right font-black text-red-500">
-                                -{dailyWage.toFixed(2)}
+                                {isCompDisabled ? '-0.00' : `-${dailyWage.toFixed(2)}`}
                               </td>
                               <td className={`py-2.5 px-3 text-right font-bold ${dailyRev > 0 ? 'text-emerald-600' : dailyRev < 0 ? 'text-red-600' : 'text-blue-600'}`}>
-                                {dailyRev > 0 ? `+${dailyRev.toFixed(2)}` : dailyRev < 0 ? dailyRev.toFixed(2) : '0.00'}
+                                {isCompDisabled ? '0.00' : (dailyRev > 0 ? `+${dailyRev.toFixed(2)}` : dailyRev < 0 ? dailyRev.toFixed(2) : '0.00')}
                               </td>
                               <td className="py-2.5 px-4 text-right font-black">
                                 <span className={dailyNet > 0 ? 'text-emerald-700' : dailyNet < 0 ? 'text-red-600' : 'text-blue-600'}>
-                                  {dailyNet > 0 ? '+' : ''}{dailyNet.toFixed(2)}
+                                  {isCompDisabled ? '0.00' : `${dailyNet > 0 ? '+' : ''}${dailyNet.toFixed(2)}`}
                                 </span>
                               </td>
                             </tr>
@@ -1811,18 +1831,18 @@ export default function MetricBreakdownModal({
                     <tfoot>
                       <tr className="border-t-2 border-slate-300 bg-slate-50 font-mono font-black text-slate-900">
                         <td className="py-3 px-4" colSpan={4}>
-                          TOTAL BASE SALARIES PAID ({allWorkers.filter(w => !isCompanyDisabled(w.company)).length} EMPLOYEES)
+                          TOTAL BASE SALARIES PAID ({activeWorkers.length} ACTIVE EMPLOYEES)
                         </td>
                         <td className="py-3 px-3 text-right text-slate-900">
-                          {allWorkers.filter(w => !isCompanyDisabled(w.company)).reduce((s, w) => s + (w.dailyOutputPp || 0), 0).toFixed(1)}
+                          {activeWorkers.reduce((s, w) => s + (w.dailyOutputPp || 0), 0).toFixed(1)}
                         </td>
                         <td className="py-3 px-3 text-right text-red-500 text-sm">
                           -{marketOverview.totalWorkerWages.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </td>
                         <td className={`py-3 px-3 text-right text-sm ${
-                          allWorkers.filter(w => !isCompanyDisabled(w.company)).reduce((s, w) => s + (w.dailyProductionValue || 0), 0) > 0 ? 'text-emerald-600' : allWorkers.filter(w => !isCompanyDisabled(w.company)).reduce((s, w) => s + (w.dailyProductionValue || 0), 0) < 0 ? 'text-red-600' : 'text-blue-600'
+                          activeWorkers.reduce((s, w) => s + (w.dailyProductionValue || 0), 0) > 0 ? 'text-emerald-600' : activeWorkers.reduce((s, w) => s + (w.dailyProductionValue || 0), 0) < 0 ? 'text-red-600' : 'text-blue-600'
                         }`}>
-                          +{allWorkers.filter(w => !isCompanyDisabled(w.company)).reduce((s, w) => s + (w.dailyProductionValue || 0), 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          +{activeWorkers.reduce((s, w) => s + (w.dailyProductionValue || 0), 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </td>
                         <td className="py-3 px-4 text-right text-sm">
                           <span className={marketOverview.baseDailyProfit > 0 ? 'text-emerald-700' : marketOverview.baseDailyProfit < 0 ? 'text-red-600' : 'text-blue-600'}>
@@ -1840,7 +1860,7 @@ export default function MetricBreakdownModal({
                 <div className="bg-white border border-slate-200 overflow-hidden">
                   <div className="px-4 py-2.5 bg-amber-50/70 border-b border-amber-200 flex items-center justify-between">
                     <span className="text-xs font-bold font-mono text-amber-900 uppercase">
-                      Hired Company Managers ({allManagers.length} Managers)
+                      Hired Company Managers ({activeManagers.length} Active Managers)
                     </span>
                     <span className="text-[11px] font-mono text-amber-700">
                       Total Manager Payroll: -{marketOverview.totalManagerCost.toFixed(2)} BTC/day
@@ -1860,17 +1880,19 @@ export default function MetricBreakdownModal({
                       <tbody className="font-mono">
                         {allManagers.map(m => {
                           const mgrTheme = getCompanyTheme(m.company || m.itemCode || m.companyName);
+                          const isMgrCompDisabled = isCompanyDisabled(m.company) || m.companyDisabled;
                           return (
-                            <tr key={m.id} className={`transition-colors ${mgrTheme.rowGradient}`}>
+                            <tr key={m.id} className={`transition-colors ${isMgrCompDisabled ? 'opacity-60 saturate-40 bg-slate-100/90 text-slate-500 shadow-[inset_0_1px_2px_rgba(0,0,0,0.06)]' : mgrTheme.rowGradient}`}>
                               <td className="py-2.5 px-4 font-bold text-slate-900 font-sans">
                                 <div className="flex items-center gap-1.5 flex-wrap">
                                   <span className={`px-2 py-0.5 rounded text-[10px] font-mono uppercase font-bold shadow-xs ${mgrTheme.pillTag}`}>
                                     {m.itemCode || 'Product'}
                                   </span>
+                                  {isMgrCompDisabled && <span className="text-xs shrink-0 select-none" title="Company Disabled">💔</span>}
                                   <span>{m.companyName}</span>
-                                  {isCompanyDisabled(m.company) && (
-                                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-rose-50 border border-rose-300 text-rose-700 text-[9px] font-mono font-bold uppercase rounded shrink-0" title="Company Disabled">
-                                      <AlertTriangle className="w-3 h-3 text-rose-600 shrink-0" />
+                                  {isMgrCompDisabled && (
+                                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-slate-200 border border-slate-300 text-slate-800 text-[9px] font-mono font-bold uppercase rounded shrink-0 shadow-2xs" title="Company Disabled">
+                                      <span>💔</span>
                                       <span>Disabled</span>
                                     </span>
                                   )}
@@ -1882,13 +1904,13 @@ export default function MetricBreakdownModal({
                                 </span>
                               </td>
                               <td className={`py-2.5 px-3 text-center font-bold ${mgrTheme.accentText}`}>
-                                +{m.productionBonusPercent}%
+                                {isMgrCompDisabled ? '0%' : `+${m.productionBonusPercent}%`}
                               </td>
                               <td className="py-2.5 px-3 text-right font-bold text-red-600">
-                                -{m.hourlyWage.toFixed(4)} BTC/h
+                                {isMgrCompDisabled ? '-0.0000 BTC/h' : `-${m.hourlyWage.toFixed(4)} BTC/h`}
                               </td>
                               <td className="py-2.5 px-4 text-right font-bold text-red-600">
-                                -{m.dailyWage.toFixed(2)} BTC/d
+                                {isMgrCompDisabled ? '-0.00 BTC/d' : `-${m.dailyWage.toFixed(2)} BTC/d`}
                               </td>
                             </tr>
                           );
@@ -1970,7 +1992,7 @@ export default function MetricBreakdownModal({
                     <span className="text-xs font-normal text-slate-500 ml-1">BTC/d</span>
                   </div>
                   <div className="text-[11px] font-mono text-slate-500 mt-1">
-                    <span className="font-bold text-slate-800">{allWorkers.length} workers</span> • {allManagers.length} mgrs
+                    <span className="font-bold text-slate-800">{activeWorkers.length} workers</span> • {activeManagers.length} mgrs
                   </div>
                 </div>
               </div>
@@ -2040,7 +2062,7 @@ export default function MetricBreakdownModal({
                           <React.Fragment key={compId}>
                             <tr 
                               onClick={() => setExpandedProfitCompanyId(isExpanded ? null : compId)}
-                              className={`cursor-pointer transition-colors ${theme.rowGradient} ${isExpanded ? 'font-semibold' : ''}`}
+                              className={`cursor-pointer transition-colors ${disabled ? 'opacity-60 saturate-40 bg-slate-100/90 text-slate-500 shadow-[inset_0_1px_2px_rgba(0,0,0,0.06)]' : theme.rowGradient} ${isExpanded ? 'font-semibold' : ''}`}
                               title="Click to view detailed P&L & raw material cost calculation"
                             >
                               <td className="py-2.5 px-4 font-bold text-slate-900 font-sans">
@@ -2048,10 +2070,11 @@ export default function MetricBreakdownModal({
                                   <span className={`text-[10px] font-mono transition-transform duration-150 inline-block ${isExpanded ? `rotate-90 ${theme.accentText} font-black` : 'text-slate-400'}`}>
                                     ▶
                                   </span>
+                                  {disabled && <span className="text-xs shrink-0 select-none" title="Company Disabled">💔</span>}
                                   <span className="hover:underline">{c.name}</span>
                                   {disabled && (
-                                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-rose-50 border border-rose-300 text-rose-700 text-[9px] font-mono font-bold uppercase rounded shrink-0" title="Company Disabled">
-                                      <AlertTriangle className="w-3 h-3 text-rose-600 shrink-0" />
+                                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-slate-200 border border-slate-300 text-slate-800 text-[9px] font-mono font-bold uppercase rounded shrink-0 shadow-2xs" title="Company Disabled">
+                                      <span>💔</span>
                                       <span>Disabled</span>
                                     </span>
                                   )}
@@ -2063,11 +2086,11 @@ export default function MetricBreakdownModal({
                                 </span>
                               </td>
                               <td className="py-2.5 px-3 text-right font-black text-slate-800">
-                                {units.toFixed(1)}
+                                {disabled ? '0.0' : units.toFixed(1)}
                               </td>
                               <td className="py-2.5 px-3 text-right">
-                                <div className={`font-bold font-mono ${rev > 0 ? 'text-emerald-600' : rev < 0 ? 'text-red-600' : 'text-blue-600'}`}>
-                                  {rev > 0 ? `+${rev.toFixed(1)}` : rev < 0 ? rev.toFixed(1) : '0.0'}
+                                <div className={`font-bold font-mono ${disabled ? 'text-slate-400' : (rev > 0 ? 'text-emerald-600' : rev < 0 ? 'text-red-600' : 'text-blue-600')}`}>
+                                  {disabled ? '0.0' : (rev > 0 ? `+${rev.toFixed(1)}` : rev < 0 ? rev.toFixed(1) : '0.0')}
                                 </div>
                                 <div className="text-[10px] text-slate-500 font-mono">
                                   @{finishedSpot.toFixed(3)} BTC
@@ -2076,6 +2099,8 @@ export default function MetricBreakdownModal({
                               <td className="py-2.5 px-3 text-right">
                                 {isRaw ? (
                                   <span className="font-bold text-slate-400 font-mono">—</span>
+                                ) : disabled ? (
+                                  <span className="font-bold text-slate-400 font-mono">0.0</span>
                                 ) : (
                                   <div>
                                     <div className="font-bold text-red-500 font-mono">
@@ -2088,21 +2113,21 @@ export default function MetricBreakdownModal({
                                 )}
                               </td>
                               <td className="py-2.5 px-3 text-right">
-                                <div className={`font-bold font-mono ${sal > 0 ? 'text-red-500' : 'text-blue-500'}`}>
-                                  {sal > 0 ? `-${sal.toFixed(1)}` : '0.0'}
+                                <div className={`font-bold font-mono ${disabled ? 'text-slate-400' : (sal > 0 ? 'text-red-500' : 'text-blue-500')}`}>
+                                  {disabled ? '0.0' : (sal > 0 ? `-${sal.toFixed(1)}` : '0.0')}
                                 </div>
                               </td>
                               <td className="py-2.5 px-3 text-center font-bold font-mono text-slate-800">
                                 {workersCount + (c.hasManager ? 1 : 0)}
                               </td>
                               <td className="py-2.5 px-3 text-right font-black">
-                                <span className={net > 0 ? 'text-emerald-700' : net < 0 ? 'text-red-600' : 'text-blue-600'}>
-                                  {net > 0 ? `+${net.toFixed(1)}` : net < 0 ? net.toFixed(1) : '0.0'}
+                                <span className={disabled ? 'text-slate-400' : (net > 0 ? 'text-emerald-700' : net < 0 ? 'text-red-600' : 'text-blue-600')}>
+                                  {disabled ? '0.0' : (net > 0 ? `+${net.toFixed(1)}` : net < 0 ? net.toFixed(1) : '0.0')}
                                 </span>
                               </td>
                               <td className="py-2.5 px-4 text-right font-bold">
-                                <span className={margin > 0 ? 'text-emerald-700' : margin < 0 ? 'text-red-600' : 'text-blue-600'}>
-                                  {margin.toFixed(1)}%
+                                <span className={disabled ? 'text-slate-400' : (margin > 0 ? 'text-emerald-700' : margin < 0 ? 'text-red-600' : 'text-blue-600')}>
+                                  {disabled ? '—' : `${margin.toFixed(1)}%`}
                                 </span>
                               </td>
                             </tr>
@@ -2289,7 +2314,7 @@ export default function MetricBreakdownModal({
                           {marketOverview.totalBaseLaborExpense > 0 ? `-${marketOverview.totalBaseLaborExpense.toFixed(1)}` : '0.0'}
                         </td>
                         <td className="py-3 px-3 text-center text-slate-800 font-bold">
-                          {allWorkers.length + allManagers.length}
+                          {activeWorkers.length + activeManagers.length}
                         </td>
                         <td className={`py-3 px-3 text-right text-sm font-black ${
                           marketOverview.baseDailyProfit > 0 ? 'text-emerald-700' : marketOverview.baseDailyProfit < 0 ? 'text-red-600' : 'text-blue-600'
@@ -2459,13 +2484,14 @@ export default function MetricBreakdownModal({
                         // Operational output share excludes disabled facilities
                         const sharePct = !disabled && marketOverview.totalBaseDailyUnits > 0 ? (units / marketOverview.totalBaseDailyUnits) * 100 : 0;
                         return (
-                          <tr key={c.id || c._id} className={`transition-colors ${theme.rowGradient}`}>
+                          <tr key={c.id || c._id} className={`transition-colors ${disabled ? 'opacity-60 saturate-40 bg-slate-100/90 text-slate-500 shadow-[inset_0_1px_2px_rgba(0,0,0,0.06)]' : theme.rowGradient}`}>
                             <td className="py-2.5 px-4 font-bold text-slate-900 font-sans">
                               <div className="flex items-center gap-1.5 flex-wrap">
+                                {disabled && <span className="text-xs shrink-0 select-none" title="Company Disabled">💔</span>}
                                 <span>{c.name}</span>
                                 {disabled && (
-                                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-rose-50 border border-rose-300 text-rose-700 text-[9px] font-mono font-bold uppercase rounded shrink-0" title="Company Disabled">
-                                    <AlertTriangle className="w-3 h-3 text-rose-600 shrink-0" />
+                                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-slate-200 border border-slate-300 text-slate-800 text-[9px] font-mono font-bold uppercase rounded shrink-0 shadow-2xs" title="Company Disabled">
+                                    <span>💔</span>
                                     <span>Disabled</span>
                                   </span>
                                 )}
@@ -2480,10 +2506,10 @@ export default function MetricBreakdownModal({
                               {recipePp} PP
                             </td>
                             <td className="py-2.5 px-3 text-right font-bold text-slate-800">
-                              {basePp.toFixed(1)}
+                              {disabled ? '0.0' : basePp.toFixed(1)}
                             </td>
                             <td className="py-2.5 px-3 text-right font-black text-slate-900">
-                              {units.toFixed(1)}
+                              {disabled ? '0.0' : units.toFixed(1)}
                             </td>
                             <td className="py-2.5 px-4 text-right font-bold text-slate-800">
                               {disabled ? (
@@ -2560,20 +2586,22 @@ export default function MetricBreakdownModal({
                     <tbody className="font-mono">
                       {companies.map(c => {
                         const theme = getCompanyTheme(c);
-                        const pph = c.engineTier?.ppPerHour || c.engineLevel || 1;
-                        const base24h = pph * 24;
-                        const eff24h = c.engineProducedDailyPp || (base24h * (c.bonusMultiplier || 1.0));
+                        const disabled = isCompanyDisabled(c);
+                        const pph = disabled ? 0 : (c.engineTier?.ppPerHour || c.engineLevel || 1);
+                        const base24h = disabled ? 0 : (pph * 24);
+                        const eff24h = disabled ? 0 : (c.engineProducedDailyPp || (base24h * (c.bonusMultiplier || 1.0)));
                         return (
-                          <tr key={`engine-${c.id || c._id}`} className={`transition-colors ${theme.rowGradient}`}>
+                          <tr key={`engine-${c.id || c._id}`} className={`transition-colors ${disabled ? 'opacity-60 saturate-40 bg-slate-100/90 text-slate-500 shadow-[inset_0_1px_2px_rgba(0,0,0,0.06)]' : theme.rowGradient}`}>
                             <td className="py-2.5 px-4 font-bold text-slate-900 font-sans">
                               <div className="flex items-center gap-1.5 flex-wrap">
                                 <span className={`px-2 py-0.5 rounded text-[10px] font-mono uppercase font-bold shadow-xs ${theme.pillTag}`}>
                                   {c.recipe?.name || c.itemCode}
                                 </span>
+                                {disabled && <span className="text-xs shrink-0 select-none" title="Company Disabled">💔</span>}
                                 <span>{c.name}</span>
-                                {isCompanyDisabled(c) && (
-                                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-rose-50 border border-rose-300 text-rose-700 text-[9px] font-mono font-bold uppercase rounded shrink-0" title="Company Disabled">
-                                    <AlertTriangle className="w-3 h-3 text-rose-600 shrink-0" />
+                                {disabled && (
+                                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-slate-200 border border-slate-300 text-slate-800 text-[9px] font-mono font-bold uppercase rounded shrink-0 shadow-2xs" title="Company Disabled">
+                                    <span>💔</span>
                                     <span>Disabled</span>
                                   </span>
                                 )}
@@ -2602,7 +2630,7 @@ export default function MetricBreakdownModal({
               <div className="bg-white border border-slate-200 overflow-hidden">
                 <div className="px-4 py-2.5 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
                   <span className="text-xs font-bold font-mono text-slate-700 uppercase">
-                    2. Hired Workforce PP Generation ({allWorkers.filter(w => !isCompanyDisabled(w.company)).length} Active Employees)
+                    2. Hired Workforce PP Generation ({activeWorkers.length} Active Employees)
                   </span>
                   <span className="text-[11px] font-mono text-slate-500">
                     24h stamina capacity work sessions
@@ -2621,20 +2649,22 @@ export default function MetricBreakdownModal({
                     <tbody className="font-mono">
                       {companies.map(c => {
                         const count = (c.workersList || c.workers || []).length;
-                        const baseLabor = c.workersBaseDailyPp || 0;
-                        const prodLabor = c.workersProducedDailyPp || 0;
+                        const disabled = isCompanyDisabled(c);
+                        const baseLabor = disabled ? 0 : (c.workersBaseDailyPp || 0);
+                        const prodLabor = disabled ? 0 : (c.workersProducedDailyPp || 0);
                         const theme = getCompanyTheme(c);
                         return (
-                          <tr key={`labor-${c.id || c._id}`} className={`transition-colors ${theme.rowGradient}`}>
+                          <tr key={`labor-${c.id || c._id}`} className={`transition-colors ${disabled ? 'opacity-60 saturate-40 bg-slate-100/90 text-slate-500 shadow-[inset_0_1px_2px_rgba(0,0,0,0.06)]' : theme.rowGradient}`}>
                             <td className="py-2.5 px-4 font-bold text-slate-900 font-sans">
                               <div className="flex items-center gap-1.5 flex-wrap">
                                 <span className={`px-2 py-0.5 rounded text-[10px] font-mono uppercase font-bold shadow-xs ${theme.pillTag}`}>
                                   {c.recipe?.name || c.itemCode}
                                 </span>
+                                {disabled && <span className="text-xs shrink-0 select-none" title="Company Disabled">💔</span>}
                                 <span>{c.name}</span>
-                                {isCompanyDisabled(c) && (
-                                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-rose-50 border border-rose-300 text-rose-700 text-[9px] font-mono font-bold uppercase rounded shrink-0" title="Company Disabled">
-                                    <AlertTriangle className="w-3 h-3 text-rose-600 shrink-0" />
+                                {disabled && (
+                                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-slate-200 border border-slate-300 text-slate-800 text-[9px] font-mono font-bold uppercase rounded shrink-0 shadow-2xs" title="Company Disabled">
+                                    <span>💔</span>
                                     <span>Disabled</span>
                                   </span>
                                 )}
@@ -2649,7 +2679,7 @@ export default function MetricBreakdownModal({
                     </tbody>
                     <tfoot>
                       <tr className="border-t-2 border-slate-300 bg-slate-50 font-mono font-bold text-slate-900">
-                        <td className="py-3 px-4" colSpan={2}>Hired Labor Subtotal ({allWorkers.filter(w => !isCompanyDisabled(w.company)).length} active workers)</td>
+                        <td className="py-3 px-4" colSpan={2}>Hired Labor Subtotal ({activeWorkers.length} active workers)</td>
                         <td className="py-3 px-3 text-right">{companies.filter(c => !isCompanyDisabled(c)).reduce((s, c) => s + (c.workersBaseDailyPp || 0), 0).toFixed(1)} PP</td>
                         <td className="py-3 px-4 text-right text-slate-900 font-black">{companies.filter(c => !isCompanyDisabled(c)).reduce((s, c) => s + (c.workersProducedDailyPp || 0), 0).toFixed(1)} PP</td>
                       </tr>
@@ -2710,21 +2740,23 @@ export default function MetricBreakdownModal({
                       {companies.map(c => {
                         const workers = c.workersList || c.workers || [];
                         const count = workers.length;
-                        const dailyPp = c.workersProducedDailyPp || c.workersBaseDailyPp || 0;
-                        const dailyWage = c.dailyLaborExpense || 0;
-                        const costPerPp = dailyPp > 0 ? (dailyWage / dailyPp) : 0;
+                        const disabled = isCompanyDisabled(c);
+                        const dailyPp = disabled ? 0 : (c.workersProducedDailyPp || c.workersBaseDailyPp || 0);
+                        const dailyWage = disabled ? 0 : (c.dailyLaborExpense || 0);
+                        const costPerPp = (!disabled && dailyPp > 0) ? (dailyWage / dailyPp) : 0;
                         const theme = getCompanyTheme(c);
                         return (
-                          <tr key={c.id || c._id} className={`transition-colors ${theme.rowGradient}`}>
+                          <tr key={c.id || c._id} className={`transition-colors ${disabled ? 'opacity-60 saturate-40 bg-slate-100/90 text-slate-500 shadow-[inset_0_1px_2px_rgba(0,0,0,0.06)]' : theme.rowGradient}`}>
                             <td className="py-2.5 px-4 font-bold text-slate-900 font-sans">
                               <div className="flex items-center gap-1.5 flex-wrap">
                                 <span className={`px-2 py-0.5 rounded text-[10px] font-mono uppercase font-bold shadow-xs ${theme.pillTag}`}>
                                   {c.recipe?.name || c.itemCode}
                                 </span>
+                                {disabled && <span className="text-xs shrink-0 select-none" title="Company Disabled">💔</span>}
                                 <span>{c.name}</span>
-                                {isCompanyDisabled(c) && (
-                                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-rose-50 border border-rose-300 text-rose-700 text-[9px] font-mono font-bold uppercase rounded shrink-0" title="Company Disabled">
-                                    <AlertTriangle className="w-3 h-3 text-rose-600 shrink-0" />
+                                {disabled && (
+                                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-slate-200 border border-slate-300 text-slate-800 text-[9px] font-mono font-bold uppercase rounded shrink-0 shadow-2xs" title="Company Disabled">
+                                    <span>💔</span>
                                     <span>Disabled</span>
                                   </span>
                                 )}
@@ -2788,16 +2820,16 @@ export default function MetricBreakdownModal({
                           {marketOverview.totalWorkers} / {maxHiringSlots} slots
                         </td>
                         <td className="py-3 px-3 font-sans font-bold text-slate-600">
-                          {allWorkers.length} active employee contracts across {companies.length} facilities
+                          {activeWorkers.length} active employee contracts across {companies.filter(c => !isCompanyDisabled(c)).length} active facilities
                         </td>
                         <td className="py-3 px-3 text-right text-slate-900">
-                          {companies.reduce((s, c) => s + (c.workersProducedDailyPp || c.workersBaseDailyPp || 0), 0).toFixed(1)} PP
+                          {companies.filter(c => !isCompanyDisabled(c)).reduce((s, c) => s + (c.workersProducedDailyPp || c.workersBaseDailyPp || 0), 0).toFixed(1)} PP
                         </td>
                         <td className="py-3 px-3 text-right text-red-500 text-sm">
                           -{marketOverview.totalBaseLaborExpense.toFixed(2)} BTC
                         </td>
                         <td className="py-3 px-4 text-right text-slate-900">
-                          {(marketOverview.totalBaseLaborExpense / (companies.reduce((s, c) => s + (c.workersProducedDailyPp || c.workersBaseDailyPp || 0), 0) || 1)).toFixed(3)} BTC
+                          {(marketOverview.totalBaseLaborExpense / (companies.filter(c => !isCompanyDisabled(c)).reduce((s, c) => s + (c.workersProducedDailyPp || c.workersBaseDailyPp || 0), 0) || 1)).toFixed(3)} BTC
                         </td>
                       </tr>
                     </tfoot>

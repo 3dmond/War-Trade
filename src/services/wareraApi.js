@@ -520,6 +520,8 @@ export class WarEraService {
         companyId: companyContext.id || e.company || null,
         companyName: companyContext.name || null,
         companyItemCode: companyContext.itemCode || null,
+        companyDisabled: Boolean(e.companyDisabled || e._raw?.companyDisabled || companyContext.disabled || companyContext.isDisabled || companyContext.disabledAt),
+        isCompanyDisabled: Boolean(e.companyDisabled || e._raw?.companyDisabled || companyContext.disabled || companyContext.isDisabled || companyContext.disabledAt),
         _raw: e
       };
     });
@@ -559,7 +561,38 @@ export class WarEraService {
         this.callTrpc('manager.getByCompanyId', { companyId }).catch(() => null)
       ]);
 
-      const employees = this.enrichEmployees(rawEmployees, { id: companyId, name: comp.name, itemCode: comp.itemCode }, this.lastPrices || {});
+      const isCompanyDocDisabled = Boolean(
+        comp.disabledAt ||
+        comp._raw?.disabledAt ||
+        comp.disabled === true ||
+        comp.isDisabled === true ||
+        comp.companyDisabled === true ||
+        comp.isClosed === true ||
+        comp.isInactive === true ||
+        comp.paused === true ||
+        comp.isPaused === true ||
+        comp.active === false ||
+        comp.isActive === false ||
+        comp.enabled === false ||
+        comp.status === 'disabled' ||
+        comp.status === 'inactive' ||
+        comp.status === 'closed' ||
+        comp.status === 'paused' ||
+        (Array.isArray(rawEmployees) && rawEmployees.some(e => e.companyDisabled === true || e._raw?.companyDisabled === true))
+      );
+
+      const employees = this.enrichEmployees(
+        rawEmployees, 
+        { 
+          id: companyId, 
+          name: comp.name, 
+          itemCode: comp.itemCode,
+          disabled: isCompanyDocDisabled,
+          isDisabled: isCompanyDocDisabled,
+          disabledAt: comp.disabledAt || null
+        }, 
+        this.lastPrices || {}
+      );
 
       let owner = ownerUser;
       if (!owner && comp.user) {
@@ -635,7 +668,12 @@ export class WarEraService {
         ownerUsername: owner?.username || 'Unknown',
         ownerId: owner?._id || comp.user,
         ownerAvatarUrl: owner?.avatarUrl || null,
-        isRealGameCompany: true
+        isRealGameCompany: true,
+        disabled: isCompanyDocDisabled,
+        isDisabled: isCompanyDocDisabled,
+        companyDisabled: isCompanyDocDisabled,
+        isCompanyDisabled: isCompanyDocDisabled,
+        disabledAt: comp.disabledAt || null
       };
     } catch (e) {
       console.warn(`Failed to fetch full company details for ${companyId}:`, e.message);

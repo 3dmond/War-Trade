@@ -582,9 +582,19 @@ export default function CompanyPortfolio({
   // Active worker index for horizontal card navigation
   const [activeWorkerIdx, setActiveWorkerIdx] = useState(0);
 
+  // Dropdown state for individual worker breakdown details in Warehouse Storage card
+  const [expandedWorkerBreakdowns, setExpandedWorkerBreakdowns] = useState({});
+  const toggleWorkerBreakdown = (workerKey) => {
+    setExpandedWorkerBreakdowns(prev => ({
+      ...prev,
+      [workerKey]: !prev[workerKey]
+    }));
+  };
+
   // Reset worker carousel index when selected company changes
   useEffect(() => {
     setActiveWorkerIdx(0);
+    setExpandedWorkerBreakdowns({});
   }, [selectedCompanyId]);
 
   // Live single-company refresh state
@@ -629,14 +639,14 @@ export default function CompanyPortfolio({
   const managementProductionBonus = managementLevel * 2; // +2% per level
   const leadershipLevel = user?.skills?.leadership?.level ?? 0;
 
-  // Total employees across portfolio (Break Room per company determines per-company cap)
+  // Total employees across active portfolio (Break Room per active company determines cap)
   const totalEmployedWorkers = useMemo(() => {
-    return companies.reduce((sum, c) => sum + (c.employees?.length || c.workers?.length || 0), 0);
+    return companies.filter(c => !isCompanyDisabled(c)).reduce((sum, c) => sum + (c.employees?.length || c.workers?.length || 0), 0);
   }, [companies]);
 
   // Max total capacity = sum of all Break Room capacities across active companies
   const totalEmployeeCapacity = useMemo(() => {
-    return companies.reduce((sum, c) => sum + (c.maxEmployees ?? getBreakRoomCapacity(c.breakRoomLevel ?? 0)), 0);
+    return companies.filter(c => !isCompanyDisabled(c)).reduce((sum, c) => sum + (c.maxEmployees ?? getBreakRoomCapacity(c.breakRoomLevel ?? 0)), 0);
   }, [companies]);
 
   const maxHiringSlots = totalEmployeeCapacity;
@@ -719,6 +729,8 @@ export default function CompanyPortfolio({
           nationalityCode: resolvedCountryCode,
           nationalityName: resolvedCountryName,
           flagEmoji: countryResolved?.flag || (resolvedCountryCode ? getCountryFlag(resolvedCountryCode) : '🌐'),
+          companyDisabled: disabled || Boolean(w.companyDisabled || w._raw?.companyDisabled),
+          isCompanyDisabled: disabled || Boolean(w.isCompanyDisabled || w._raw?.companyDisabled),
         };
       });
 
@@ -777,7 +789,11 @@ export default function CompanyPortfolio({
         unitsPerDay,
         currentStoredPp,
         storedReadyUnits,
-        isDisabled: disabled
+        disabled,
+        isDisabled: disabled,
+        companyDisabled: disabled,
+        isCompanyDisabled: disabled,
+        disabledAt: comp.disabledAt || null
       };
     });
   }, [companies, liveTick, ownerMgmtBonusPct]);
@@ -908,6 +924,9 @@ export default function CompanyPortfolio({
         companyId: comp.id,
         companyName: comp.name,
         companyItemCode: comp.itemCode,
+        companyDisabled: disabledComp || Boolean(w.companyDisabled || w._raw?.companyDisabled),
+        isCompanyDisabled: disabledComp || Boolean(w.isCompanyDisabled || w._raw?.companyDisabled),
+        company: comp,
         recipe,
         spotPrice,
         individualBonusBreakdown: w.individualBonusBreakdown || getWorkerIndividualBonusBreakdown(w, comp, ownerBonusPct)
@@ -918,6 +937,11 @@ export default function CompanyPortfolio({
 
       return {
         ...comp,
+        disabled: disabledComp,
+        isDisabled: disabledComp,
+        companyDisabled: disabledComp,
+        isCompanyDisabled: disabledComp,
+        disabledAt: comp.disabledAt || null,
         recipeName: recipe.name,
         recipePp: recipe.pp,
         spotPrice,
@@ -1215,10 +1239,10 @@ export default function CompanyPortfolio({
               <div className="hidden sm:flex items-center space-x-2 text-xs text-slate-400 font-mono">
                 <span>/</span>
                 <span className="font-bold text-slate-900 font-sans flex items-center gap-1">
-                  {activeCompany.name}
                   {isCompanyDisabled(activeCompany) && (
-                    <AlertTriangle className="w-3.5 h-3.5 text-rose-600 shrink-0 inline" title="Company Disabled" />
+                    <span className="text-xs shrink-0" title="Company Disabled">💔</span>
                   )}
+                  {activeCompany.name}
                 </span>
                 <span className={`text-[10px] font-mono uppercase px-2 py-0.5 rounded font-bold ${activeTheme.pillTag}`}>
                   {activeCompany.itemCode} • {activeTheme.label}
@@ -1245,10 +1269,13 @@ export default function CompanyPortfolio({
                   </div>
                   <div className="space-y-0.5 min-w-0">
                     <div className="flex items-center space-x-2 flex-wrap">
-                      <h2 className="text-base font-extrabold text-slate-900 font-sans truncate">{activeCompany.name}</h2>
+                      <h2 className="text-base font-extrabold text-slate-900 font-sans truncate flex items-center gap-1.5">
+                        {isCompanyDisabled(activeCompany) && <span title="Company Disabled">💔</span>}
+                        <span>{activeCompany.name}</span>
+                      </h2>
                       {isCompanyDisabled(activeCompany) && (
-                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-rose-50 border border-rose-300 text-rose-700 text-[9px] font-mono font-bold uppercase rounded shrink-0" title="Company Disabled">
-                          <AlertTriangle className="w-3 h-3 text-rose-600 shrink-0" />
+                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-slate-200 border border-slate-300 text-slate-800 text-[9px] font-mono font-bold uppercase rounded shrink-0 shadow-2xs" title="Company Disabled">
+                          <span>💔</span>
                           <span>Disabled</span>
                         </span>
                       )}
@@ -1578,112 +1605,132 @@ export default function CompanyPortfolio({
                       No line workers assigned. Output is driven exclusively by automated engine hardware.
                     </div>
                   ) : (
-                    <div className="space-y-2 pt-0.5">
+                    <div className="space-y-1.5 pt-0.5">
                       {activeCompany.enrichedWorkers.map((w, idx) => {
+                        const workerKey = w.id || `worker-${idx}`;
+                        const isExpanded = Boolean(expandedWorkerBreakdowns[workerKey]);
                         const b = w.individualBonusBreakdown || getWorkerIndividualBonusBreakdown(w, activeCompany, ownerMgmtBonusPct);
                         const hourlyOutputPp = b.hourlyOutputPp || 0;
                         const dailyOutputPp = b.dailyOutputPp || Number((hourlyOutputPp * 24).toFixed(1));
 
                         return (
-                          <div key={w.id || idx} className="space-y-0.5 pt-1.5 border-t border-slate-100 first:border-t-0 first:pt-0">
-                            {/* Worker Name (clean bold, no emojis) */}
-                            <div className="flex justify-between items-center py-0.5 text-slate-900 font-bold">
-                              <span>{w.name || `Employee #${idx + 1}`}</span>
-                              <strong className="font-mono text-emerald-600">
-                                +{hourlyOutputPp.toFixed(2)} PP/h
-                              </strong>
-                            </div>
-
-                            {/* Base: PROD (PP/h) */}
-                            <div className="flex justify-between items-center py-0.5 pl-2 text-slate-600">
-                              <span>Base:</span>
-                              <strong className="font-mono text-slate-800">
-                                {b.baseProdStat} PROD ({b.baseHourlyPp.toFixed(2)} PP/h)
-                              </strong>
-                            </div>
-
-                            {/* Modifiers (Tool, Traits, Morale, Specialization, Mgmt, Manager, Regional) */}
-                            {b.toolBonus !== 0 && (
-                              <div className="flex justify-between items-center py-0.5 pl-2 text-slate-600">
-                                <span>Tool ({b.toolName || w.toolItem?.code || 'Equipped'}):</span>
-                                <strong className={`font-mono ${b.toolBonus > 0 ? 'text-emerald-600' : 'text-red-500'}`}>
-                                  {b.toolBonus > 0 ? `+${b.toolBonus}%` : `${b.toolBonus}%`}
-                                </strong>
-                              </div>
-                            )}
-
-                            {b.traitBonus !== 0 && (
-                              <div className="flex justify-between items-center py-0.5 pl-2 text-slate-600">
-                                <span>Traits:</span>
-                                <strong className={`font-mono ${b.traitBonus > 0 ? 'text-emerald-600' : 'text-red-500'}`}>
-                                  {b.traitBonus > 0 ? `+${b.traitBonus}%` : `${b.traitBonus}%`}
-                                </strong>
-                              </div>
-                            )}
-
-                            {b.hapBonus !== 0 && (
-                              <div className="flex justify-between items-center py-0.5 pl-2 text-slate-600">
-                                <span>Morale ({typeof w.happiness === 'number' ? w.happiness : 50}%):</span>
-                                <strong className={`font-mono ${b.hapBonus > 0 ? 'text-emerald-600' : 'text-red-500'}`}>
-                                  {b.hapBonus > 0 ? `+${b.hapBonus}%` : `${b.hapBonus}%`}
-                                </strong>
-                              </div>
-                            )}
-
-                            {b.specBonus !== 0 && (
-                              <div className="flex justify-between items-center py-0.5 pl-2 text-slate-600">
-                                <span>Specialization:</span>
-                                <strong className={`font-mono ${b.specBonus > 0 ? 'text-emerald-600' : 'text-red-500'}`}>
-                                  {b.specBonus > 0 ? `+${b.specBonus}%` : `${b.specBonus}%`}
-                                </strong>
-                              </div>
-                            )}
-
-                            {b.mgmtBonus !== 0 && (
-                              <div className="flex justify-between items-center py-0.5 pl-2 text-slate-600">
-                                <span>Owner Management:</span>
-                                <strong className={`font-mono ${b.mgmtBonus > 0 ? 'text-emerald-600' : 'text-red-500'}`}>
-                                  {b.mgmtBonus > 0 ? `+${b.mgmtBonus}%` : `${b.mgmtBonus}%`}
-                                </strong>
-                              </div>
-                            )}
-
-                            {b.managerBonus !== 0 && (
-                              <div className="flex justify-between items-center py-0.5 pl-2 text-slate-600">
-                                <span>Facility Manager:</span>
-                                <strong className={`font-mono ${b.managerBonus > 0 ? 'text-emerald-600' : 'text-red-500'}`}>
-                                  {b.managerBonus > 0 ? `+${b.managerBonus}%` : `${b.managerBonus}%`}
-                                </strong>
-                              </div>
-                            )}
-
-                            {b.regionalBonus !== 0 && (
-                              <div className="flex justify-between items-center py-0.5 pl-2 text-slate-600">
-                                <span>Regional Modifier:</span>
-                                <strong className={`font-mono ${b.regionalBonus > 0 ? 'text-emerald-600' : 'text-red-500'}`}>
-                                  {b.regionalBonus > 0 ? `+${b.regionalBonus}%` : `${b.regionalBonus}%`}
-                                </strong>
-                              </div>
-                            )}
-
-                            {/* #show calculation */}
-                            <div className="flex justify-between items-center py-0.5 pl-2 text-slate-500 text-[10px] border-t border-dashed border-slate-100">
-                              <span># Calculation:</span>
-                              <span className="font-mono text-slate-700">
-                                {b.baseHourlyPp.toFixed(2)} PP/h × (1 {b.totalBonus >= 0 ? '+' : '-'} {Math.abs(b.totalBonus)}%) = {hourlyOutputPp.toFixed(2)} PP/h
-                              </span>
-                            </div>
-
-                            {/* total pp/hr */}
-                            <div className="flex justify-between items-center py-0.5 pl-2 text-slate-700 font-bold">
-                              <span>Total PP/h:</span>
-                              <span className="font-mono text-emerald-600">
-                                +{hourlyOutputPp.toFixed(2)} PP/h
-                                <span className="text-[10px] text-slate-400 font-normal ml-1">
-                                  ({dailyOutputPp.toFixed(1)} PP/day)
+                          <div key={workerKey} className="space-y-1 pt-1 border-t border-slate-100 first:border-t-0 first:pt-0">
+                            {/* Worker Name and PP/h on single line with dropdown toggle */}
+                            <div 
+                              onClick={() => toggleWorkerBreakdown(workerKey)}
+                              className="flex justify-between items-center py-1 px-1.5 -mx-1 rounded-md hover:bg-slate-50 cursor-pointer select-none transition group text-slate-900 font-bold"
+                              title="Click to toggle worker bonus and calculation breakdown"
+                            >
+                              <div className="flex items-center gap-1.5 min-w-0">
+                                <span className={`text-[10px] text-slate-400 group-hover:text-slate-700 transition-transform duration-150 inline-block font-mono ${isExpanded ? 'rotate-90 text-amber-600 font-black' : ''}`}>
+                                  ▶
                                 </span>
-                              </span>
+                                <span className="truncate group-hover:text-blue-700 transition-colors">
+                                  {w.name || `Employee #${idx + 1}`}
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-1.5 shrink-0">
+                                <strong className="font-mono text-emerald-600">
+                                  +{hourlyOutputPp.toFixed(2)} PP/h
+                                </strong>
+                              </div>
                             </div>
+
+                            {/* Dropdown Expanded Details */}
+                            {isExpanded && (
+                              <div className="space-y-1 pl-4 pr-1 py-1 text-slate-600 text-[10px] bg-slate-50/70 border-l-2 border-amber-300 rounded-r-lg my-0.5 animate-in fade-in duration-150 font-mono">
+                                {/* Base: PROD (PP/h) */}
+                                <div className="flex justify-between items-center py-0.5">
+                                  <span>Base:</span>
+                                  <strong className="text-slate-800">
+                                    {b.baseProdStat} PROD ({b.baseHourlyPp.toFixed(2)} PP/h)
+                                  </strong>
+                                </div>
+
+                                {/* Modifiers (Tool, Traits, Morale, Specialization, Mgmt, Manager, Regional) */}
+                                {b.toolBonus !== 0 && (
+                                  <div className="flex justify-between items-center py-0.5">
+                                    <span>Tool ({b.toolName || w.toolItem?.code || 'Equipped'}):</span>
+                                    <strong className={b.toolBonus > 0 ? 'text-emerald-600' : 'text-red-500'}>
+                                      {b.toolBonus > 0 ? `+${b.toolBonus}%` : `${b.toolBonus}%`}
+                                    </strong>
+                                  </div>
+                                )}
+
+                                {b.traitBonus !== 0 && (
+                                  <div className="flex justify-between items-center py-0.5">
+                                    <span>Traits:</span>
+                                    <strong className={b.traitBonus > 0 ? 'text-emerald-600' : 'text-red-500'}>
+                                      {b.traitBonus > 0 ? `+${b.traitBonus}%` : `${b.traitBonus}%`}
+                                    </strong>
+                                  </div>
+                                )}
+
+                                {b.hapBonus !== 0 && (
+                                  <div className="flex justify-between items-center py-0.5">
+                                    <span>Morale ({typeof w.happiness === 'number' ? w.happiness : 50}%):</span>
+                                    <strong className={b.hapBonus > 0 ? 'text-emerald-600' : 'text-red-500'}>
+                                      {b.hapBonus > 0 ? `+${b.hapBonus}%` : `${b.hapBonus}%`}
+                                    </strong>
+                                  </div>
+                                )}
+
+                                {b.specBonus !== 0 && (
+                                  <div className="flex justify-between items-center py-0.5">
+                                    <span>Specialization:</span>
+                                    <strong className={b.specBonus > 0 ? 'text-emerald-600' : 'text-red-500'}>
+                                      {b.specBonus > 0 ? `+${b.specBonus}%` : `${b.specBonus}%`}
+                                    </strong>
+                                  </div>
+                                )}
+
+                                {b.mgmtBonus !== 0 && (
+                                  <div className="flex justify-between items-center py-0.5">
+                                    <span>Owner Management:</span>
+                                    <strong className={b.mgmtBonus > 0 ? 'text-emerald-600' : 'text-red-500'}>
+                                      {b.mgmtBonus > 0 ? `+${b.mgmtBonus}%` : `${b.mgmtBonus}%`}
+                                    </strong>
+                                  </div>
+                                )}
+
+                                {b.managerBonus !== 0 && (
+                                  <div className="flex justify-between items-center py-0.5">
+                                    <span>Facility Manager:</span>
+                                    <strong className={b.managerBonus > 0 ? 'text-emerald-600' : 'text-red-500'}>
+                                      {b.managerBonus > 0 ? `+${b.managerBonus}%` : `${b.managerBonus}%`}
+                                    </strong>
+                                  </div>
+                                )}
+
+                                {b.regionalBonus !== 0 && (
+                                  <div className="flex justify-between items-center py-0.5">
+                                    <span>Regional Modifier:</span>
+                                    <strong className={b.regionalBonus > 0 ? 'text-emerald-600' : 'text-red-500'}>
+                                      {b.regionalBonus > 0 ? `+${b.regionalBonus}%` : `${b.regionalBonus}%`}
+                                    </strong>
+                                  </div>
+                                )}
+
+                                {/* #show calculation */}
+                                <div className="flex justify-between items-center py-0.5 text-slate-500 text-[9.5px] border-t border-dashed border-slate-200 pt-1">
+                                  <span># Calculation:</span>
+                                  <span className="text-slate-700">
+                                    {b.baseHourlyPp.toFixed(2)} PP/h × (1 {b.totalBonus >= 0 ? '+' : '-'} {Math.abs(b.totalBonus)}%) = {hourlyOutputPp.toFixed(2)} PP/h
+                                  </span>
+                                </div>
+
+                                {/* total pp/hr */}
+                                <div className="flex justify-between items-center py-0.5 text-slate-800 font-bold border-t border-slate-200/80 pt-0.5">
+                                  <span>Total PP/h:</span>
+                                  <span className="text-emerald-600">
+                                    +{hourlyOutputPp.toFixed(2)} PP/h
+                                    <span className="text-[9.5px] text-slate-400 font-normal ml-1">
+                                      ({dailyOutputPp.toFixed(1)} PP/day)
+                                    </span>
+                                  </span>
+                                </div>
+                              </div>
+                            )}
                           </div>
                         );
                       })}

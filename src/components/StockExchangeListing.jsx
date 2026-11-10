@@ -56,6 +56,9 @@ const PIPELINE_META = {
  * - Steak -> Blue gradient
  */
 export function getCompanyRowGradient(company) {
+  if (isCompanyDisabled(company)) {
+    return 'opacity-60 saturate-40 bg-slate-100/90 hover:opacity-85 border-b border-slate-300 text-slate-500 shadow-[inset_0_1px_2px_rgba(0,0,0,0.06)]';
+  }
   return getCompanyTheme(company).rowGradient;
 }
 
@@ -189,59 +192,27 @@ export default function StockExchangeListing({
     const sumCompanyWorkers = activeCompanies.reduce((sum, c) => sum + (c.enrichedWorkers?.length || c.employees?.length || c.workers?.length || 0), 0);
     const sumCompanyManagers = activeCompanies.reduce((sum, c) => sum + (c.hasManager ? 1 : 0), 0);
 
-    const totalWorkerWages = (typeof portfolioTotals?.totalWorkerWages === 'number')
-      ? portfolioTotals.totalWorkerWages
-      : sumCompanyWorkerExpense;
-
-    const totalManagerCost = (typeof portfolioTotals?.totalManagerCost === 'number')
-      ? portfolioTotals.totalManagerCost
-      : sumCompanyManagerExpense;
-
-    const totalBaseGrossRevenue = (typeof portfolioTotals?.totalBaseGrossRevenue === 'number' && portfolioTotals.totalBaseGrossRevenue > 0)
-      ? portfolioTotals.totalBaseGrossRevenue
-      : sumCompanyGrossRevenue;
-
-    const totalBaseLaborExpense = (typeof portfolioTotals?.totalBaseLaborExpense === 'number' && portfolioTotals.totalBaseLaborExpense > 0)
-      ? portfolioTotals.totalBaseLaborExpense
-      : (totalWorkerWages + totalManagerCost);
-
-    const totalBaseRawExpense = typeof portfolioTotals?.totalBaseRawExpense === 'number'
-      ? portfolioTotals.totalBaseRawExpense
-      : sumCompanyRawExpense;
-
-    const baseDailyProfit = (typeof portfolioTotals?.totalBaseNetProfit === 'number' && Math.abs(portfolioTotals.totalBaseNetProfit) > 0)
-      ? portfolioTotals.totalBaseNetProfit
-      : (totalBaseGrossRevenue - totalBaseLaborExpense - totalBaseRawExpense);
-
-    const totalBaseDailyUnits = (typeof portfolioTotals?.totalBaseProductionUnits === 'number' && portfolioTotals.totalBaseProductionUnits > 0)
-      ? portfolioTotals.totalBaseProductionUnits
-      : sumCompanyDailyUnits;
-
-    const totalCompanyProducedPp = (typeof portfolioTotals?.totalCompanyProducedPp === 'number' && portfolioTotals.totalCompanyProducedPp > 0)
-      ? portfolioTotals.totalCompanyProducedPp
-      : sumCompanyProducedPp;
-
-    const totalCompanyBasePp = (typeof portfolioTotals?.totalCompanyBasePp === 'number' && portfolioTotals.totalCompanyBasePp > 0)
-      ? portfolioTotals.totalCompanyBasePp
-      : sumCompanyBasePp;
-
+    const totalWorkerWages = sumCompanyWorkerExpense;
+    const totalManagerCost = sumCompanyManagerExpense;
+    const totalBaseGrossRevenue = sumCompanyGrossRevenue;
+    const totalBaseLaborExpense = sumCompanyLaborExpense;
+    const totalBaseRawExpense = sumCompanyRawExpense;
+    const baseDailyProfit = sumCompanyNetProfit;
+    const totalBaseDailyUnits = sumCompanyDailyUnits;
+    const totalCompanyProducedPp = sumCompanyProducedPp;
+    const totalCompanyBasePp = sumCompanyBasePp;
     const totalDailySelfWorkPp = 0;
     const totalInclusiveBasePp = totalCompanyProducedPp;
     const baseNetMarginPct = totalBaseGrossRevenue > 0 ? (baseDailyProfit / totalBaseGrossRevenue) * 100 : 0;
 
-    const totalRawBaseUnits = companies.filter(c => c.isRaw).reduce((sum, c) => sum + (c.baseUnits ?? 0), 0);
-    const totalFinishedBaseUnits = companies.filter(c => !c.isRaw).reduce((sum, c) => sum + (c.baseUnits ?? 0), 0);
+    const totalRawBaseUnits = activeCompanies.filter(c => c.isRaw).reduce((sum, c) => sum + (c.baseUnits ?? 0), 0);
+    const totalFinishedBaseUnits = activeCompanies.filter(c => !c.isRaw).reduce((sum, c) => sum + (c.baseUnits ?? 0), 0);
 
-    const total24hGrowthCoins = companies.reduce((sum, c) => sum + (c.growth24hCoins || 0), 0);
+    const total24hGrowthCoins = activeCompanies.reduce((sum, c) => sum + (c.growth24hCoins || 0), 0);
     const baselineValuation = Math.max(1, totalValuation - total24hGrowthCoins);
     const total24hGrowthPct = (total24hGrowthCoins / baselineValuation) * 100;
-    const totalWorkers = (typeof portfolioTotals?.totalEmployees === 'number' && portfolioTotals.totalEmployees > 0)
-      ? portfolioTotals.totalEmployees
-      : sumCompanyWorkers;
-
-    const totalManagers = (typeof portfolioTotals?.totalManagers === 'number')
-      ? portfolioTotals.totalManagers
-      : sumCompanyManagers;
+    const totalWorkers = sumCompanyWorkers;
+    const totalManagers = sumCompanyManagers;
 
     return {
       totalValuation,
@@ -359,15 +330,19 @@ export default function StockExchangeListing({
   // Live Portfolio Net Worth & Breakdown (matches authoritative in-game wealth stats and live updates with yield/prices)
   const wealth = user?.stats?.wealth || dossier?.user?.stats?.wealth || {};
 
+  const activeCompanies = useMemo(() => companies.filter(c => !isCompanyDisabled(c)), [companies]);
+  const disabledCompanies = useMemo(() => companies.filter(c => isCompanyDisabled(c)), [companies]);
+  const maxCompanySlots = user?.skills?.companies?.total ?? user?.skills?.companies?.value ?? activeCompanies.length;
+
   // 1. Industrial Facilities: Authoritative game valuation of companies + live storage yield
   const syncCompaniesVal = typeof wealth.companies === 'number' && wealth.companies > 0
     ? wealth.companies
     : companies.reduce((sum, c) => sum + (c.estimatedValue || c.totalCalculatedWorth || 0), 0);
 
-  // Live yield accumulation across all facilities since sync
+  // Live yield accumulation across active facilities since sync
   const liveStoredYieldVal = useMemo(() => {
-    return companies.reduce((sum, c) => sum + (c.uncollectedValueCoins || 0), 0);
-  }, [companies]);
+    return activeCompanies.reduce((sum, c) => sum + (c.uncollectedValueCoins || 0), 0);
+  }, [activeCompanies]);
 
   const liveFacilitiesVal = syncCompaniesVal + liveStoredYieldVal;
 
@@ -485,7 +460,7 @@ export default function StockExchangeListing({
     const total = liveTotalNetWorth > 0 ? liveTotalNetWorth : 1;
     const items = [
       { 
-        label: `Companies (${companies.length} facilities)`, 
+        label: `Companies (${activeCompanies.length}/${maxCompanySlots})`, 
         value: liveFacilitiesVal,
         sharePct: (liveFacilitiesVal / total) * 100
       },
@@ -756,12 +731,19 @@ export default function StockExchangeListing({
                 Breakdown <ExternalLink className="w-2.5 h-2.5" />
               </span>
             </div>
-            <div className="text-base sm:text-lg font-black font-mono text-slate-900">
-              {companies.length} <span className="text-[10px] font-normal text-slate-400">Facilities</span>
+            <div className="text-base sm:text-lg font-black font-mono text-slate-900 flex items-baseline gap-1.5">
+              <span>{activeCompanies.length}/{maxCompanySlots}</span>
+              <span className="text-[10px] font-normal text-slate-500">Companies</span>
             </div>
             <div className="text-[10px] text-slate-500 font-sans flex items-center justify-between">
               <span>Enterprises</span>
-              <span className="text-emerald-700 font-bold font-mono">100% active</span>
+              {disabledCompanies.length > 0 ? (
+                <span className="text-slate-600 font-bold font-mono flex items-center gap-1">
+                  <span>💔 {disabledCompanies.length} disabled</span>
+                </span>
+              ) : (
+                <span className="text-emerald-700 font-bold font-mono">100% active</span>
+              )}
             </div>
           </div>
 
@@ -824,8 +806,13 @@ export default function StockExchangeListing({
         {/* Table Controls & Mobile Scroll Hint Bar */}
         <div className="px-3 sm:px-4 py-2.5 bg-slate-50 border-b border-slate-200/80 flex items-center justify-between gap-2 flex-wrap">
           <div className="flex items-center gap-2">
-            <span className="text-xs font-black uppercase tracking-wider text-slate-800 font-sans">
-              Enterprises & Facilities ({filteredCompanies.length})
+            <span className="text-xs font-black uppercase tracking-wider text-slate-800 font-sans flex items-center gap-1.5">
+              <span>Enterprises & Facilities ({activeCompanies.length}/{maxCompanySlots})</span>
+              {disabledCompanies.length > 0 && (
+                <span className="text-[10px] font-mono font-normal text-slate-500">
+                  • 💔 {disabledCompanies.length} disabled
+                </span>
+              )}
             </span>
             <span className="hidden sm:inline-block text-[11px] font-mono text-slate-400">
               • Operational balance sheet
@@ -910,6 +897,7 @@ export default function StockExchangeListing({
                   const yieldWorth = c.uncollectedValueCoins || 0;
                   const totalWorth = baseWorth + yieldWorth;
 
+                  const disabled = isCompanyDisabled(c);
                   const sharePct = liveFacilitiesVal > 0 ? (totalWorth / liveFacilitiesVal) * 100 : 0;
 
                   return (
@@ -931,12 +919,13 @@ export default function StockExchangeListing({
                           </div>
                           <div className="min-w-0">
                             <div className="flex items-center space-x-1.5">
-                              <span className="font-extrabold text-slate-900 group-hover:text-blue-700 transition font-sans text-sm truncate">
-                                {c.name}
+                              <span className={`font-extrabold group-hover:text-blue-700 transition font-sans text-sm truncate flex items-center gap-1.5 ${disabled ? 'text-slate-700' : 'text-slate-900'}`}>
+                                {disabled && <span className="text-xs shrink-0 select-none" title="Disabled Facility">💔</span>}
+                                <span>{c.name}</span>
                               </span>
-                              {isCompanyDisabled(c) && (
-                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-rose-50 border border-rose-300 text-rose-700 text-[9px] font-mono font-bold uppercase rounded shrink-0" title="Company Disabled">
-                                  <AlertTriangle className="w-3 h-3 text-rose-600 shrink-0" />
+                              {disabled && (
+                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-slate-200 border border-slate-300 text-slate-800 text-[9px] font-mono font-bold uppercase rounded shrink-0 shadow-2xs" title="Company Disabled">
+                                  <span>💔</span>
                                   <span>Disabled</span>
                                 </span>
                               )}
@@ -971,41 +960,65 @@ export default function StockExchangeListing({
                       </td>
 
                       {/* Daily PP (24h) */}
-                      <td className="py-3.5 px-3 text-right whitespace-nowrap font-bold text-slate-900 font-mono">
-                        {c.companyProducedDailyPp.toFixed(1)}
+                      <td className="py-3.5 px-3 text-right whitespace-nowrap font-bold font-mono">
+                        {disabled ? (
+                          <span className="text-slate-400 font-normal font-mono" title={`Disabled facility: 0.0 PP operational output (${c.companyProducedDailyPp.toFixed(1)} PP when active)`}>0.0</span>
+                        ) : (
+                          <span className="text-slate-900">{c.companyProducedDailyPp.toFixed(1)}</span>
+                        )}
                       </td>
 
                       {/* Daily Output Yield */}
-                      <td className="py-3.5 px-3 text-right whitespace-nowrap font-bold text-slate-800 font-mono">
-                        {(c.baseUnits !== undefined ? c.baseUnits : (c.unitsPerDay || 0)).toFixed(1)}
+                      <td className="py-3.5 px-3 text-right whitespace-nowrap font-bold font-mono">
+                        {disabled ? (
+                          <span className="text-slate-400 font-normal font-mono" title="Disabled facility: 0.0 units/day operational output">0.0</span>
+                        ) : (
+                          <span className="text-slate-800">{(c.baseUnits !== undefined ? c.baseUnits : (c.unitsPerDay || 0)).toFixed(1)}</span>
+                        )}
                       </td>
 
                       {/* Daily Gross Revenue */}
-                      <td className={`py-3.5 px-3 text-right whitespace-nowrap font-bold font-mono ${
-                        (c.grossRevenue ?? 0) > 0 ? 'text-emerald-600' : (c.grossRevenue ?? 0) < 0 ? 'text-red-600' : 'text-blue-600'
-                      }`}>
-                        {(c.grossRevenue ?? 0) > 0 ? '+' : ''}{(c.grossRevenue ?? 0).toFixed(2)}
+                      <td className="py-3.5 px-3 text-right whitespace-nowrap font-bold font-mono">
+                        {disabled ? (
+                          <span className="text-slate-400 font-normal font-mono">0.00</span>
+                        ) : (
+                          <span className={(c.grossRevenue ?? 0) > 0 ? 'text-emerald-600' : (c.grossRevenue ?? 0) < 0 ? 'text-red-600' : 'text-blue-600'}>
+                            {(c.grossRevenue ?? 0) > 0 ? '+' : ''}{(c.grossRevenue ?? 0).toFixed(2)}
+                          </span>
+                        )}
                       </td>
 
                       {/* Base Salaries Paid Out */}
                       <td className="py-3.5 px-3 text-right whitespace-nowrap font-mono">
-                        <span className={`font-bold ${(c.dailyLaborExpense || 0) > 0 ? 'text-red-500' : 'text-blue-500'}`}>
-                          {(c.dailyLaborExpense || 0) > 0 ? `-${c.dailyLaborExpense.toFixed(2)}` : '0.00'}
-                        </span>
+                        {disabled ? (
+                          <span className="text-slate-400 font-normal font-mono">0.00</span>
+                        ) : (
+                          <span className={`font-bold ${(c.dailyLaborExpense || 0) > 0 ? 'text-red-500' : 'text-blue-500'}`}>
+                            {(c.dailyLaborExpense || 0) > 0 ? `-${c.dailyLaborExpense.toFixed(2)}` : '0.00'}
+                          </span>
+                        )}
                       </td>
 
                       {/* Net Daily Profit */}
                       <td className="py-3.5 px-3 text-right whitespace-nowrap font-mono">
-                        <span className={`font-bold ${baseIncome > 0 ? 'text-emerald-500' : baseIncome < 0 ? 'text-red-500' : 'text-blue-500'}`}>
-                          {baseIncome >= 0 ? '+' : ''}{baseIncome.toFixed(2)}
-                        </span>
+                        {disabled ? (
+                          <span className="text-slate-400 font-normal font-mono">0.00</span>
+                        ) : (
+                          <span className={`font-bold ${baseIncome > 0 ? 'text-emerald-500' : baseIncome < 0 ? 'text-red-500' : 'text-blue-500'}`}>
+                            {baseIncome >= 0 ? '+' : ''}{baseIncome.toFixed(2)}
+                          </span>
+                        )}
                       </td>
 
                       {/* Margin Column */}
                       <td className="py-3.5 px-3 text-right whitespace-nowrap font-mono">
-                        <span className={`font-bold ${(c.baseNetMarginPct ?? 0) > 0 ? 'text-emerald-600' : (c.baseNetMarginPct ?? 0) < 0 ? 'text-red-500' : 'text-slate-500'}`}>
-                          {typeof c.baseNetMarginPct === 'number' ? `${c.baseNetMarginPct.toFixed(1)}%` : '—'}
-                        </span>
+                        {disabled ? (
+                          <span className="text-slate-400 font-normal font-mono">—</span>
+                        ) : (
+                          <span className={`font-bold ${(c.baseNetMarginPct ?? 0) > 0 ? 'text-emerald-600' : (c.baseNetMarginPct ?? 0) < 0 ? 'text-red-500' : 'text-slate-500'}`}>
+                            {typeof c.baseNetMarginPct === 'number' ? `${c.baseNetMarginPct.toFixed(1)}%` : '—'}
+                          </span>
+                        )}
                       </td>
 
                       {/* Storage / Capacity Progress */}
@@ -1108,7 +1121,7 @@ export default function StockExchangeListing({
                   Widescreen Market Listing Board
                 </h3>
                 <span className="text-[11px] font-mono text-slate-400">
-                  {filteredCompanies.length} Companies • Full spreadsheet landscape view
+                  {activeCompanies.length}/{maxCompanySlots} Active Companies {disabledCompanies.length > 0 ? `(${disabledCompanies.length} disabled 💔)` : ''} • Full spreadsheet landscape view
                 </span>
               </div>
             </div>
@@ -1152,6 +1165,7 @@ export default function StockExchangeListing({
               </thead>
               <tbody className="font-mono">
                 {filteredCompanies.map((c, idx) => {
+                  const disabled = isCompanyDisabled(c);
                   const baseIncome = c.baseNetProfit !== undefined ? c.baseNetProfit : (c.dailyNetProfit || 0);
                   const concretePrice = prices.concrete || 1.703;
                   const steelPrice = prices.steel || 1.725;
@@ -1186,12 +1200,13 @@ export default function StockExchangeListing({
                           </div>
                           <div className="min-w-0">
                             <div className="flex items-center space-x-1.5">
-                              <span className="font-extrabold text-slate-900 group-hover:text-blue-700 transition font-sans text-sm truncate">
-                                {c.name}
+                              <span className={`font-extrabold group-hover:text-blue-700 transition font-sans text-sm truncate flex items-center gap-1.5 ${disabled ? 'text-slate-700' : 'text-slate-900'}`}>
+                                {disabled && <span className="text-xs shrink-0 select-none" title="Disabled Facility">💔</span>}
+                                <span>{c.name}</span>
                               </span>
-                              {isCompanyDisabled(c) && (
-                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-rose-50 border border-rose-300 text-rose-700 text-[9px] font-mono font-bold uppercase rounded shrink-0">
-                                  <AlertTriangle className="w-3 h-3 text-rose-600 shrink-0" />
+                              {disabled && (
+                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-slate-200 border border-slate-300 text-slate-800 text-[9px] font-mono font-bold uppercase rounded shrink-0 shadow-2xs" title="Company Disabled">
+                                  <span>💔</span>
                                   <span>Disabled</span>
                                 </span>
                               )}
@@ -1220,27 +1235,53 @@ export default function StockExchangeListing({
                       <td className="py-3.5 px-3 text-center text-slate-600 whitespace-nowrap font-mono text-xs">
                         Lv.{c.engineLevel || 1} / Lv.{c.storageLevel || 1}
                       </td>
-                      <td className="py-3.5 px-3 text-right whitespace-nowrap font-bold text-slate-900 font-mono">
-                        {c.companyProducedDailyPp.toFixed(1)}
+                      <td className="py-3.5 px-3 text-right whitespace-nowrap font-bold font-mono">
+                        {disabled ? (
+                          <span className="text-slate-400 font-normal font-mono" title={`Disabled facility: 0.0 PP operational output (${c.companyProducedDailyPp.toFixed(1)} PP when active)`}>0.0</span>
+                        ) : (
+                          <span className="text-slate-900">{c.companyProducedDailyPp.toFixed(1)}</span>
+                        )}
                       </td>
-                      <td className="py-3.5 px-3 text-right whitespace-nowrap font-bold text-slate-800 font-mono">
-                        {(c.baseUnits !== undefined ? c.baseUnits : (c.unitsPerDay || 0)).toFixed(1)}
+                      <td className="py-3.5 px-3 text-right whitespace-nowrap font-bold font-mono">
+                        {disabled ? (
+                          <span className="text-slate-400 font-normal font-mono" title="Disabled facility: 0.0 units/day operational output">0.0</span>
+                        ) : (
+                          <span className="text-slate-800">{(c.baseUnits !== undefined ? c.baseUnits : (c.unitsPerDay || 0)).toFixed(1)}</span>
+                        )}
                       </td>
                       <td className={`py-3.5 px-3 text-right whitespace-nowrap font-bold font-mono ${
                         (c.grossRevenue ?? 0) > 0 ? 'text-emerald-600' : (c.grossRevenue ?? 0) < 0 ? 'text-red-600' : 'text-blue-600'
                       }`}>
-                        {(c.grossRevenue ?? 0) > 0 ? '+' : ''}{(c.grossRevenue ?? 0).toFixed(2)}
-                      </td>
-                      <td className="py-3.5 px-3 text-right whitespace-nowrap font-mono text-slate-700">
-                        -{((c.workersDailyWages || 0) + (c.managerPay || 0)).toFixed(2)}
+                        {disabled ? (
+                          <span className="text-slate-400 font-normal font-mono">0.00</span>
+                        ) : (
+                          <span>{(c.grossRevenue ?? 0) > 0 ? '+' : ''}{(c.grossRevenue ?? 0).toFixed(2)}</span>
+                        )}
                       </td>
                       <td className="py-3.5 px-3 text-right whitespace-nowrap font-mono">
-                        <span className={`font-bold ${baseIncome > 0 ? 'text-emerald-500' : baseIncome < 0 ? 'text-red-500' : 'text-blue-500'}`}>
-                          {baseIncome >= 0 ? '+' : ''}{baseIncome.toFixed(2)}
-                        </span>
+                        {disabled ? (
+                          <span className="text-slate-400 font-normal font-mono">0.00</span>
+                        ) : (
+                          <span className={`font-bold ${(c.dailyLaborExpense || 0) > 0 ? 'text-red-500' : 'text-blue-500'}`}>
+                            {(c.dailyLaborExpense || 0) > 0 ? `-${c.dailyLaborExpense.toFixed(2)}` : '0.00'}
+                          </span>
+                        )}
+                      </td>
+                      <td className="py-3.5 px-3 text-right whitespace-nowrap font-mono">
+                        {disabled ? (
+                          <span className="text-slate-400 font-normal font-mono">0.00</span>
+                        ) : (
+                          <span className={`font-bold ${baseIncome > 0 ? 'text-emerald-500' : baseIncome < 0 ? 'text-red-500' : 'text-blue-500'}`}>
+                            {baseIncome >= 0 ? '+' : ''}{baseIncome.toFixed(2)}
+                          </span>
+                        )}
                       </td>
                       <td className="py-3.5 px-3 text-right whitespace-nowrap font-mono font-bold text-slate-700">
-                        {c.baseNetMarginPct !== undefined ? `${c.baseNetMarginPct.toFixed(1)}%` : '0.0%'}
+                        {disabled ? (
+                          <span className="text-slate-400 font-normal font-mono">—</span>
+                        ) : (
+                          <span>{c.baseNetMarginPct !== undefined ? `${c.baseNetMarginPct.toFixed(1)}%` : '0.0%'}</span>
+                        )}
                       </td>
                       <td className="py-3.5 px-3 text-center whitespace-nowrap">
                         <div className="w-full max-w-[100px] mx-auto space-y-1">
